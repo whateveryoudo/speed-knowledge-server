@@ -1,0 +1,261 @@
+# Backend Development Rules - Multi-Stack Support
+
+## 通用规则
+
+### 代码质量
+- 编写清晰、可维护的代码
+- 遵循 SOLID 原则
+- 使用有意义的变量和函数命名
+- 添加必要的注释和文档
+- 实施错误处理和日志记录
+- 编写单元测试和集成测试
+
+### 说明
+个人是前端开发，此项目更多的是学习方式，在你给出答案的时候尽量采用回答方式，而不是直接插入代码，（尽量给出express的比较说明）
+整个项目请按照mysql作为数据库
+
+### API 设计
+- 遵循 RESTful API 设计原则
+- 使用合适的 HTTP 状态码
+- 实现统一的响应格式
+- 提供清晰的错误信息
+- 实现请求验证和数据校验
+- 添加 API 文档（Swagger/OpenAPI）
+
+### 安全性
+- 实施身份认证和授权
+- 使用环境变量管理敏感信息
+- 防止常见安全漏洞（SQL注入、XSS等）
+- 实现请求限流
+- 使用 HTTPS
+- 对敏感数据加密
+
+### 性能
+- 实现数据库查询优化
+- 使用缓存策略（Redis等）
+- 实现分页和数据过滤
+- 异步处理长时间任务
+- 监控和日志记录
+
+---
+
+## Node.js + NestJS 规则
+
+### 项目结构
+```
+src/
+├── modules/          # 功能模块
+│   ├── user/
+│   │   ├── user.controller.ts
+│   │   ├── user.service.ts
+│   │   ├── user.module.ts
+│   │   ├── dto/
+│   │   └── entities/
+├── common/           # 公共模块
+│   ├── decorators/
+│   ├── guards/
+│   ├── interceptors/
+│   ├── filters/
+│   └── pipes/
+├── config/           # 配置
+├── database/         # 数据库
+└── main.ts
+```
+
+### 编码规范
+- 使用 TypeScript 严格模式
+- 遵循依赖注入原则
+- 使用装饰器进行元数据配置
+- DTO 类使用 class-validator 进行验证
+- 使用 class-transformer 进行数据转换
+- 使用 TypeORM 或 Prisma 作为 ORM
+- 实现全局异常过滤器
+- 使用管道进行数据验证和转换
+- 使用守卫进行权限控制
+- 使用拦截器进行响应转换
+
+### 命名约定
+- 文件名使用 kebab-case: `user.controller.ts`
+- 类名使用 PascalCase: `UserController`
+- 方法名使用 camelCase: `getUserById()`
+- 常量使用 UPPER_SNAKE_CASE: `MAX_RETRY_COUNT`
+
+### 依赖管理
+- 使用 pnpm 或 yarn 作为包管理器
+- 锁定依赖版本
+- 定期更新依赖
+
+---
+
+## Python + FastAPI 规则
+
+### 项目结构
+```
+app/
+├── api/              # API 路由
+│   ├── v1/
+│   │   ├── endpoints/
+│   │   │   ├── user.py
+│   │   │   └── auth.py
+│   │   └── api.py
+├── core/             # 核心配置
+│   ├── config.py
+│   ├── security.py
+│   └── deps.py
+├── models/           # 数据模型
+├── schemas/          # Pydantic schemas
+├── services/         # 业务逻辑
+├── db/               # 数据库
+│   ├── base.py
+│   └── session.py
+└── main.py
+```
+
+### 编码规范
+- 使用 Python 3.10+ 类型提示
+- 使用 Pydantic 进行数据验证
+- 遵循 PEP 8 编码规范
+- 使用 SQLAlchemy 2.0+ 作为 ORM
+- 使用异步编程（async/await）
+- 实现依赖注入
+- 使用 Alembic 进行数据库迁移
+- 配置 CORS 中间件
+- 实现异常处理器
+
+### 命名约定
+- 文件名使用 snake_case: `user_service.py`
+- 类名使用 PascalCase: `UserService`
+- 函数名使用 snake_case: `get_user_by_id()`
+- 常量使用 UPPER_SNAKE_CASE: `MAX_RETRY_COUNT`
+
+### 依赖管理
+- 使用 Poetry 或 pip + requirements.txt
+- 使用虚拟环境（venv）
+- 锁定依赖版本
+
+### 工具推荐
+- 格式化: black, isort
+- 类型检查: mypy
+- 代码质量: pylint, flake8
+- 测试: pytest
+
+---
+
+## Go + Gin 规则
+
+### 项目结构
+```
+.
+├── cmd/              # 应用入口
+│   └── server/
+│       └── main.go
+├── internal/         # 私有代码
+│   ├── handlers/     # HTTP 处理器
+│   ├── services/     # 业务逻辑
+│   ├── models/       # 数据模型
+│   ├── repository/   # 数据访问层
+│   ├── middleware/   # 中间件
+│   └── config/       # 配置
+├── pkg/              # 公共库
+├── api/              # API 定义
+└── go.mod
+```
+
+### 编码规范
+- 遵循 Go 官方代码规范
+- 使用 gofmt 格式化代码
+- 实现接口抽象
+- 使用 context 传递请求上下文
+- 错误处理使用 error 类型
+- 使用 GORM 作为 ORM
+- 实现中间件（认证、日志、恢复等）
+- 使用结构体标签进行验证（validator）
+- 实现优雅关闭
+
+### 命名约定
+- 文件名使用 snake_case: `user_handler.go`
+- 包名使用小写单词: `package user`
+- 导出标识符使用 PascalCase: `UserHandler`
+- 私有标识符使用 camelCase: `getUserByID()`
+- 常量使用 PascalCase 或 camelCase
+
+### 依赖管理
+- 使用 Go Modules
+- 定期执行 `go mod tidy`
+
+### 工具推荐
+- 格式化: gofmt, goimports
+- 代码质量: golangci-lint
+- 测试: go test
+- 热重载: air
+
+---
+
+## 数据库建议
+
+### 关系型数据库
+- PostgreSQL（推荐）
+- MySQL
+
+### 缓存
+- Redis
+
+### 消息队列
+- RabbitMQ
+- Kafka
+
+---
+
+## Docker 容器化
+
+每个服务都应提供 Dockerfile 和 docker-compose.yml：
+- 使用多阶段构建减小镜像体积
+- 使用非 root 用户运行应用
+- 合理配置环境变量
+- 实现健康检查
+
+---
+
+## 文档要求
+
+### README.md 应包含：
+- 项目简介
+- 技术栈
+- 快速开始
+- API 文档链接
+- 开发指南
+- 部署说明
+
+### API 文档：
+- NestJS: 使用 @nestjs/swagger
+- FastAPI: 自动生成 OpenAPI 文档
+- Gin: 使用 swaggo/swag
+
+---
+
+## 环境配置
+
+### 环境变量文件
+```
+.env.development
+.env.production
+.env.test
+```
+
+### 必要配置项
+- 数据库连接
+- Redis 连接
+- JWT 密钥
+- 端口配置
+- 日志级别
+- CORS 配置
+
+---
+
+## Git 工作流
+
+- 使用语义化提交信息
+- 功能开发使用 feature 分支
+- 代码审查后合并到主分支
+- 使用 .gitignore 忽略不必要的文件
+
