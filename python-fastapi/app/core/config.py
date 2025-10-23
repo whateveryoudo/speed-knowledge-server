@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     # 数据库
     DATABASE_URL: str
 
+    # Redis配置
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD:str = ""
+    REDIS_DECODE_RESPONSES: bool = True
+
     # 安全 
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

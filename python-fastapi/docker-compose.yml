@@ -1,24 +1,35 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: fastapi-postgres
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: speed-editor-db  # 用相同的名字
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_DATABASE: speed-knowledge
+  #     MYSQL_ROOT_PASSWORD: onemoretime123.
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql  # 指向原来的 volume
+  #   command: --default-authentication-plugin=mysql_native_password
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ponemoretime123."]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  # # 添加Redis服务
+  redis: 
+    image: redis:7-alpine
+    container_name: fastapi-redis
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: fastapi_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "6379:6379"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
+      retries: 3
   app:
     build:
       context: .
@@ -32,12 +43,15 @@ services:
       ENVIRONMENT: production
       DEBUG: "False"
       PORT: 8000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/fastapi_db
-      SECRET_KEY: your-secret-key-change-this-in-production-min-32-characters
+      DATABASE_URL: mysql+pymysql://root:onemoretime123.@mysql:3306/speed-knowledge
+      SECRET_KEY: fa44273b1571628e36b527acabe1c06d796fad30cbb4ac40c93fdb10a30bb90f
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -46,5 +60,5 @@ services:
       retries: 3
 
 volumes:
-  postgres_data:
+  redis-data:
 

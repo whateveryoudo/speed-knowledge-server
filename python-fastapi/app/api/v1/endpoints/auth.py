@@ -1,11 +1,20 @@
 """认证端点"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.deps import get_db
 from app.core.security import create_access_token
 from app.schemas.user import Token
 from app.services.user_service import UserService
+from captcha.image import ImageCaptcha
+import random
+import redis
+import string
+import io
+import uuid
+
+from app.core.redis_client import get_redis
 
 router = APIRouter()
 
@@ -35,6 +44,33 @@ async def login(
 
 
 @router.get("/getverificateCode")
-async def getverificateCode():
-    """验证码获取"""
+async def getverificateCode(redis_client:redis.Redis=Depends(get_redis)):
+    """获取图形验证码"""
+    # 生成4位随机验证码
+    captcha_txt = ''.join(random.choices(string.ascii_uppercase + string.digits, k = 4));
+
+    image = ImageCaptcha(width=160, height=60);
+
+    data_stream = image.generate(captcha_txt);
+
+    captcha_id = str(uuid.uuid4())
+
+    # 将验证码信息存入Redis（5分钟过期）
+    redis_key = f"captcha:{captcha_id}"
+    print(f"redis_key:{redis_key}")
+    redis_client.setex(name=redis_key,time=300,value=captcha_txt.lower())
+
+    print(f"[验证码] ID:{captcha_id},文本: {captcha_txt}")
+
+    # 返回流信息
+
+    return StreamingResponse(
+        io.BytesIO(data_stream.getvalue()),
+        media_type="image/png",
+        headers={
+            "capcha-key": "some-unique-id"
+        }
+    )
+
+    
 
