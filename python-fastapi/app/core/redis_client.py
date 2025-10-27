@@ -1,6 +1,6 @@
 """Redis 客户端"""
-import redis
 from typing import Optional
+import redis
 from app.core.config import settings
 
 class RedisClient:
@@ -22,7 +22,7 @@ class RedisClient:
         return cls._instance
 
     @classmethod
-    def close(cls):
+    def close(cls) -> None:
         """关闭 Redis 连接"""
         if cls._instance:
             cls._instance.close()
@@ -31,6 +31,4 @@ class RedisClient:
 
 def get_redis() -> redis.Redis:
     """获取 Redis 客户端"""
-    return RedisClient.get_client();
-
-
+    return RedisClient.get_client()
