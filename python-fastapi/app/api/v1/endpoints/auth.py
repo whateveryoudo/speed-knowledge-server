@@ -1,4 +1,6 @@
 from fastapi import APIRouter,Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 import random
 import string
 import io
@@ -7,8 +9,15 @@ import redis
 from captcha.image import ImageCaptcha
 from fastapi.responses import StreamingResponse
 from app.core.redis_client import get_redis
+from app.schemas.user import Token
+from app.core.deps import get_db
 
 router = APIRouter()
+
+@router.post("/login",response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db:Session = Depends(get_db) ):
+    """用户登录"""
+    
 
 
 @router.get("/getverificate-code")

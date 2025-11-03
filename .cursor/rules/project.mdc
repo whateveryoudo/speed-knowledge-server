@@ -1,6 +1,6 @@
-# Backend Development Rules - Multi-Stack Support
-
-## 通用规则
+---
+alwaysApply: true
+---
 
 ### 代码质量
 - 编写清晰、可维护的代码
@@ -260,4 +260,3 @@ app/
 - 功能开发使用 feature 分支
 - 代码审查后合并到主分支
 - 使用 .gitignore 忽略不必要的文件
-
