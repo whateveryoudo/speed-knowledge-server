@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from datetime import datetime
+from typing import Optional
+
 
 class Token(BaseModel):
     """令牌结构"""
@@ -7,12 +9,25 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+# 图形验证码响应结构
+class CaptchaResponse(BaseModel):
+    """图形验证码响应体
+
+    Args:
+        BaseModel (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    captcha_id: str = Field(...,description="验证码ID，用于校验")
+    captcha_image:str = Field(...,description="图片base64")
 
 class UserBase(BaseModel):
     """用户基础类"""
 
     email: str
-    name: str = Field(..., min_length=1, max_length=100)
+    username: str = Field(..., min_length=3, max_length=50, description="用户名，用于登录")
+    nickname: Optional[str] = Field(None, max_length=100, description="昵称，可选")
 
 class UserResponse(UserBase):
     """用户响应体

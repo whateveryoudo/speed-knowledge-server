@@ -20,5 +20,9 @@ class Settings(BaseSettings):
     # 数据库配置
     DATABASE_URL:str = "mysql+pymysql://root:onemoretime123.@localhost:3306/speed-knowledge"
 
+    # jwt 
+    SECRET_KEY:str='fa44273b1571628e36b527acabe1c06d796fad30cbb4ac40c93fdb10a30bb90f'
+    ALGORITHM:str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
 settings = Settings()

@@ -1,19 +1,24 @@
 """认证端点"""
+
 import random
 import string
 import io
+from turtle import forward
 import uuid
+from click.core import F
 import redis
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.deps import get_db
 from app.core.redis_client import get_redis
 from app.core.security import create_access_token
-from app.schemas.user import Token
+from app.schemas.user import Token, CaptchaResponse
 from app.services.user_service import UserService
 from captcha.image import ImageCaptcha
+import base64
+
 
 router = APIRouter()
 
@@ -42,12 +47,19 @@ async def login(
     }
 
 
-@router.get("/getverificateCode")
-async def getverificate_code(redis_client: redis.Redis = Depends(get_redis)):
+@router.get("/getverificateCode", response_model=CaptchaResponse)
+async def getverificate_code(
+    request: Request, redis_client: redis.Redis = Depends(get_redis)
+) -> CaptchaResponse:
     """获取图形验证码"""
+    client_ip = request.client.host
+    # 是否有代理
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+
     # 生成4位随机验证码
-    captcha_txt = ''.join(random.choices(
-        string.ascii_uppercase + string.digits, k=4))
+    captcha_txt = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
     image = ImageCaptcha(width=160, height=60)
 
@@ -56,18 +68,24 @@ async def getverificate_code(redis_client: redis.Redis = Depends(get_redis)):
     captcha_id = str(uuid.uuid4())
 
     # 将验证码信息存入Redis（5分钟过期）
-    redis_key = f"captcha:{captcha_id}"
-    print(f"redis_key:{redis_key}")
-    redis_client.setex(name=redis_key, time=300, value=captcha_txt.lower())
-
+    captcha_key = f"captcha:{captcha_id}"
+    captcha_ip_key = f"captcha_ip:{captcha_id}"
+    print(f"redis_key:{captcha_key}")
+    redis_client.setex(name=captcha_key, time=300, value=captcha_txt.lower())
+    # 存储绑定关系
+    redis_client.setex(name=captcha_ip_key, time=300, value=client_ip)
     print(f"[验证码] ID:{captcha_id},文本: {captcha_txt}")
 
     # 返回流信息
+    image_bytes = data_stream.getvalue()
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    return CaptchaResponse(captcha_id=captcha_id, captcha_image=image_base64)
 
-    return StreamingResponse(
-        io.BytesIO(data_stream.getvalue()),
-        media_type="image/png",
-        headers={
-            "capcha-key": "some-unique-id"
-        }
-    )
+    # return StreamingResponse(
+    #     io.BytesIO(data_stream.getvalue()),
+    #     media_type="image/png",
+    #     headers={
+    #         "capcha-key": "some-unique-id"
+    #     }
+    # )
+

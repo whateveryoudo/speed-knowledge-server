@@ -22,9 +22,15 @@ async def create_user(user_in: UserCreate,db: Session = Depends(get_db)) -> User
     """
     
     user_service = UserService(db)
+    # 检查邮箱是否已注册
     existing_user = user_service.get_by_email(user_in.email)
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail = "该邮箱已注册")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该邮箱已注册")
+    
+    # 检查用户名是否已存在
+    existing_user = user_service.get_by_username(user_in.username)
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该用户名已被使用")
 
     return user_service.create(user_in)
 

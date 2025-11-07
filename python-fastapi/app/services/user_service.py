@@ -24,7 +24,12 @@ class UserService:
             User: 用户
         """
         hashed_password = get_password_hash(user_in.password)
-        user = User(email = user_in.email, password = hashed_password,name=user_in.name)
+        user = User(
+            email=user_in.email,
+            username=user_in.username,
+            password=hashed_password,
+            nickname=user_in.nickname
+        )
 
         self.db.add(user)
         self.db.commit()
@@ -32,7 +37,7 @@ class UserService:
         return user
         
 
-    def get_by_email(self,email:str) -> Optional[User]:
+    def get_by_email(self, email: str) -> Optional[User]:
         """根据email查询用户
 
         Args:
@@ -43,17 +48,44 @@ class UserService:
         """
         return self.db.query(User).filter(User.email == email).first()
 
-    def authenticate(self,email:str,password: str) -> User:
-        """用户验证
+    def get_by_username(self, username: str) -> Optional[User]:
+        """根据username查询用户
 
         Args:
-            email (str): 邮箱
+            username (str): 用户名
+
+        Returns:
+            Optional[User]: 用户
+        """
+        return self.db.query(User).filter(User.username == username).first()
+
+    def get_by_email_or_username(self, identifier: str) -> Optional[User]:
+        """根据邮箱或用户名查询用户
+
+        Args:
+            identifier (str): 邮箱或用户名
+
+        Returns:
+            Optional[User]: 用户
+        """
+        # 先尝试按邮箱查询
+        user = self.get_by_email(identifier)
+        if user:
+            return user
+        # 再尝试按用户名查询
+        return self.get_by_username(identifier)
+
+    def authenticate(self, identifier: str, password: str) -> Optional[User]:
+        """用户验证，支持邮箱或用户名登录
+
+        Args:
+            identifier (str): 邮箱或用户名
             password (str): 密码
 
         Returns:
-            User: 用户
+            Optional[User]: 用户，验证失败返回None
         """
-        user = self.get_by_email(email)
+        user = self.get_by_email_or_username(identifier)
         if not user:
             return None
         if not verify_password(password, user.password):
