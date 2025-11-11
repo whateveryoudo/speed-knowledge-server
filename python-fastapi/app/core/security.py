@@ -28,6 +28,7 @@ def verify_password(plain_password: str, hased_password: str) -> bool:
 
 def get_password_hash(plain_passord: str) -> str:
     """密码hash处理"""
+    print(plain_passord)
     return pwd_context.hash(plain_passord)
 
 
@@ -60,9 +61,11 @@ def verify_captcha(
         client_ip (str): _description_
         redis_client (redis.Redis): _description_
     """
-    captcha_key = f"captcha:{captcha_id}"
-    captcha_ip_key = f"captcha_ip:{captcha_id}"
+    captcha_key = f"captcha_{captcha_id}"
+    captcha_ip_key = f"captcha_ip_{captcha_id}"
+
     stored_value = redis_client.getex(name=captcha_key)
+    print(captcha_ip_key,stored_value)
     if not stored_value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码不存在或已过期"
@@ -89,7 +92,6 @@ def verify_captcha(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误"
         )
 
-    redis_client.delete(name=captcha_key)
-    redis_client.delete(name=captcha_ip_key)
+    # redis_client.delete(captcha_key,captcha_ip_key)
 
     return True

@@ -86,18 +86,16 @@ async def response_wrapper_middleware(request: Request, call_next):
     """
     response = await call_next(request)
     # 跳过一些特殊路径
-    skip_paths = ["/api/docs", "/"]
-    if any(request.url.path.startswith(path) for path in skip_paths):
-        return response
-
-    # 跳过非json响应
-    if isinstance(response, StreamingResponse):
+    # 注意：不能对 "/" 使用 startswith，否则所有路径都会匹配
+    if request.url.path in {"/", "/api/v1/openapi.json"} or request.url.path.startswith("/api/docs"):
         return response
 
     if response.status_code >= 400:
         return response
 
-    if isinstance(response, JSONResponse):
+    # 仅对 JSON 响应做统一包装；其余类型（如文件流）直接透传
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type:
         try:
             body = b""
             async for chunk in response.body_iterator:
@@ -105,16 +103,21 @@ async def response_wrapper_middleware(request: Request, call_next):
 
             response_data = json.loads(body.decode("utf-8"))
             if isinstance(response_data, dict) and "success" in response_data:
+                headers = dict(response.headers)
+                # 原 Content-Length 可能与新内容不符，删除让框架重算
+                headers.pop("content-length", None)
                 return JSONResponse(
                     status_code=response.status_code,
                     content=response_data,
-                    headers=dict(response.headers),
+                    headers=headers,
                 )
             wrapped_data = BaseResponse.success_reponse(data=response_data).model_dump()
+            headers = dict(response.headers)
+            headers.pop("content-length", None)
             return JSONResponse(
                 status_code=response.status_code,
                 content=wrapped_data,
-                headers=dict(response.headers),
+                headers=headers,
             )
 
         except (json.JSONDecodeError, UnicodeDecodeError):
