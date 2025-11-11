@@ -10,7 +10,7 @@ from datetime import timedelta, datetime
 from app.core.config import settings
 import redis
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"],  deprecated="auto")
 
 
 def verify_password(plain_password: str, hased_password: str) -> bool:

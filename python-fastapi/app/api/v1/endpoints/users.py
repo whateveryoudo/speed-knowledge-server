@@ -13,13 +13,13 @@ from app.core.redis_client import get_redis
 router = APIRouter()
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=int, status_code=status.HTTP_201_CREATED)
 async def create_user(
     request: Request,
     user_in: UserCreate,
     db: Session = Depends(get_db),
     redis_client: redis.Redis = Depends(get_redis),
-) -> str:
+) -> int:
     """创建用户
 
     Args:
@@ -27,7 +27,7 @@ async def create_user(
         db (Session, optional): _description_. Defaults to Depends(get_db).
 
     Returns:
-        User: 用户对象
+        int: 用户id
     """
     print(user_in)
     if verify_captcha(
