@@ -10,7 +10,7 @@ from datetime import timedelta, datetime
 from app.core.config import settings
 import redis
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"],  deprecated="auto")
 
 
 def verify_password(plain_password: str, hased_password: str) -> bool:
@@ -60,9 +60,11 @@ def verify_captcha(
         client_ip (str): _description_
         redis_client (redis.Redis): _description_
     """
-    captcha_key = f"captcha:{captcha_id}"
-    captcha_ip_key = f"captcha_ip:{captcha_id}"
+    captcha_key = f"captcha_{captcha_id}"
+    captcha_ip_key = f"captcha_ip_{captcha_id}"
+
     stored_value = redis_client.getex(name=captcha_key)
+    print(captcha_ip_key,stored_value)
     if not stored_value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码不存在或已过期"
@@ -89,7 +91,6 @@ def verify_captcha(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码错误"
         )
 
-    redis_client.delete(name=captcha_key)
-    redis_client.delete(name=captcha_ip_key)
+    # redis_client.delete(captcha_key,captcha_ip_key)
 
     return True

@@ -59,6 +59,7 @@ class UserResponse(UserBase):
 
 class UserCreate(UserBase):
     """用户请求体"""
-
+    verificateCode: Optional[str] = None
+    verificateId: Optional[str] = None
     password: str
 

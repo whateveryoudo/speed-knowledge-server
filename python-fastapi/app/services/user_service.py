@@ -23,6 +23,7 @@ class UserService:
         Returns:
             User: 用户
         """
+
         hashed_password = get_password_hash(user_in.password)
         user = User(
             email=user_in.email,

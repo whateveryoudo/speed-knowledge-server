@@ -40,7 +40,7 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/getverificateCode", response_model=CaptchaResponse)
+@router.get("/getVerificateCode", response_model=CaptchaResponse)
 async def getverificate_code(
     request: Request, redis_client: redis.Redis = Depends(get_redis)
 ) -> CaptchaResponse:
@@ -54,15 +54,16 @@ async def getverificate_code(
     # 生成4位随机验证码
     captcha_txt = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
-    image = ImageCaptcha(width=160, height=60)
+    image = ImageCaptcha(width=90, height=32, font_sizes=(20, 22, 24))
 
     data_stream = image.generate(captcha_txt)
 
     captcha_id = str(uuid.uuid4())
 
     # 将验证码信息存入Redis（5分钟过期）
-    captcha_key = f"captcha:{captcha_id}"
-    captcha_ip_key = f"captcha_ip:{captcha_id}"
+    captcha_key = f"captcha_{captcha_id}"
+    captcha_ip_key = f"captcha_ip_{captcha_id}"
+    print(f"captcha_txt的值是{captcha_txt.lower()}")
     redis_client.setex(name=captcha_key, time=300, value=captcha_txt.lower())
     # 存储绑定关系
     redis_client.setex(name=captcha_ip_key, time=300, value=client_ip)
@@ -71,7 +72,7 @@ async def getverificate_code(
     # 返回流信息
     image_bytes = data_stream.getvalue()
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    return CaptchaResponse(captcha_id=captcha_id, captcha_image=image_base64)
+    return CaptchaResponse(captcha_id=captcha_id, captcha_image=f"data:image/png;base64,{image_base64}")
 
     # return StreamingResponse(
     #     io.BytesIO(data_stream.getvalue()),
