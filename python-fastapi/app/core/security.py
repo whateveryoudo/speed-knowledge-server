@@ -32,14 +32,14 @@ def get_password_hash(plain_passord: str) -> str:
     return pwd_context.hash(plain_passord)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta]):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """创建访问令牌"""
     to_encode = data.copy()
 
     if expires_delta:
-        expire = datetime.utcnow + expires_delta
+        expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow + timedelta(
+        expire = datetime.utcnow() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import random
 import string
@@ -13,31 +12,42 @@ from app.core.redis_client import get_redis
 from app.schemas.user import Token, CaptchaResponse
 from app.core.deps import get_db
 from app.services.user_service import UserService
-from app.core.security import create_access_token
-
+from app.core.security import create_access_token,verify_captcha
+from app.schemas.user import OAuth2PasswordRequestFormWithCaptcha
 
 router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestFormWithCaptcha = Depends(),
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis),
 ):
+    print(form_data)
     """用户登录（支持邮箱或用户名登录）"""
-    user_service = UserService(db)
-    # form_data.username 可以是邮箱或用户名
-    user = user_service.authenticate(form_data.username, form_data.password)
+    if verify_captcha(
+        captcha_id=form_data.verificateId,
+        captcha_value=form_data.verificateCode,
+        client_ip=request.client.host,
+        redis_client=redis_client,
+    ):
+        """验证码校验通过"""
+        user_service = UserService(db)
+        # form_data.username 可以是邮箱或用户名
+        user = user_service.authenticate(form_data.username, form_data.password)
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名/邮箱或密码错误",
-            headers={"WWW-Authenticate", "Bearer"},
-        )
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户名/邮箱或密码错误",
+                headers={"WWW-Authenticate", "Bearer"},
+            )
 
-    access_token = create_access_token(data={"sub": user.id})
+        access_token = create_access_token(data={"sub": user.id})
 
-    return {"access_token": access_token, "token_type": "bearer"}
+        return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/getVerificateCode", response_model=CaptchaResponse)
@@ -72,7 +82,9 @@ async def getverificate_code(
     # 返回流信息
     image_bytes = data_stream.getvalue()
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    return CaptchaResponse(captcha_id=captcha_id, captcha_image=f"data:image/png;base64,{image_base64}")
+    return CaptchaResponse(
+        captcha_id=captcha_id, captcha_image=f"data:image/png;base64,{image_base64}"
+    )
 
     # return StreamingResponse(
     #     io.BytesIO(data_stream.getvalue()),

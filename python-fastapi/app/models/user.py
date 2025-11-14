@@ -1,9 +1,7 @@
 """用户模型"""
 
 from sqlalchemy import Column, Integer, String, DateTime, func
-from datetime import datetime
 from app.db.base import Base
-from zoneinfo import ZoneInfo
 
 
 class User(Base):
