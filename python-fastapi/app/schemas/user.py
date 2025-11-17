@@ -81,16 +81,16 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     # 将 UTC 时间在输出为 JSON 时转换为上海时区字符串
-    @field_serializer("created_at", "updated_at", when_used="json")
-    def _serialize_dt_to_shanghai(self, dt: datetime):
-        from zoneinfo import ZoneInfo
+    # @field_serializer("created_at", "updated_at", when_used="json")
+    # def _serialize_dt_to_shanghai(self, dt: datetime):
+    #     from zoneinfo import ZoneInfo
 
-        if dt is None:
-            return None
-        # 若为 naive datetime，按 UTC 处理；然后转换为上海时区并输出 ISO8601
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-        return dt.astimezone(ZoneInfo("Asia/Shanghai")).isoformat()
+    #     if dt is None:
+    #         return None
+    #     # 若为 naive datetime，按 UTC 处理；然后转换为上海时区并输出 ISO8601
+    #     if dt.tzinfo is None:
+    #         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    #     return dt.astimezone(ZoneInfo("Asia/Shanghai")).isoformat()
 
 
 class UserCreate(UserBase):

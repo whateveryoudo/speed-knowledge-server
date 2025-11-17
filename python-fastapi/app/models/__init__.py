@@ -2,6 +2,5 @@
 
 from .user import User
 from .knowledge import Knowledge
-from .test import TestA
 
-__all__ = ["User", "Knowledge", "TestA"]
+__all__ = ["User", "Knowledge"]

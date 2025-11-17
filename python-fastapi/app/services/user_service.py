@@ -49,6 +49,17 @@ class UserService:
         """
         return self.db.query(User).filter(User.email == email).first()
 
+    def get_by_id(self, user_id: int) -> Optional[User]:
+        """根据id查询用户
+
+        Args:
+            user_id (int): 用户id
+
+        Returns:
+            Optional[User]: 用户
+        """
+        return self.db.query(User).filter(User.id == user_id).first()
+
     def get_by_username(self, username: str) -> Optional[User]:
         """根据username查询用户
 

@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 
-
+# TODO： 结合env配置文件
 class Settings(BaseSettings):
     """应用设置"""
 
@@ -19,7 +19,12 @@ class Settings(BaseSettings):
 
     # 数据库配置
     DATABASE_URL:str = "mysql+pymysql://root:onemoretime123.@localhost:3306/speed-knowledge"
-
+    # MinIO链接配置
+    MINIO_ENDPOINT: str = "http://localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET_NAME: str = "speed-knowledge"
+    MINIO_USE_SSL:bool = False
     # jwt 
     SECRET_KEY:str='fa44273b1571628e36b527acabe1c06d796fad30cbb4ac40c93fdb10a30bb90f'
     ALGORITHM:str = "HS256"

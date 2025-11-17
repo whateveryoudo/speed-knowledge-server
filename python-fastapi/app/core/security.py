@@ -49,6 +49,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     )
     return encoded_jwt
 
+def decode_access_token(token: str) -> dict:
+    """解码访问令牌"""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的令牌")
 
 def verify_captcha(
     captcha_id: str, captcha_value: str, client_ip: str, redis_client: redis.Redis

@@ -9,7 +9,7 @@ class KnowledgeService:
     def __init__(self,db:Session) -> None:
         self.db = db
 
-    def create(self, knowledge_in: KnowledgeCreate) -> str:
+    def create(self, knowledge_in: KnowledgeCreate) -> None:
         """创建知识库"""
         # 默认isPublic为False
         knowledge = Knowledge(
@@ -20,4 +20,8 @@ class KnowledgeService:
         )
         self.db.add(knowledge)
         self.db.commit()
-        return knowledge.id
+        self.db.refresh(knowledge)
+        return knowledge
+    def get_by_id(self,knowledge_id:int):
+        """通过知识库id查询知识库"""
+        return self.db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()  

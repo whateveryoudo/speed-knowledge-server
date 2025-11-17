@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import JSON
 from app.core.config import settings
@@ -16,6 +17,43 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+# ========== Swagger验证 ==========
+def custom_openapi():
+    """自定义openapi配置，支持认证"""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=settings.APP_NAME,
+        version="1.0.0",
+        description="FastAPI 应用 API 文档",
+        routes=app.routes,
+    )
+
+    openapi_schema.setdefault("components", {})
+    openapi_schema["components"]["securitySchemes"] = {
+        "HTTPBearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "输入 JWT token，格式: Bearer <token> 或直接输入 token",
+        }
+    }
+    public_paths = ["/api/v1/auth/login", "/api/v1/auth/getVerificateCode", "api/v1/users/"]
+    if "paths" in openapi_schema:
+        for path, methods in openapi_schema["paths"].items():
+            if any(path.endswith(public_path) for public_path in public_paths):
+                continue
+
+            for method in methods.values():
+                if isinstance(method, dict):
+                    if "security" not in method:
+                        method["security"] = [{"Bearer": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 # ========== 异常处理器 ==========
 
 
@@ -87,7 +125,9 @@ async def response_wrapper_middleware(request: Request, call_next):
     response = await call_next(request)
     # 跳过一些特殊路径
     # 注意：不能对 "/" 使用 startswith，否则所有路径都会匹配
-    if request.url.path in {"/", "/api/v1/openapi.json"} or request.url.path.startswith("/api/docs"):
+    if request.url.path in {"/", "/api/v1/openapi.json"} or request.url.path.startswith(
+        "/api/docs"
+    ):
         return response
 
     if response.status_code >= 400:
