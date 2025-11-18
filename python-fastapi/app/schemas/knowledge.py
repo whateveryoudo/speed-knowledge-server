@@ -23,8 +23,8 @@ class KnowledgeResponse(KnowledgeBase):
     id: str = Field(..., description="知识库ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-
-    
+    class Config:
+        from_attributes = True
 
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""

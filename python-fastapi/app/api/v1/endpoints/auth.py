@@ -44,9 +44,9 @@ async def login(
                 detail="用户名/邮箱或密码错误",
                 headers={"WWW-Authenticate", "Bearer"},
             )
-
-        access_token = create_access_token(data={"sub": user.id})
-
+        print(user.id)
+        access_token = create_access_token(data={"sub": str(user.id)})
+        print(access_token)
         return {"access_token": access_token, "token_type": "bearer"}
 
 

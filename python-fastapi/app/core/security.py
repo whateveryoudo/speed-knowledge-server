@@ -36,6 +36,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """创建访问令牌"""
     to_encode = data.copy()
 
+    # JWT 规范要求 sub 为字符串
+    subject = to_encode.get("sub")
+    if subject is not None:
+        to_encode["sub"] = str(subject)
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -47,11 +52,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
+    print(encoded_jwt)
     return encoded_jwt
 
 def decode_access_token(token: str) -> dict:
     """解码访问令牌"""
     try:
+        print(token)
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
     except JWTError:
@@ -72,7 +79,6 @@ def verify_captcha(
     captcha_ip_key = f"captcha_ip_{captcha_id}"
 
     stored_value = redis_client.getex(name=captcha_key)
-    print(captcha_ip_key,stored_value)
     if not stored_value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="验证码不存在或已过期"

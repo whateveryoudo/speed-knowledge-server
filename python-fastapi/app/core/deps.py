@@ -40,7 +40,6 @@ def get_current_user(
     )
 
     token = credentials.credentials
-
     # 解密token
     payload = decode_access_token(token)
 
@@ -78,7 +77,7 @@ def vertify_knowledge_owner(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
         )
-    if str(current_user.id) == str(target_knowledge.id):
+    if str(current_user.id) == str(target_knowledge.user_id):
         return target_knowledge
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN, detail="你无权操作此知识库"

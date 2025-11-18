@@ -2,6 +2,7 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
+from typing import List
 
 class KnowledgeService:
     """知识库服务
@@ -25,3 +26,7 @@ class KnowledgeService:
     def get_by_id(self,knowledge_id:int):
         """通过知识库id查询知识库"""
         return self.db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()  
+
+    def get_list_by_user_id(self,user_id:int) -> List[Knowledge]:
+        """通过用户id查询知识库列表"""
+        return self.db.query(Knowledge).filter(Knowledge.user_id == user_id).all()

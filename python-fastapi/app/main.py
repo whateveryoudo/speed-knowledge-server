@@ -39,7 +39,7 @@ def custom_openapi():
             "description": "输入 JWT token，格式: Bearer <token> 或直接输入 token",
         }
     }
-    public_paths = ["/api/v1/auth/login", "/api/v1/auth/getVerificateCode", "api/v1/users/"]
+    public_paths = ["/api/v1/auth/login", "/api/v1/auth/getVerificateCode", "/api/v1/users"]
     if "paths" in openapi_schema:
         for path, methods in openapi_schema["paths"].items():
             if any(path.endswith(public_path) for public_path in public_paths):

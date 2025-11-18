@@ -4,7 +4,7 @@ from fastapi import APIRouter, status, Depends, UploadFile, File
 from sqlalchemy.orm.session import Session
 from app.services.attachment_service import AttachmentService
 from app.models.user import User
-from app.core.security import get_current_user
+from app.core.deps import get_current_user
 from app.schemas.attachment import AttachmentResponse, AttachmentCreate
 
 router = APIRouter()
