@@ -2,5 +2,7 @@
 
 from .user import User
 from .knowledge import Knowledge
+from .knowledge_group import KnowledgeGroup
+from .attachment import Attachment
 
-__all__ = ["User", "Knowledge"]
+__all__ = ["User", "Knowledge", "KnowledgeGroup", "Attachment"]

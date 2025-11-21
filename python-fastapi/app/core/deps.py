@@ -1,6 +1,6 @@
 """依赖注入"""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from typing import Generator
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
@@ -54,6 +54,27 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    return user
+
+
+# 用于获取查询参数中的用户（可以用在一些直接用url访问的）
+def get_current_user_from_query(
+    access_token: str = Query(..., description="access_token"),
+    db: Session = Depends(get_db),
+) -> User:
+    """_summary_: 从查询参数中获取当前用户"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="无效的令牌，请重新登录",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    payload = decode_access_token(access_token)
+    if payload is None:
+        raise credentials_exception
+    user_id = payload.get("sub")
+    user = UserService(db).get_by_id(int(user_id))
+    if user is None:
+        raise credentials_exception
     return user
 
 

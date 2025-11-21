@@ -18,6 +18,7 @@ class MinioClient:
     def get_client(cls) -> Minio:
         if cls._instance is None:
             try:
+                print(settings.MINIO_ENDPOINT)
                 cls._instance = Minio(
                     endpoint=settings.MINIO_ENDPOINT,
                     access_key=settings.MINIO_ACCESS_KEY,

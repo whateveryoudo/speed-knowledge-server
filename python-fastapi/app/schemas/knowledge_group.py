@@ -39,13 +39,38 @@ DEFAULT_DISPLAY_CONFIG = KnowledgeGroupDisplayConfig(
 class KnowledgeGroupBase(BaseModel):
     """知识库分组基础结构"""
 
-    user_id: str = Field(..., description="所属用户ID")
+    user_id: int = Field(..., description="所属用户ID")
     group_name: str = Field(..., description="分组名称", min_length=1, max_length=50)
     order_index: int = Field(..., description="排序索引")
     is_default: Optional[bool] = Field(default=False, description="是否默认分组")
     display_config: Optional[KnowledgeGroupDisplayConfig] = Field(
         default=None, description="显示配置"
     )
-    knowledge_items: List[KnowledgeResponse] = Field(
-        default=[], description="知识库列表"
+    knowledge_items: Optional[List[KnowledgeResponse]] = Field(
+        default=None, description="知识库列表"
     )
+
+
+class KnowledgeGroupCreate(KnowledgeGroupBase):
+    """创建知识库分组"""
+
+    pass
+
+
+class KnowledgeGroupUpdate(KnowledgeGroupBase):
+    """更新知识库分组"""
+
+    id: int = Field(..., description="知识库分组ID")
+    group_name: Optional[str] = Field(
+        default=None, description="分组名称", min_length=1, max_length=50
+    )
+    order_index: Optional[int] = Field(default=None, description="排序索引")
+    display_config: Optional[KnowledgeGroupDisplayConfig] = Field(
+        default=None, description="显示配置"
+    )
+
+
+class KnowledgeGroupResponse(KnowledgeGroupBase):
+    """知识库分组响应"""
+
+    id: str = Field(..., description="知识库分组ID")

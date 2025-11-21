@@ -9,6 +9,8 @@ import redis
 from app.services.user_service import UserService
 from app.core.security import verify_captcha
 from app.core.redis_client import get_redis
+from app.services.knowledge_group_service import KnowledgeGroupService
+from app.schemas.knowledge_group import KnowledgeGroupCreate
 
 router = APIRouter()
 
@@ -54,5 +56,12 @@ async def create_user(
             )
 
         created_user = user_service.create(user_in)
-
+        # 新用户创建成功时，会创建一个默认分组
+        knowledge_group_service = KnowledgeGroupService(db)
+        knowledge_group_service.create(KnowledgeGroupCreate(
+            user_id=created_user.id,
+            group_name="我的知识库",
+            order_index=0,
+            is_default=True,
+        ))
         return created_user.id

@@ -48,7 +48,7 @@ def custom_openapi():
             for method in methods.values():
                 if isinstance(method, dict):
                     if "security" not in method:
-                        method["security"] = [{"Bearer": []}]
+                        method["security"] = [{"HTTPBearer": []}]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

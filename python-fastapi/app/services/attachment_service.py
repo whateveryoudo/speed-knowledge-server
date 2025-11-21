@@ -1,14 +1,14 @@
 """附件服务"""
 
 import email
-from fastapi import UploadFile
-from typing import Optional
+from fastapi import UploadFile, HTTPException
+from typing import Optional, Dict, Any
 from sqlalchemy.orm.session import Session
 from app.models.attachment import Attachment
 from app.schemas.attachment import AttachmentCreate
 from app.core.minio_client import get_minio
 from app.models.user import User
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 
@@ -30,7 +30,7 @@ class AttachmentService:
         Returns:
             Attachment: 附件
         """
-        object_key = f"{current_user.id}/{str(uuid.uuid4())}_{attachment_in.file_name}"
+        object_name = f"{current_user.id}/{str(uuid.uuid4())}_{attachment_in.file_name}"
         # file: UploadFile
         file_obj = file.file  # 这是一个类文件对象 (SpooledTemporaryFile)
         file_obj.seek(0, 2)  # 移到末尾
@@ -41,7 +41,7 @@ class AttachmentService:
             data=file_obj,
             length=size,
             content_type=attachment_in.file_type,
-            object_key=object_key,
+            object_name=object_name,
         )
 
         attachment = Attachment(
@@ -49,7 +49,7 @@ class AttachmentService:
             file_type=attachment_in.file_type,
             file_size=size,
             bucket_name=attachment_in.bucket_name,
-            object_key=object_key,
+            object_name=object_name,
             user_id=current_user.id,
         )
 
@@ -57,3 +57,23 @@ class AttachmentService:
         self.db.commit()
         self.db.refresh(attachment)
         return attachment
+
+    def get(self, attachment_id: str) -> Dict[str, Any]:
+        """获取预览url
+
+        Args:
+            attachment_id (str): 附件id
+        Returns:
+            str: 预览url
+        """
+        attachment = (
+            self.db.query(Attachment).filter(Attachment.id == attachment_id).first()
+        )
+        if not attachment:
+            raise HTTPException(status_code=404, detail="未找到附件")
+
+        return {
+            "data_stream": self.minio.get_object(attachment.bucket_name, attachment.object_name),
+            "content_type": attachment.file_type,
+            "filename": attachment.file_name,
+        }

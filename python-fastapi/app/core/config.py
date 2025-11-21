@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # 数据库配置
     DATABASE_URL:str = "mysql+pymysql://root:onemoretime123.@localhost:3306/speed-knowledge"
-    # MinIO链接配置
-    MINIO_ENDPOINT: str = "http://localhost:9000"
+    # MinIO链接配置(注意：这里的endpoint不要携带协议头)
+    MINIO_ENDPOINT: str = "127.0.0.1:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET_NAME: str = "speed-knowledge"
