@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException, Request
 from app.schemas.user import UserResponse, UserCreate
 from sqlalchemy.orm.session import Session
-from app.core.deps import get_db
+from app.core.deps import get_db, get_current_user
 from app.models.user import User
 import redis
 from app.services.user_service import UserService
@@ -11,6 +11,8 @@ from app.core.security import verify_captcha
 from app.core.redis_client import get_redis
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupCreate
+from app.schemas.user import UserResponse, UserFullListParams
+from typing import List
 
 router = APIRouter()
 
@@ -58,10 +60,28 @@ async def create_user(
         created_user = user_service.create(user_in)
         # 新用户创建成功时，会创建一个默认分组
         knowledge_group_service = KnowledgeGroupService(db)
-        knowledge_group_service.create(KnowledgeGroupCreate(
-            user_id=created_user.id,
-            group_name="我的知识库",
-            order_index=0,
-            is_default=True,
-        ))
+        knowledge_group_service.create(
+            KnowledgeGroupCreate(
+                user_id=created_user.id,
+                group_name="我的知识库",
+                order_index=0,
+                is_default=True,
+            )
+        )
         return created_user.id
+
+
+@router.get("/", response_model=UserResponse)
+async def get_user_info(user: User = Depends(get_current_user)) -> UserResponse:
+    """获取用户信息"""
+    return user
+
+
+@router.get("/full-list", response_model=List[UserResponse])
+async def get_user_full_list(
+    params: UserFullListParams = Depends(),
+    db: Session = Depends(get_db),
+) -> List[UserResponse]:
+    """获取用户完整列表"""
+    user_service = UserService(db)
+    return user_service.get_all_by_nickname_or_username(params.keyword)

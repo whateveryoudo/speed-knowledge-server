@@ -51,6 +51,39 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
+#### 依赖安装常见问题
+
+**问题：安装时卡在 "Preparing metadata (pyproject.toml)"**
+
+如果遇到某个包（如 `pydantic-core`）安装时卡在编译阶段，通常是因为：
+- Python 版本较新（如 Python 3.14），某些旧版本包没有预编译的 wheel 包
+- 需要从源码编译，但编译过程很慢或卡住
+
+**解决方案：**
+
+1. **使用阿里云镜像加速下载**（推荐）：
+```bash
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+```
+
+2. **使用范围版本而非固定版本**：
+   - 在 `requirements.txt` 中使用 `pydantic>=2.12.0` 而不是 `pydantic==2.5.3`
+   - 让 pip 自动选择有预编译包的版本
+
+3. **分步安装**（如果还是卡住）：
+```bash
+# 先安装其他依赖（让依赖包自动选择有预编译包的版本）
+pip install fastapi uvicorn sqlalchemy alembic ... -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+
+# 最后安装可能有问题的包
+pip install pydantic-settings -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+```
+
+**原理说明：**
+- pip 会根据当前 Python 版本自动选择有预编译 wheel 包的版本
+- 让依赖包（如 fastapi）自动选择版本，通常能选到有预编译包的版本
+- 如果手动指定旧版本，可能没有预编译包，需要从源码编译
+
 ### 配置环境变量
 
 ```bash

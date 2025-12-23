@@ -3,6 +3,7 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
+from sqlalchemy import or_
 from typing import List
 import secrets
 import string
@@ -40,9 +41,17 @@ class KnowledgeService:
         self.db.refresh(knowledge)
         return knowledge
 
-    def get_by_id(self, knowledge_id: int):
-        """通过知识库id查询知识库"""
-        return self.db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()
+    def get_by_id_or_slug(self, identifier: str, user_id: int) -> Knowledge:
+        """通过知识库id/短链查询知识库"""
+        knowledge = (
+            self.db.query(Knowledge)
+            .filter(
+                or_(Knowledge.id == identifier, Knowledge.slug == identifier),
+                Knowledge.user_id == user_id,
+            )
+            .first()
+        )
+        return knowledge
 
     def get_list_by_user_id(self, user_id: int) -> List[Knowledge]:
         """通过用户id查询知识库列表"""

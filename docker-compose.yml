@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.4.5
+    container_name: speed-knowledge-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-speed-knowledge}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: speed-knowledge-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      - db
+    ports:
+      - "${PHPMYADMIN_PORT:-8082}:80"
+
+  redis:
+    image: redis:7-alpine
+    container_name: speed-knowledge-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: speed-knowledge-redisinsight
+    restart: unless-stopped
+    ports:
+      - "${REDISINSIGHT_PORT:-5540}:5540"
+    depends_on:
+      - redis
+
+  minio:
+    image: minio/minio
+    container_name: speed-knowledge-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9090"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9090}:9090"
+    volumes:
+      - minio-data:/data
+
+  app:
+    build:
+      context: ./python-fastapi
+      dockerfile: Dockerfile
+    container_name: speed-knowledge-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-change_me}@db:3306/${MYSQL_DATABASE:-speed-knowledge}}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-speed-knowledge}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      - db
+      - redis
+      - minio
+
+volumes:
+  mysql-data:
+  redis-data:
+  minio-data:
+

@@ -59,7 +59,7 @@ def decode_access_token(token: str) -> dict:
     """解码访问令牌"""
     try:
         print(token)
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],options={"verify_exp": True})
         return payload
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的令牌")

@@ -64,7 +64,7 @@ async def getverificate_code(
     # 生成4位随机验证码
     captcha_txt = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
-    image = ImageCaptcha(width=90, height=32, font_sizes=(20, 22, 24))
+    image = ImageCaptcha(width=90, height=32, font_sizes=(26,28))
 
     data_stream = image.generate(captcha_txt)
 

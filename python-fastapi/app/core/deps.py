@@ -9,7 +9,8 @@ from app.models.user import User
 from app.core.security import decode_access_token
 from app.services.user_service import UserService
 from app.models.knowledge import Knowledge
-
+from app.models.document import Document
+from app.services.document_service import DocumentService
 
 def get_db() -> Generator:
     """_summary_: 获取数据库会话
@@ -103,3 +104,17 @@ def vertify_knowledge_owner(
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN, detail="你无权操作此知识库"
     )
+
+def get_document_or_403(
+    identifier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Document:
+    """获取文档或返回403"""
+    document_service = DocumentService(db)
+    document = document_service.get_by_id_or_slug(identifier, current_user.id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
+    if not document.is_public and document.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="你无权操作此文档")
+    return document

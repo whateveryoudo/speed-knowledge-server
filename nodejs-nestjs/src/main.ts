@@ -2,10 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-
+import { CollaborationGateway } from './modules/collaboration/collaboration.gateway';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  const collaborationGateway = app.get(CollaborationGateway);
+  collaborationGateway.initialize(app.getHttpServer());
   // 全局验证管道
   app.useGlobalPipes(
     new ValidationPipe({
@@ -35,6 +36,7 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  console.log(`🔗 Collaboration Server: ws://localhost:${port}/collaboration`);
 }
 bootstrap();
 

@@ -1,18 +1,18 @@
 """用户服务"""
+
 import email
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm.session import Session
 from app.models.user import User
 from app.core.security import verify_password, get_password_hash
 from app.schemas.user import UserCreate
 
+
 class UserService:
-    """用户服务类
-    """
+    """用户服务类"""
 
-    def __init__(self, db:Session) -> None:
+    def __init__(self, db: Session) -> None:
         self.db = db
-
 
     def create(self, user_in: UserCreate) -> User:
         """创建用户
@@ -29,14 +29,13 @@ class UserService:
             email=user_in.email,
             username=user_in.username,
             password=hashed_password,
-            nickname=user_in.nickname
+            nickname=user_in.nickname,
         )
 
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
         return user
-        
 
     def get_by_email(self, email: str) -> Optional[User]:
         """根据email查询用户
@@ -102,4 +101,15 @@ class UserService:
             return None
         if not verify_password(password, user.password):
             return None
-        return user    
+        return user
+
+    def get_all_by_nickname_or_username(self, identifier: str) -> List[User]:
+        """根据邮箱或用户名获取所有用户"""
+        return (
+            self.db.query(User)
+            .filter(
+                User.email.like(f"%{identifier}%")
+                | User.username.like(f"%{identifier}%")
+            )
+            .all()
+        )

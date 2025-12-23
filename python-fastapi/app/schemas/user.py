@@ -99,3 +99,8 @@ class UserCreate(UserBase):
     verificateCode: Optional[str] = None
     verificateId: Optional[str] = None
     password: str
+
+class UserFullListParams(BaseModel):
+    """用户完整列表请求体"""
+
+    keyword: str = Field(..., description="关键词")

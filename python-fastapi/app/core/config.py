@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "FastAPI Server"
     API_V1_STR: str = "/api/v1"
-    PORT: int = 8005
+    PORT: int = 8010
     DEBUG: bool = True
 
     # Redis配置
