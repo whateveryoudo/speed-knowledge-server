@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from app.common.enums import KnowledgeCollaboratorRole, KnowledgeCollaboratorStatus, KnowledgeCollaboratorSource
+from app.schemas.user import UserResponse
 
 
 class KnowledgeCollaboratorBase(BaseModel):
@@ -19,11 +20,18 @@ class KnowledgeCollaboratorResponse(KnowledgeCollaboratorBase):
     id: str = Field(..., description="主键")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
+    user: Optional[UserResponse] = Field(default=None, description="用户")
+
+class KnowledgeCollaboratorRequest(BaseModel):
+    """协作者请求结构"""
+    invitation_token: str = Field(..., description="邀请token")
 
 class KnowledgeCollaboratorCreate(KnowledgeCollaboratorBase):
     """协作者创建结构"""
-    invitation_token: str = Field(..., description="邀请token")
     user_id: Optional[int] = Field(default=None, description="所属用户")
+    role: Optional[KnowledgeCollaboratorRole] = Field(default=None, description="角色")
+    status: Optional[KnowledgeCollaboratorStatus] = Field(default=None, description="状态")
+    source: Optional[KnowledgeCollaboratorSource] = Field(default=None, description="来源")
 
 class KnowledgeCollaboratorValidInfo(BaseModel):
     """协作者信息状态(这里仅返回一些用于校验的)"""

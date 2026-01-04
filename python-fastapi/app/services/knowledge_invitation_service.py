@@ -35,7 +35,7 @@ class KnowledgeInvitationService:
             self.db.query(KnowledgeInvitation)
             .filter(
                 KnowledgeInvitation.knowledge_id == invitation_update.knowledge_id,
-                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE,
+                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE.value,
             )
             .first()
         )
@@ -64,7 +64,7 @@ class KnowledgeInvitationService:
         new_record.token = self._generate_token()
         new_record.status = KnowledgeInvitationStatus.ACTIVE.value
         # 历史改为已撤销
-        has_active_record.status = KnowledgeInvitationStatus.INACTIVE.value
+        has_active_record.status = KnowledgeInvitationStatus.REVOKED.value
         self.db.add(new_record)
         self.db.commit()
         self.db.refresh(has_active_record)
@@ -81,13 +81,14 @@ class KnowledgeInvitationService:
             if knowledge is None:
                 return None
             knowledge_id = knowledge.id
-
+        
+        print(f"knowledge_id: {knowledge_id}")
         # 逻辑：先查找active记录，没有的话则初始化一条记录
         has_active_record = (
             self.db.query(KnowledgeInvitation)
             .filter(
                 KnowledgeInvitation.knowledge_id == knowledge_id,
-                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE,
+                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE.value,
             )
             .first()
         )
@@ -111,10 +112,11 @@ class KnowledgeInvitationService:
 
         return has_active_record
 
-    def get_invitation_valid_info(self, token: str) -> Optional[KnowledgeInvitationValidInfo]:
+    def get_invitation_valid_info(self, token: str) -> KnowledgeInvitationValidInfo:
         """获取知识库邀请链接token信息(这里会进行一些封装)"""
         has_active_record = (
-            self.db.query(KnowledgeInvitation)
+            self.db.query(KnowledgeInvitation, Knowledge.name.label("knowledge_name"))
+            .join(Knowledge, KnowledgeInvitation.knowledge_id == Knowledge.id)
             .filter(
                 KnowledgeInvitation.token == token,
                 KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE.value,
@@ -123,4 +125,18 @@ class KnowledgeInvitationService:
         )
         if has_active_record is None:
             return None
-        return KnowledgeInvitationValidInfo(status=has_active_record.status)
+        invitation, knowledge_name = has_active_record
+        return KnowledgeInvitationValidInfo(knowledge_id=invitation.knowledge_id, status=invitation.status, knowledge_name=knowledge_name)
+
+    def get_invitation_by_token(self, token: str) -> KnowledgeInvitationResponse:
+        """获取知识库邀请链接token信息"""
+        has_active_record = (
+            self.db.query(KnowledgeInvitation)
+            .filter(
+                KnowledgeInvitation.token == token,
+                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE.value,
+            )
+            .first()
+        )
+
+        return has_active_record

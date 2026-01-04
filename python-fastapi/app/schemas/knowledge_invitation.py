@@ -32,16 +32,16 @@ class KnowledgeInvitationUpdate(KnowledgeInvitationBase):
 
 class KnowledgeInvitationValidInfo(BaseModel):
     """邀请信息状态"""
+    knowledge_id: str = Field(..., description="所属知识库")
     status: KnowledgeInvitationStatus = Field(..., description="状态")
-    # is_expired: bool = Field(..., description="是否已过期")
-
+    knowledge_name: str = Field(..., description="知识库名称")
     class Config:
         from_attributes = True
 
 class KnowledgeInvitationValidResponse(BaseModel):
     """邀请信息响应结构"""
     invitation: KnowledgeInvitationValidInfo = Field(..., description="邀请链接校验信息")
-    collaborator: KnowledgeCollaboratorValidInfo = Field(..., description="协作者校验信息")
+    collaborator: Optional[KnowledgeCollaboratorValidInfo] = Field(default=None, description="协作者校验信息")
 
     class Config:
         from_attributes = True

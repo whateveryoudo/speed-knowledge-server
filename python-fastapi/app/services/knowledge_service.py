@@ -4,6 +4,8 @@ from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
 from sqlalchemy import or_
+from app.schemas.knowledge_collaborator import KnowledgeCollaboratorCreate
+from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 from typing import List
 import secrets
 import string
@@ -35,7 +37,12 @@ class KnowledgeService:
             slug=temp_slug,
             description=knowledge_in.description,
         )
-
+        # 追加默认协作者
+        collaborator_service = KnowledgeCollaboratorService(self.db)
+        collaborator_service.join_default_collaborator(KnowledgeCollaboratorCreate(
+            user_id=knowledge_in.user_id,
+            knowledge_id=knowledge.id,
+        ))
         self.db.add(knowledge)
         self.db.commit()
         self.db.refresh(knowledge)

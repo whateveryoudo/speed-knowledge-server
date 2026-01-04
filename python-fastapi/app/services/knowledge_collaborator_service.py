@@ -1,16 +1,21 @@
-from typing import Optional
+from typing import Optional, List
 
 from app.schemas.knowledge_collaborator import (
     KnowledgeCollaboratorValidInfo,
     KnowledgeCollaboratorValidParams,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.knowledge_collaborator import KnowledgeCollaborator
 from app.schemas.knowledge_collaborator import (
-    KnowledgeCollaboratorCreate,
+    KnowledgeCollaboratorBase,
     KnowledgeCollaboratorResponse,
+    KnowledgeCollaboratorCreate,
 )
-from app.common.enums import KnowledgeCollaboratorStatus
+from app.common.enums import (
+    KnowledgeCollaboratorSource,
+    KnowledgeCollaboratorStatus,
+    KnowledgeCollaboratorRole,
+)
 
 
 class KnowledgeCollaboratorService:
@@ -37,17 +42,48 @@ class KnowledgeCollaboratorService:
 
         return None
 
+    def join_default_collaborator(
+        self, collaborator_in: KnowledgeCollaboratorCreate, use_by_router: bool = False
+    ) -> KnowledgeCollaboratorResponse:
+        """加入创建者作为默认协作者"""
+        collaborator = KnowledgeCollaborator(
+            user_id=collaborator_in.user_id,
+            knowledge_id=collaborator_in.knowledge_id,
+            status=KnowledgeCollaboratorStatus.ACCEPTED.value,
+            source=KnowledgeCollaboratorSource.CREATOR.value,
+            role=KnowledgeCollaboratorRole.ADMIN.value,
+        )
+        self.db.add(collaborator)
+        self.db.flush()
+        if use_by_router:
+            self.db.commit()
+        self.db.refresh(collaborator)
+        return collaborator
+
     def join_collaborator(
-        self, collaborator_in: KnowledgeCollaboratorCreate
+        self, collaborator_in: KnowledgeCollaboratorBase
     ) -> KnowledgeCollaboratorResponse:
         """加入协作者"""
         collaborator = KnowledgeCollaborator(
             user_id=collaborator_in.user_id,
             knowledge_id=collaborator_in.knowledge_id,
-            status=collaborator_in.status,
-            source=collaborator_in.source,
+            status=collaborator_in.status.value,
+            source=collaborator_in.source.value,
+            role=collaborator_in.role.value,
         )
         self.db.add(collaborator)
         self.db.commit()
         self.db.refresh(collaborator)
         return collaborator
+
+    def get_collaborators(
+        self, knowledge_id: str
+    ) -> List[KnowledgeCollaboratorResponse]:
+        """获取协作者列表"""
+        collaborators = (
+            self.db.query(KnowledgeCollaborator)
+            .filter(KnowledgeCollaborator.knowledge_id == knowledge_id)
+            .options(joinedload(KnowledgeCollaborator.user))
+            .all()
+        )
+        return collaborators

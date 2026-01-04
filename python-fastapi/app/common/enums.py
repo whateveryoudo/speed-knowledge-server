@@ -37,9 +37,11 @@ class KnowledgeCollaboratorRole(int, Enum):
 class KnowledgeCollaboratorStatus(int, Enum):
     """知识库协作者状态"""
     PENDING = 1  # 申请加入中
+    ACCEPTED = 2  # 已加入
 
 class KnowledgeCollaboratorSource(int, Enum):
     """知识库协作者来源"""
+    CREATOR = 0  # 创建者
     INVITATION = 1  # 邀请链接加入
     SEARCH_JOIN = 2  # 搜索加入
 

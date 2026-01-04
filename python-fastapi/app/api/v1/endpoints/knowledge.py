@@ -12,7 +12,18 @@ from app.services.knowledge_invitation_service import KnowledgeInvitationService
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 from app.services.document_node_service import DocumentNodeService
 from app.schemas.document_node import DocumentNodeResponse
-from app.common.enums import KnowledgeInvitationStatus, KnowledgeCollaboratorStatus
+from app.schemas.knowledge_collaborator import (
+    KnowledgeCollaboratorBase,
+    KnowledgeCollaboratorRequest,
+    KnowledgeCollaboratorResponse,
+    KnowledgeCollaboratorValidParams,
+    KnowledgeCollaboratorCreate,
+)
+from app.common.enums import (
+    KnowledgeInvitationStatus,
+    KnowledgeCollaboratorStatus,
+    KnowledgeCollaboratorSource,
+)
 from app.schemas.knowledge_group import (
     KnowledgeGroupUpdate,
     KnowledgeGroupResponse,
@@ -22,10 +33,7 @@ from app.schemas.knowledge_invitation import (
     KnowledgeInvitationResponse,
     KnowledgeInvitationUpdate,
 )
-from app.schemas.knowledge_collaborator import (
-    KnowledgeCollaboratorCreate,
-    KnowledgeCollaboratorValidInfo,
-)
+
 from app.schemas.knowledge_invitation import KnowledgeInvitationValidResponse
 
 router = APIRouter()
@@ -128,7 +136,10 @@ async def get_document_tree(
     return document_tree
 
 
-@router.get("/{knowledge_identifier}/invitation/token", response_model=KnowledgeInvitationResponse)
+@router.get(
+    "/{knowledge_identifier}/invitation/token",
+    response_model=KnowledgeInvitationResponse,
+)
 async def get_invitation_token(
     knowledge_identifier: str,
     current_user: User = Depends(get_current_user),
@@ -136,12 +147,14 @@ async def get_invitation_token(
 ) -> KnowledgeInvitationResponse:
     """获取知识库邀请链接token信息"""
     invitation_token_service = KnowledgeInvitationService(db)
-    invitation_token_info = invitation_token_service.get_invitation_token(knowledge_identifier)
+    invitation_token_info = invitation_token_service.get_invitation_token(
+        knowledge_identifier
+    )
     return invitation_token_info
 
 
 @router.put(
-    "/{knowledge_id}/invitation/token", response_model=KnowledgeInvitationResponse
+    "/invitation/token", response_model=KnowledgeInvitationResponse
 )
 async def update_invitation_token(
     invitation_token_update: KnowledgeInvitationUpdate,
@@ -173,47 +186,94 @@ async def reset_invitation_token(
     return invitation_token_info
 
 
-@router.get(
-    "/{knowledge_id}/invitation/valid", response_model=KnowledgeCollaboratorValidInfo
-)
+@router.get("/invitation/valid", response_model=KnowledgeInvitationValidResponse)
 async def get_invitation_valid_info(
     invitation_token: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeInvitationValidResponse:
     """获取邀请链接校验信息"""
-    invitation_token_service = KnowledgeInvitationService(db)
-    invitation_token_info = invitation_token_service.get_invitation_valid_info(
-        invitation_token
-    )
-    return invitation_token_info
-
-
-@router.post("/{knowledge_id}/invitation/apply", response_model=None)
-async def apply_invitation(
-    knowledge_id: str,
-    invitation_info: KnowledgeCollaboratorCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> None:
-    """点击申请加入知识库"""
-    # 先校验是否合法
     invitation_service = KnowledgeInvitationService(db)
     collaborator_service = KnowledgeCollaboratorService(db)
     invitation_valid_info = invitation_service.get_invitation_valid_info(
-        invitation_info.invitation_token
+        invitation_token
     )
-    collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
-        {"knowledge_id": knowledge_id, "user_id": current_user.id}
-    )
-
     if (
         invitation_valid_info is None
-        or invitation_valid_info.status == KnowledgeInvitationStatus.INACTIVE
+        or invitation_valid_info.status == KnowledgeInvitationStatus.REVOKED
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="邀请链接已失效"
         )
+    collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
+        KnowledgeCollaboratorValidParams(
+            knowledge_id=invitation_valid_info.knowledge_id,
+            user_id=current_user.id,
+        )
+    )
+    return KnowledgeInvitationValidResponse(
+        invitation=invitation_valid_info, collaborator=collaborator_valid_info
+    )
+
+
+@router.get("/{knowledge_id}/collaborator/list", response_model=List[KnowledgeCollaboratorResponse])
+async def get_collaborator_list(
+    knowledge_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[KnowledgeCollaboratorResponse]:
+    """获取知识库协作者列表"""
+    collaborator_service = KnowledgeCollaboratorService(db)
+    collaborators = collaborator_service.get_collaborators(knowledge_id)
+    return collaborators
+
+
+@router.post(
+    "/collaborator/default/create", response_model=KnowledgeCollaboratorResponse
+)
+async def create_default_collaborator(
+    default_collaborator_in: KnowledgeCollaboratorCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> KnowledgeCollaboratorResponse:
+    """创建默认协作者(用于测试，之前没加)"""
+    collaborator_service = KnowledgeCollaboratorService(db)
+    return collaborator_service.join_default_collaborator(
+        KnowledgeCollaboratorCreate(
+            user_id=current_user.id,
+            knowledge_id=default_collaborator_in.knowledge_id,
+        ),
+        use_by_router=True,
+    )
+
+
+@router.post("/invitation/apply", response_model=KnowledgeCollaboratorResponse)
+async def apply_invitation(
+    invitation_info: KnowledgeCollaboratorRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> KnowledgeCollaboratorResponse:
+    """点击申请加入知识库"""
+    # 先校验是否合法
+    invitation_service = KnowledgeInvitationService(db)
+    collaborator_service = KnowledgeCollaboratorService(db)
+    invitation_valid_info = invitation_service.get_invitation_by_token(
+        invitation_info.invitation_token
+    )
+    if (
+        invitation_valid_info is None
+        or invitation_valid_info.status == KnowledgeInvitationStatus.REVOKED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="邀请链接已失效"
+        )
+    collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
+        KnowledgeCollaboratorValidParams(
+            knowledge_id=invitation_valid_info.knowledge_id,
+            user_id=current_user.id,
+        )
+    )
+    print(invitation_valid_info)
     if (
         collaborator_valid_info
         and collaborator_valid_info.status == KnowledgeCollaboratorStatus.ACCEPTED.value
@@ -221,8 +281,17 @@ async def apply_invitation(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="您已加入该知识库"
         )
-    temp_collaborator_info = invitation_info.model_copy(
-        update={"user_id": current_user.id}
+    # 根据邀请链接的配置初始化协作者状态
+    collaborator_status = (
+        KnowledgeCollaboratorStatus.PENDING.value
+        if invitation_valid_info.need_approval == 1
+        else KnowledgeCollaboratorStatus.ACCEPTED.value
     )
-    collaborator_service.join_collaborator(temp_collaborator_info)
-    return None
+    temp_collaborator_info = KnowledgeCollaboratorBase(
+        user_id=current_user.id,
+        knowledge_id=invitation_valid_info.knowledge_id,
+        status=collaborator_status,
+        source=KnowledgeCollaboratorSource.INVITATION.value,
+        role=invitation_valid_info.role,
+    )
+    return collaborator_service.join_collaborator(temp_collaborator_info)
