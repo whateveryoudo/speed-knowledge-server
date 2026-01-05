@@ -11,6 +11,12 @@ from app.services.user_service import UserService
 from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.services.document_service import DocumentService
+from app.models.knowledge_collaborator import KnowledgeCollaborator
+from app.common.enums import KnowledgeCollaboratorStatus
+from app.common.enums import KnowledgeCollaboratorRole
+from app.schemas.knowledge import KnowledgeResponse
+from app.services.knowledge_service import KnowledgeService
+from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 
 def get_db() -> Generator:
     """_summary_: 获取数据库会话
@@ -78,33 +84,6 @@ def get_current_user_from_query(
         raise credentials_exception
     return user
 
-
-def vertify_knowledge_owner(
-    knowledge_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Knowledge:
-    """知识库鉴权校验
-
-    Args:
-        knowledge_id (int): 知识库id
-        user (User, optional): _description_. Defaults to Depends(get_current_user).
-        db (Session, optional): _description_. Defaults to Depends(get_db).
-    """
-    from app.services.knowledge_service import KnowledgeService
-
-    knowledge_service = KnowledgeService(db)
-    target_knowledge = knowledge_service.get_by_id(knowledge_id)
-    if not target_knowledge:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-        )
-    if str(current_user.id) == str(target_knowledge.user_id):
-        return target_knowledge
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN, detail="你无权操作此知识库"
-    )
-
 def get_document_or_403(
     identifier: str,
     current_user: User = Depends(get_current_user),
@@ -118,3 +97,38 @@ def get_document_or_403(
     if not document.is_public and document.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="你无权操作此文档")
     return document
+
+def can_manage_knowledge(role: KnowledgeCollaboratorRole | None) -> bool:
+    return role in [KnowledgeCollaboratorRole.ADMIN]
+
+def can_edit_knowledge(role: KnowledgeCollaboratorRole | None) -> bool:
+    return role in [KnowledgeCollaboratorRole.ADMIN, KnowledgeCollaboratorRole.EDITOR]
+
+def can_read_knowledge(role: KnowledgeCollaboratorRole | None, is_public: bool) -> bool:
+    return is_public or role is not None
+
+def get_knowledge_or_403(identifier: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> KnowledgeResponse:
+    """获取知识库或返回403"""
+    knowledge_service = KnowledgeService(db)
+    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+    if not target_knowledge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
+    
+    collaborator_service = KnowledgeCollaboratorService(db)
+    role = collaborator_service.get_user_role_in_knowledge(current_user.id, target_knowledge.id)
+    if not can_read_knowledge(role, target_knowledge.is_public):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="你无权访问此知识库")
+    return target_knowledge
+
+def vertify_knowledge_manage_permission(identifier: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> KnowledgeResponse:
+    """验证知识库管理权限"""
+    knowledge_service = KnowledgeService(db)
+    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+    if not target_knowledge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
+    
+    collaborator_service = KnowledgeCollaboratorService(db)
+    role = collaborator_service.get_user_role_in_knowledge(current_user.id, target_knowledge.id)
+    if not can_manage_knowledge(role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="你无权管理此知识库")
+    return target_knowledge

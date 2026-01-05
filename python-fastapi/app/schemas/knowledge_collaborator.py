@@ -1,7 +1,7 @@
 """协作者结构"""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from app.common.enums import KnowledgeCollaboratorRole, KnowledgeCollaboratorStatus, KnowledgeCollaboratorSource
 from app.schemas.user import UserResponse
@@ -27,11 +27,21 @@ class KnowledgeCollaboratorRequest(BaseModel):
     invitation_token: str = Field(..., description="邀请token")
 
 class KnowledgeCollaboratorCreate(KnowledgeCollaboratorBase):
-    """协作者创建结构"""
+    """协作者创建结构-Route使用"""
     user_id: Optional[int] = Field(default=None, description="所属用户")
     role: Optional[KnowledgeCollaboratorRole] = Field(default=None, description="角色")
     status: Optional[KnowledgeCollaboratorStatus] = Field(default=None, description="状态")
     source: Optional[KnowledgeCollaboratorSource] = Field(default=None, description="来源")
+
+class KnowledgeCollaboratorUpdate(BaseModel):
+    """协作者更新结构-Route使用"""
+    role: Optional[KnowledgeCollaboratorRole] = Field(default=None, description="角色")
+    status: Optional[KnowledgeCollaboratorStatus] = Field(default=None, description="状态")
+    source: Optional[KnowledgeCollaboratorSource] = Field(default=None, description="来源")
+
+class KnowledgeCollaboratorUpdateInfo(KnowledgeCollaboratorUpdate):
+    """协作者更新信息结构-Service使用"""
+    id: str = Field(..., description="主键")
 
 class KnowledgeCollaboratorValidInfo(BaseModel):
     """协作者信息状态(这里仅返回一些用于校验的)"""
@@ -44,3 +54,7 @@ class KnowledgeCollaboratorValidParams(BaseModel):
     """协作者获取校验信息参数"""
     user_id: int = Field(..., description="所属用户")
     knowledge_id: str = Field(..., description="所属知识库")
+
+class KnowledgeCollaboratorAudit(BaseModel):
+    """协作者审核结构-Route使用"""
+    audit_status: Literal['agree','reject'] = Field(..., description="审核状态")

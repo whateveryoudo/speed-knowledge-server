@@ -1,5 +1,6 @@
 """知识库邀请链接服务"""
 
+from fastapi import HTTPException
 from app.models.knowledge_invitation import KnowledgeInvitation
 from app.models.knowledge import Knowledge
 from sqlalchemy.orm import Session
@@ -7,9 +8,8 @@ from app.common.enums import KnowledgeInvitationStatus
 from app.schemas.knowledge_invitation import (
     KnowledgeInvitationValidInfo,
     KnowledgeInvitationResponse,
-    KnowledgeInvitationUpdate,
+    KnowledgeInvitationBase,
 )
-from typing import Optional
 from app.common.utils import isUUID
 import secrets
 import string
@@ -28,21 +28,24 @@ class KnowledgeInvitationService:
         return "".join(secrets.choice(alphabet) for _ in range(16))
 
     def update_invitation_token(
-        self, invitation_update: KnowledgeInvitationUpdate
+        self, invitation_id: str, invitation_update: KnowledgeInvitationBase
     ) -> KnowledgeInvitationResponse:
         """更新知识库邀请链接token信息"""
         has_active_record = (
             self.db.query(KnowledgeInvitation)
-            .filter(
-                KnowledgeInvitation.knowledge_id == invitation_update.knowledge_id,
-                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE.value,
-            )
+            .filter(KnowledgeInvitation.id == invitation_id)
             .first()
         )
         if has_active_record is None:
-            return None
-        has_active_record.role = invitation_update.role
-        has_active_record.need_approval = invitation_update.need_approval
+            raise HTTPException(status_code=404, detail="邀请链接不存在")
+        update_data = invitation_update.model_dump(exclude_unset=True, exclude={"id"})
+        for field_name, field_value in update_data.items():
+            if field_value is not None:
+                setattr(
+                    has_active_record,
+                    field_name,
+                    field_value.value if hasattr(field_value, "value") else field_value,
+                )
         self.db.commit()
         self.db.refresh(has_active_record)
         return has_active_record
@@ -51,10 +54,7 @@ class KnowledgeInvitationService:
         """重置知识库邀请链接token信息"""
         has_active_record = (
             self.db.query(KnowledgeInvitation)
-            .filter(
-                KnowledgeInvitation.id == invitation_id,
-                KnowledgeInvitation.status == KnowledgeInvitationStatus.ACTIVE,
-            )
+            .filter(KnowledgeInvitation.id == invitation_id)
             .first()
         )
         if has_active_record is None:
@@ -71,17 +71,23 @@ class KnowledgeInvitationService:
         self.db.refresh(new_record)
         return new_record
 
-    def get_invitation_token(self, knowledge_identifier: str) -> KnowledgeInvitationResponse:
+    def get_invitation_token(
+        self, knowledge_identifier: str
+    ) -> KnowledgeInvitationResponse:
         """获取知识库邀请链接token信息"""
         if isUUID(knowledge_identifier):
             knowledge_id = knowledge_identifier
         else:
             # 通过slug查询知识库id
-            knowledge = self.db.query(Knowledge).filter(Knowledge.slug == knowledge_identifier).first()
+            knowledge = (
+                self.db.query(Knowledge)
+                .filter(Knowledge.slug == knowledge_identifier)
+                .first()
+            )
             if knowledge is None:
                 return None
             knowledge_id = knowledge.id
-        
+
         print(f"knowledge_id: {knowledge_id}")
         # 逻辑：先查找active记录，没有的话则初始化一条记录
         has_active_record = (
@@ -126,7 +132,11 @@ class KnowledgeInvitationService:
         if has_active_record is None:
             return None
         invitation, knowledge_name = has_active_record
-        return KnowledgeInvitationValidInfo(knowledge_id=invitation.knowledge_id, status=invitation.status, knowledge_name=knowledge_name)
+        return KnowledgeInvitationValidInfo(
+            knowledge_id=invitation.knowledge_id,
+            status=invitation.status,
+            knowledge_name=knowledge_name,
+        )
 
     def get_invitation_by_token(self, token: str) -> KnowledgeInvitationResponse:
         """获取知识库邀请链接token信息"""

@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
-from typing import List
+from typing import List, Optional
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeResponse
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user, get_knowledge_or_403
 from app.models.user import User
 from app.services.knowledge_service import KnowledgeService
 from app.services.knowledge_group_service import KnowledgeGroupService
@@ -12,12 +12,16 @@ from app.services.knowledge_invitation_service import KnowledgeInvitationService
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 from app.services.document_node_service import DocumentNodeService
 from app.schemas.document_node import DocumentNodeResponse
+from app.schemas.response import BaseResponse
 from app.schemas.knowledge_collaborator import (
     KnowledgeCollaboratorBase,
     KnowledgeCollaboratorRequest,
     KnowledgeCollaboratorResponse,
     KnowledgeCollaboratorValidParams,
     KnowledgeCollaboratorCreate,
+    KnowledgeCollaboratorUpdate,
+    KnowledgeCollaboratorAudit
+
 )
 from app.common.enums import (
     KnowledgeInvitationStatus,
@@ -31,7 +35,7 @@ from app.schemas.knowledge_group import (
 )
 from app.schemas.knowledge_invitation import (
     KnowledgeInvitationResponse,
-    KnowledgeInvitationUpdate,
+    KnowledgeInvitationBase,
 )
 
 from app.schemas.knowledge_invitation import KnowledgeInvitationValidResponse
@@ -65,19 +69,9 @@ async def get_knowledge_list(
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
-    identifier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    knowledge: KnowledgeResponse = Depends(get_knowledge_or_403),
 ) -> KnowledgeResponse:
     """通过短链/id获取知识库详情"""
-    knowledge_service = KnowledgeService(db)
-    knowledge = knowledge_service.get_by_id_or_slug(identifier, current_user.id)
-    if not knowledge:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-        )
-    if not knowledge.is_public and knowledge.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问")
     return knowledge
 
 
@@ -154,16 +148,18 @@ async def get_invitation_token(
 
 
 @router.put(
-    "/invitation/token", response_model=KnowledgeInvitationResponse
+    "/invitation/token/{invitation_id}", response_model=KnowledgeInvitationResponse
 )
 async def update_invitation_token(
-    invitation_token_update: KnowledgeInvitationUpdate,
+    invitation_id: str,
+    invitation_token_update: KnowledgeInvitationBase,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeInvitationResponse:
     """更新知识库邀请链接token信息(权限或是否需要审核)"""
     invitation_token_service = KnowledgeInvitationService(db)
     invitation_token_info = invitation_token_service.update_invitation_token(
+        invitation_id,
         invitation_token_update
     )
     return invitation_token_info
@@ -276,11 +272,13 @@ async def apply_invitation(
     print(invitation_valid_info)
     if (
         collaborator_valid_info
-        and collaborator_valid_info.status == KnowledgeCollaboratorStatus.ACCEPTED.value
+        
     ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="您已加入该知识库"
-        )
+        if collaborator_valid_info.status == KnowledgeCollaboratorStatus.ACCEPTED.value:
+            return BaseResponse.success_reponse(data=collaborator_valid_info, message="您已加入该知识库")
+        elif collaborator_valid_info.status == KnowledgeCollaboratorStatus.PENDING.value:
+            return BaseResponse.success_reponse(data=collaborator_valid_info, message="等待管理员审核")
+
     # 根据邀请链接的配置初始化协作者状态
     collaborator_status = (
         KnowledgeCollaboratorStatus.PENDING.value
@@ -295,3 +293,35 @@ async def apply_invitation(
         role=invitation_valid_info.role,
     )
     return collaborator_service.join_collaborator(temp_collaborator_info)
+
+@router.delete("/collaborator/{collaborator_id}", response_model=None, status_code=status.HTTP_200_OK)
+async def delete_collaborator(
+    collaborator_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """删除知识库协作者"""
+    collaborator_service = KnowledgeCollaboratorService(db)
+    collaborator_service.delete_collaborator(collaborator_id)
+
+@router.put("/collaborator/{collaborator_id}", response_model=KnowledgeCollaboratorResponse)
+async def update_collaborator_info(
+    collaborator_id: str,
+    collaborator_info: KnowledgeCollaboratorUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> KnowledgeCollaboratorResponse:
+    """更新知识库协作者信息"""
+    collaborator_service = KnowledgeCollaboratorService(db)
+    return collaborator_service.update_collaborator_info(collaborator_id, collaborator_info)
+
+@router.post("/collaborator/{collaborator_id}/audit", response_model=KnowledgeCollaboratorResponse)
+async def audit_collaborator(
+    collaborator_id: str,
+    audit_in: KnowledgeCollaboratorAudit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Optional[KnowledgeCollaboratorResponse]:
+    """审核知识库协作者"""
+    collaborator_service = KnowledgeCollaboratorService(db)
+    return collaborator_service.audit_collaborator(collaborator_id, audit_in)

@@ -3,9 +3,11 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
-from sqlalchemy import or_
+from app.models.knowledge_collaborator import KnowledgeCollaborator
+from sqlalchemy import or_, and_
 from app.schemas.knowledge_collaborator import KnowledgeCollaboratorCreate
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
+from app.common.enums import KnowledgeCollaboratorStatus
 from typing import List
 import secrets
 import string
@@ -48,13 +50,12 @@ class KnowledgeService:
         self.db.refresh(knowledge)
         return knowledge
 
-    def get_by_id_or_slug(self, identifier: str, user_id: int) -> Knowledge:
+    def get_by_id_or_slug(self, identifier: str) -> Knowledge:
         """通过知识库id/短链查询知识库"""
         knowledge = (
             self.db.query(Knowledge)
             .filter(
                 or_(Knowledge.id == identifier, Knowledge.slug == identifier),
-                Knowledge.user_id == user_id,
             )
             .first()
         )
@@ -62,4 +63,10 @@ class KnowledgeService:
 
     def get_list_by_user_id(self, user_id: int) -> List[Knowledge]:
         """通过用户id查询知识库列表"""
-        return self.db.query(Knowledge).filter(Knowledge.user_id == user_id).all()
+        # 新增逻辑，追加协作者知识库查询
+        knowledge_list = (self.db.query(Knowledge)
+                .outerjoin(KnowledgeCollaborator, and_(Knowledge.id == KnowledgeCollaborator.knowledge_id, KnowledgeCollaborator.user_id == user_id, KnowledgeCollaborator.status == KnowledgeCollaboratorStatus.ACCEPTED.value))
+                .filter(or_(Knowledge.user_id == user_id, KnowledgeCollaborator.id.isnot(None)))
+                .distinct()
+                .all())
+        return knowledge_list

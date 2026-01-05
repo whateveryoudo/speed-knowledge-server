@@ -7,8 +7,7 @@ from app.schemas.knowledge_collaborator import KnowledgeCollaboratorValidInfo
 
 class KnowledgeInvitationBase(BaseModel):
     """知识库邀请基础结构"""
-    knowledge_id: str = Field(..., description="所属知识库")
-    token: str = Field(..., description="邀请token")
+    token: Optional[str] = Field(default=None, description="邀请token")
     status: Optional[KnowledgeInvitationStatus] = Field(default=None, description="状态")
     role: Optional[KnowledgeCollaboratorRole] = Field(default=None, description="角色")
     need_approval: Optional[int] = Field(default=None, description="是否需要审批")
@@ -21,15 +20,7 @@ class KnowledgeInvitationResponse(KnowledgeInvitationBase):
 
     class Config:
         from_attributes = True
-
-
-class KnowledgeInvitationUpdate(KnowledgeInvitationBase):
-    """知识库邀请更新结构"""
-    id: str = Field(..., description="主键")
-    knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
-    token: Optional[str] = Field(default=None, description="邀请token")
-    
-
+        
 class KnowledgeInvitationValidInfo(BaseModel):
     """邀请信息状态"""
     knowledge_id: str = Field(..., description="所属知识库")
