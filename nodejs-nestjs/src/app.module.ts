@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UsersModule } from './modules/users/users.module';
+import { UserModule } from './modules/users/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentContentModule } from './modules/document-content/document-content.module';
@@ -26,7 +26,7 @@ import { DocumentContentModule } from './modules/document-content/document-conte
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: process.env.NODE_ENV === 'development', // 生产环境应设为 false
     }),
-    UsersModule,
+    UserModule,
     AuthModule,
     CollaborationModule,
     DocumentContentModule,

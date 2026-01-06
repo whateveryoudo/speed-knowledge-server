@@ -4,10 +4,15 @@ import { DocumentContent } from "../document-content/entities/document-content.e
 import { CollaborationService } from "./collaboration.service";
 import { CollaborationGateway } from "./collaboration.gateway";
 import { DocumentContentModule } from "../document-content/document-content.module";
+import { AuthModule } from "../auth/auth.module";
 @Module({
-  imports: [TypeOrmModule.forFeature([DocumentContent]), DocumentContentModule],
+  imports: [
+    TypeOrmModule.forFeature([DocumentContent]),
+    DocumentContentModule,
+    AuthModule,
+  ],
   controllers: [],
-  providers: [CollaborationService, CollaborationGateway],
+  providers: [CollaborationService,  CollaborationGateway],
   exports: [CollaborationService],
 })
 export class CollaborationModule {}

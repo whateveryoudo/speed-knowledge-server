@@ -25,7 +25,7 @@ class KnowledgeService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def create(self, knowledge_in: KnowledgeCreate) -> None:
+    def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
         temp_slug = self._generate_slug()
         while self.db.query(Knowledge).filter(Knowledge.slug == temp_slug).first():

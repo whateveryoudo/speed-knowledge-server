@@ -50,13 +50,12 @@ class DocumentService:
         document_node_service.create_node(temp_document_in, document_in.parent_id)
         return document    
 
-    def get_by_id_or_slug(self, identifier: str, user_id: int) -> Document:
+    def get_by_id_or_slug(self, identifier: str) -> Document:
         """通过id或短链获取文档"""
         document = (
             self.db.query(Document)
             .filter(
                 (Document.id == identifier) | (Document.slug == identifier),
-                Document.user_id == user_id,
             )
             .first()
         )

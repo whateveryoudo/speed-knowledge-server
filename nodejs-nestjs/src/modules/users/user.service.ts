@@ -7,7 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 
 @Injectable()
-export class UsersService {
+export class UserService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -21,17 +21,16 @@ export class UsersService {
     });
     return this.usersRepository.save(user);
   }
+  // select: ['id', 'email', 'username', 'createdAt', 'updatedAt'],
 
   async findAll(): Promise<User[]> {
     return this.usersRepository.find({
-      select: ['id', 'email', 'name', 'createdAt', 'updatedAt'],
     });
   }
 
   async findOne(id: number): Promise<User> {
     const user = await this.usersRepository.findOne({
-      where: { id },
-      select: ['id', 'email', 'name', 'createdAt', 'updatedAt'],
+      where: { id }
     });
     if (!user) {
       throw new NotFoundException(`User #${id} not found`);

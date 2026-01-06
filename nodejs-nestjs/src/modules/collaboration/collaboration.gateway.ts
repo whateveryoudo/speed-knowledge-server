@@ -15,27 +15,26 @@ export class CollaborationGateway implements OnModuleInit {
         this.wss = new WebSocketServer({ server, path: '/collaboration' });
         this.wss.on('connection', (ws: WebSocket, request: any) => {
             // 获取一些参数
-            console.log(request.url);
             const url = new URL(request.url, `http://${request.headers.host}`);
             const documentId = url.searchParams.get('documentId');
             const userId = url.searchParams.get('userId');
             const userName = url.searchParams.get('userName');
-            const user = {
-                id: userId,
-                name: userName,
-            }
-            const  context = {
-                documentName: documentId,
-                user,
-                requestParameters: {
-                    documentName: documentId  // 传递给 Hocuspocus
-                }
-            }
-            this.collaborationService.handleConnection(ws,request, context);
+            // const user = {
+            //     id: userId,
+            //     name: userName,
+            // }
+            // const  context = {
+            //     documentName: documentId,
+            //     user,
+            //     requestParameters: {
+            //         documentName: documentId  // 传递给 Hocuspocus
+            //     }
+            // }
+            this.collaborationService.handleConnection(ws,request);
              // 处理连接关闭
              ws.on('close', () => {
                 this.logger.log(
-                    `WebSocket 连接关闭: ${user.name} - 文档: ${documentId}`
+                    `WebSocket 连接关闭: ${userName} - 文档: ${documentId}`
                 );
             });
 

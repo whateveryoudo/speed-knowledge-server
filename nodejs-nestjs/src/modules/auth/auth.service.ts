@@ -1,18 +1,18 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
+import { UserService } from '../users/user.service';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
+    private UserService: UserService,
     private jwtService: JwtService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.UserService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       const { password, ...result } = user;
       return result;
@@ -27,9 +27,20 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        username: user.username,
       },
     };
   }
-}
 
+  async verifyTokenAndGetUser(token: string) {
+    const decoded = this.jwtService.verify(token.replace('Bearer ', ''));
+    if (!decoded) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const user = await this.UserService.findOne(decoded.sub);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return user;
+  }
+}
