@@ -4,19 +4,24 @@ import {
   Entity,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToOne,
+  JoinColumn,
 } from "typeorm";
+import { DocumentBase } from "../../document/entities/document.entity";
 
 @Entity("document_content")
 export class DocumentContent {
   @PrimaryColumn("varchar", { length: 36 })
   id: string;
 
-  //   先定义为普通字段，优先完善协同的逻辑
   @Column("varchar", { length: 36 })
   document_id: string;
 
   @Column("longblob", { nullable: false })
   content: Buffer;
+
+  @Column("text", { nullable: true })
+  node_json: string;
 
   @Column({ type: "datetime", nullable: true })
   content_updated_at: Date;
@@ -26,4 +31,8 @@ export class DocumentContent {
 
   @UpdateDateColumn({ type: "datetime" })
   updated_at: Date;
+
+  @OneToOne(() => DocumentBase, (document) => document.content)
+  @JoinColumn({ name: "document_id", referencedColumnName: "id" })
+  document: DocumentBase;
 }

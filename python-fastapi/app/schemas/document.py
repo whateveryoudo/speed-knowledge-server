@@ -12,6 +12,7 @@ class DocumentBase(BaseModel):
     name: str = Field(..., description="文档名称", min_length=1, max_length=50)
     knowledge_id: str = Field(..., description="所属知识库ID")
     type: DocumentType = Field(..., description="文档类型")
+    view_count: int = Field(default=0, description="浏览次数")
     slug: str = Field(..., description="文档短链", min_length=1, max_length=50)
     is_public: Optional[bool] = Field(default=False, description="是否公开")
     content_updated_at: Optional[datetime] = Field(

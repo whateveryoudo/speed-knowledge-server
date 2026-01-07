@@ -77,3 +77,13 @@ async def update_document(
     document_service = DocumentService(db)
     updated_document = document_service.update_by_id_or_slug(document)
     return updated_document
+
+@router.get("/content/{document_id}", response_model=str)
+async def get_document_content(
+    document_id: str,
+    db: Session = Depends(get_db),
+) -> str:
+    """获取文档内容(这里是json数据)"""
+    document_service = DocumentService(db)
+    document_content = document_service.get_content(document_id)
+    return document_content

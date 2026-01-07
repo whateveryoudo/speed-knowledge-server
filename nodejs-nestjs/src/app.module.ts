@@ -7,6 +7,8 @@ import { UserModule } from './modules/users/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentContentModule } from './modules/document-content/document-content.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-ioredis-yet';
 
 @Module({
   imports: [
@@ -14,6 +16,19 @@ import { DocumentContentModule } from './modules/document-content/document-conte
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
+    }),
+    // Redis Cache
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: async () => ({
+        store: await redisStore({
+          host: process.env.REDIS_HOST,
+          port: parseInt(process.env.REDIS_PORT || '6379', 10),
+          password: process.env.REDIS_PASSWORD,
+          db: parseInt(process.env.REDIS_DB || '0', 10),
+        }),
+        // ttl: 3600 * 1000
+      }),
     }),
     // 数据库模块
     TypeOrmModule.forRoot({

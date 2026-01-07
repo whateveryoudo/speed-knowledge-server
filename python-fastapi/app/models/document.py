@@ -1,7 +1,7 @@
 """文档模型"""
 
 from app.db.base import Base
-from sqlalchemy import Column, String, Integer, ForeignKey, func, DateTime, LargeBinary, Boolean, text
+from sqlalchemy import Column, String, Text, Integer, ForeignKey, func, DateTime, LargeBinary, Boolean, text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -18,6 +18,7 @@ class Document(Base):
     slug = Column[str](String(64), nullable=False, comment="文档短链")
     type = Column[DocumentType](String(10), nullable=False, comment="文档类型")
     is_public = Column[bool](Boolean, nullable=False, server_default=text("0"), comment="是否公开")
+    view_count = Column[int](Integer, nullable=False, default=0, comment="浏览次数")
     content_updated_at = Column[datetime](DateTime, nullable=True, comment="内容最近更新时间")
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")
@@ -30,6 +31,7 @@ class DocumentContent(Base):
 
     id = Column[str](String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True, comment="主键")
     document_id = Column[str](String(36), ForeignKey("document_base.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属文档")
+    node_json = Column[str](Text, nullable=False, comment="文档内容(为协同编辑的的二进制json数据)")
     content = Column(LargeBinary, nullable=False, comment="文档内容(为协同编辑的的二进制数据)")
     content_updated_at = Column[datetime](DateTime, nullable=True, comment="内容最近更新时间")
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")

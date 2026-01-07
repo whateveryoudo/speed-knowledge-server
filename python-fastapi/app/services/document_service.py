@@ -81,4 +81,8 @@ class DocumentService:
         self.db.refresh(updated_document)
         self.db.refresh(document_node)
         return updated_document
-        
+
+    def get_content(self, document_id: str) -> str:
+        """获取文档内容"""
+        document_content = self.db.query(DocumentContent).filter(DocumentContent.document_id == document_id).first()
+        return document_content.node_json
