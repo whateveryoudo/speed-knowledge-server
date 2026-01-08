@@ -8,6 +8,8 @@ from sqlalchemy import JSON
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.schemas.response import BaseResponse
+from app.task.scheduler import start_scheduler
+
 import json
 
 app = FastAPI(
@@ -16,6 +18,21 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时执行"""
+    global scheduler
+    scheduler = start_scheduler()
+    print("定时任务已启动")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭时执行"""
+    global scheduler
+    if scheduler:
+        scheduler.shutdown()
+    print("定时任务已关闭")
 
 # ========== Swagger验证 ==========
 def custom_openapi():

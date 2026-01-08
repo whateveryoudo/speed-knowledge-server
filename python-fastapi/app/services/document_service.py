@@ -5,11 +5,16 @@ from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentRespons
 from typing import List
 from sqlalchemy.orm import Session
 from app.services.document_node_service import DocumentNodeService
+from app.core.config import settings
 import secrets
 import string
+import httpx
+import logging
+
 
 alphabet = string.ascii_letters + string.digits
 
+logger = logging.getLogger(__name__)
 
 class DocumentService:
     """文档服务"""
@@ -70,13 +75,35 @@ class DocumentService:
         return (
             self.db.query(Document).filter(Document.knowledge_id == knowledge_id).all()
         )
+    
+    def _sync_title_by_nodejs(self, document_id: str, new_title: str):
+        """通过nodejs服务同步标题信息（目前未加鉴权）"""
+        try:
+            nodejs_service_url = settings.NODEJS_SERVICE_URL
+            url = f"{nodejs_service_url}/document-content/sync-title"
+            payload = {
+                "documentId": document_id,
+                "newTitle": new_title,
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                logger.info(f"Sync title by nodejs success:title={new_title}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Sync title by nodejs failed:title={new_title},error={e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Sync title by nodejs failed:title={new_title},error={e}")
 
     def update_by_id_or_slug(self, updated_document: Document) -> Document:
         """通过id或短链更新文档"""
          # 调用节点更新
         document_node_service = DocumentNodeService(self.db)
         document_node=document_node_service.get_node_by_document_id(updated_document.id)
+        old_name = document_node.title
         document_node.title = updated_document.name
+        # 如果更新了名称，则调用node服务更新标题
+        if updated_document.name and old_name != updated_document.name:
+            self._sync_title_by_nodejs(updated_document.id, updated_document.name)
         self.db.commit()
         self.db.refresh(updated_document)
         self.db.refresh(document_node)

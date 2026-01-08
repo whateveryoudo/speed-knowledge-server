@@ -64,7 +64,6 @@ export class CollaborationService implements OnModuleInit {
         if (!decoded) {
           throw new Error("Unauthorized: Invalid token");
         }
-        console.log(decoded);
         // 存入访问次数，增加到document_base表中
         this.syncViewCount(context.documentName, decoded.id);
         return decoded;

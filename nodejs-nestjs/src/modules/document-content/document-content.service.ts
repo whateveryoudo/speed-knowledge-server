@@ -9,6 +9,16 @@ export class DocumentContentService {
     @InjectRepository(DocumentContent)
     private documentContentRepository: Repository<DocumentContent>
   ) {}
+  // 获取文档内容
+  async getDocumentContent(document_id: string) {
+    const documentContent = await this.documentContentRepository.findOne({
+      where: { document_id },
+    });
+    if (!documentContent) {
+      throw new NotFoundException("Document content not found");
+    }
+    return documentContent;
+  }
   // 新增文档内容
   async createContent(document_id: string, content: Buffer) {
     const documentContent = this.documentContentRepository.create({
@@ -33,15 +43,9 @@ export class DocumentContentService {
       {
         document_id,
       },
-      { content_updated_at: new Date(), node_json }
+      { content_updated_at: new Date(), node_json,content }
     );
-    // 然后再更新content（异步，不用等待返回,为什么流更新会卡主呢？？？）
-    this.documentContentRepository.update(
-      {
-        document_id,
-      },
-      { content }
-    );
+    console.log('更新成功');
   }
 
   async getContent(document_id: string) {

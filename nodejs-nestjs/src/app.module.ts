@@ -39,7 +39,7 @@ import { redisStore } from 'cache-manager-ioredis-yet';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: process.env.NODE_ENV === 'development', // 生产环境应设为 false
+      synchronize: process.env.NODE_ENV === 'development' // 生产环境应设为 false
     }),
     UserModule,
     AuthModule,

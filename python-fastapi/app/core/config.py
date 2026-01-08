@@ -30,4 +30,7 @@ class Settings(BaseSettings):
     ALGORITHM:str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
+    # nodejs服务地址
+    NODEJS_SERVICE_URL: str = "http://localhost:3000"
+
 settings = Settings()

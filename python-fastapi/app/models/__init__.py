@@ -8,6 +8,7 @@ from .document import Document, DocumentContent
 from .document_node import DocumentNode
 from .knowledge_invitation import KnowledgeInvitation
 from .knowledge_collaborator import KnowledgeCollaborator
+from .knowledge_daily_stats import KnowledgeDailyStats
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "DocumentNode",
     "KnowledgeInvitation",
     "KnowledgeCollaborator",
+    "KnowledgeDailyStats",
 ]

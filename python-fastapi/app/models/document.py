@@ -1,7 +1,7 @@
 """文档模型"""
 
 from app.db.base import Base
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, func, DateTime, LargeBinary, Boolean, text
+from sqlalchemy import Column, UniqueConstraint, String, Text, Integer, ForeignKey, func, DateTime, LargeBinary, Boolean, text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -10,6 +10,11 @@ class Document(Base):
     """文档模型"""
 
     __tablename__ = "document_base"
+
+    __table_args__ = (
+        UniqueConstraint('knowledge_id', 'slug', name='uniq_knowledge_id_document_slug'),
+    )
+
 
     id = Column[str](String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True, comment="主键")
     user_id = Column[int](Integer, index=True, nullable=False, comment="所属用户")
@@ -29,6 +34,7 @@ class DocumentContent(Base):
 
     __tablename__ = "document_content"
 
+   
     id = Column[str](String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True, comment="主键")
     document_id = Column[str](String(36), ForeignKey("document_base.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属文档")
     node_json = Column[str](Text, nullable=False, comment="文档内容(为协同编辑的的二进制json数据)")

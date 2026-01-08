@@ -11,6 +11,7 @@ from sqlalchemy import (
     func,
     text,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -27,6 +28,10 @@ class Knowledge(Base):
     """
 
     __tablename__ = "knowledge_base"
+
+    __table_args__ = (
+        UniqueConstraint("slug", name="uniq_knowledge_slug"),
+    )
 
     id = Column[str](
         String(36),
@@ -56,9 +61,7 @@ class Knowledge(Base):
     is_public = Column[bool](
         Boolean, nullable=False, server_default=text("0"), comment="是否公开"
     )
-    items_count = Column[int](
-        Integer, nullable=False, server_default=text("0"), comment="文档数量"
-    )
+    
     content_updated_at = Column[datetime](
         DateTime, nullable=True, comment="内容最近更新时间"
     )
