@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from app.schemas.attachment import AttachmentItem
+from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort
 
 
 class KnowledgeBase(BaseModel):
@@ -55,3 +56,22 @@ class KnowledgeUpdate(KnowledgeBase):
     slug: Optional[str] = Field(
         default=None, description="知识库短链", min_length=1, max_length=50
     )
+
+class KnowledgeFullResponse(KnowledgeResponse):
+    """知识库完整响应结构"""
+
+    enable_catalog: bool = Field(..., description="是否启用目录")
+    enable_custom_body: bool = Field(..., description="是否启用自定义模块")
+    enable_user_feed: bool = Field(..., description="是否显示协同人员")
+    layout: KnowledgeIndexPageLayout = Field(..., description="布局")
+    sort: KnowledgeIndexPageSort = Field(..., description="排序")
+    class Config:
+        from_attributes = True
+
+class KnowledgeIndexPageResponse(KnowledgeFullResponse):
+    """知识库首页信息结构"""
+
+    word_count: int = Field(..., description="文档字数")
+    has_collected: bool = Field(..., description="是否已收藏")
+    class Config:
+        from_attributes = True

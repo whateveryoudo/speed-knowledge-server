@@ -8,6 +8,7 @@ from sqlalchemy import or_, and_
 from app.schemas.knowledge_collaborator import KnowledgeCollaboratorCreate
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 from app.common.enums import KnowledgeCollaboratorStatus
+from app.models.document import Document
 from typing import List
 import secrets
 import string
@@ -51,7 +52,7 @@ class KnowledgeService:
         return knowledge
 
     def get_by_id_or_slug(self, identifier: str) -> Knowledge:
-        """通过知识库id/短链查询知识库"""
+        """通过知识库id/短链查询知识库(附带文档数量)"""
         knowledge = (
             self.db.query(Knowledge)
             .filter(
@@ -59,8 +60,10 @@ class KnowledgeService:
             )
             .first()
         )
+        if knowledge:
+            items_count = self.db.query(Document).filter(Document.knowledge_id == knowledge.id).count()
+            knowledge.items_count = items_count
         return knowledge
-
     def get_list_by_user_id(self, user_id: int) -> List[Knowledge]:
         """通过用户id查询知识库列表"""
         # 新增逻辑，追加协作者知识库查询

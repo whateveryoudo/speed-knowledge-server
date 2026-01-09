@@ -10,7 +10,7 @@ def start_scheduler():
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
     scheduler.add_job(
         rebuild_daily_knowledge_stats,
-        trigger=CronTrigger(hour=8, minute=0), 
+        trigger=CronTrigger(hour=10, minute=0), 
         id="knowledge_stats_job",
         name="每日知识库统计",
         replace_existing=True,

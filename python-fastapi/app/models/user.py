@@ -21,4 +21,5 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
 
+    collects = relationship("Collect", back_populates="user", cascade="all, delete")
     knowledge_collaborators = relationship("KnowledgeCollaborator", back_populates="user")

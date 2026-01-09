@@ -25,6 +25,23 @@ class DocumentService:
     def __init__(self, db: Session):
         self.db = db
 
+    def create_default_content(self, document_id: str):
+        """构建文档内容(这里调用nodejs服务构建一个默认的空的流和json)"""
+        try:
+            nodejs_service_url = settings.NODEJS_SERVICE_URL
+            url = f"{nodejs_service_url}/document-content/create-default"
+            payload = {
+                "documentId": document_id,
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                logger.info(f"Create default content by nodejs success:documentId={document_id}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Create default content by nodejs failed:documentId={document_id},error={e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Create default content by nodejs failed:documentId={document_id},error={e}")
+    
     def create(self, document_in: DocumentCreate) -> Document:
         """创建文档"""
         temp_slug = self._generate_slug()
@@ -39,15 +56,8 @@ class DocumentService:
         )
         self.db.add(document)
         self.db.flush()
-        # 构建文档内容
-        document_content = DocumentContent(
-            document_id=document.id,
-            content=b"",
-        )
-        self.db.add(document_content)
-        self.db.commit()
-        self.db.refresh(document)
-        self.db.refresh(document_content)
+        # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json)
+        self.create_default_content(document.id)
         # 调用节点更新
         document_node_service = DocumentNodeService(self.db)
         # 追加文档id
@@ -94,20 +104,24 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Sync title by nodejs failed:title={new_title},error={e}")
 
-    def update_by_id_or_slug(self, updated_document: Document) -> Document:
+    def update_by_id_or_slug(self, identifier: str, updated_document: DocumentUpdate) -> Document:
         """通过id或短链更新文档"""
          # 调用节点更新
+        document_service = DocumentService(self.db)
+        document=document_service.get_by_id_or_slug(identifier)
         document_node_service = DocumentNodeService(self.db)
-        document_node=document_node_service.get_node_by_document_id(updated_document.id)
-        old_name = document_node.title
-        document_node.title = updated_document.name
-        # 如果更新了名称，则调用node服务更新标题
-        if updated_document.name and old_name != updated_document.name:
-            self._sync_title_by_nodejs(updated_document.id, updated_document.name)
+        document_node = document_node_service.get_node_by_document_id(document.id)
+        old_name = document.name
+        # 同步node表的title
+        document_node.title = updated_document.name 
+        document.name = updated_document.name
+        # 如果更新了名称（外层触发,内层会触发协作），则调用node服务更新标题
+        print('updated_document.trigger', updated_document.trigger)
+        if updated_document.name and old_name != updated_document.name and updated_document.trigger == 'outer':
+            self._sync_title_by_nodejs(document.id, updated_document.name)
         self.db.commit()
-        self.db.refresh(updated_document)
-        self.db.refresh(document_node)
-        return updated_document
+        self.db.refresh(document)
+        return document
 
     def get_content(self, document_id: str) -> str:
         """获取文档内容"""

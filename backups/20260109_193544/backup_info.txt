@@ -1,0 +1,8 @@
+备份时间: Fri Jan  9 19:35:45 CST 2026
+MySQL 数据库: speed-knowledge
+备份路径: ./backups/20260109_193544
+
+恢复说明:
+1. MySQL: 使用 restore-data.sh 脚本或手动导入 mysql_backup.sql.gz
+2. Redis: 复制 redis_dump.rdb 到新容器的 /data 目录
+3. MinIO: 解压 minio_data.tar.gz 到新容器的 /data 目录

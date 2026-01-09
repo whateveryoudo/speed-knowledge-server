@@ -12,7 +12,6 @@ from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.services.document_service import DocumentService
 from app.models.knowledge_collaborator import KnowledgeCollaborator
-from app.schemas.knowledge import KnowledgeResponse
 from app.services.knowledge_service import KnowledgeService
 from app.services.permission_service import PermissionService
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
@@ -108,7 +107,7 @@ def get_knowledge_or_403(
     identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> KnowledgeResponse:
+) -> Knowledge:
     """获取知识库或返回403"""
     knowledge_service = KnowledgeService(db)
     target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
@@ -131,7 +130,7 @@ def vertify_knowledge_manage_permission(
     identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> KnowledgeResponse:
+) -> Knowledge:
     """验证知识库管理权限"""
     knowledge_service = KnowledgeService(db)
     target_knowledge = knowledge_service.get_by_id_or_slug(identifier)

@@ -65,17 +65,15 @@ async def get_document_detail(
 
 @router.put("/{identifier}", response_model=DocumentResponse)
 async def update_document(
+    identifier: str,
     document_in: DocumentUpdate,
     document: Document = Depends(get_document_or_403),
     db: Session = Depends(get_db),
-) -> DocumentResponse:
+) -> Document:
     """更新文档"""
-    if document_in.name is not None:
-        document.name = document_in.name
-    if document_in.slug is not None:
-        document.slug = document_in.slug
     document_service = DocumentService(db)
-    updated_document = document_service.update_by_id_or_slug(document)
+
+    updated_document = document_service.update_by_id_or_slug(identifier, document_in)
     return updated_document
 
 @router.get("/content/{document_id}", response_model=str)

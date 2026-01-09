@@ -1,7 +1,7 @@
 """文档结构"""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from app.common.enums import DocumentType
 
@@ -49,4 +49,7 @@ class DocumentUpdate(BaseModel):
     )
     slug: Optional[str] = Field(
         default=None, description="文档短链", min_length=1, max_length=50
+    )
+    trigger: Literal['outer', 'editor'] = Field(
+        default='outer', description="触发方式", choices=['outer', 'editor']
     )

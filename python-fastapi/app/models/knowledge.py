@@ -18,7 +18,7 @@ from datetime import datetime
 from app.db.base import Base
 import uuid
 from app.schemas.attachment import default_attachment_item
-
+from app.common.enums import KnowledgeIndexPageSort, KnowledgeIndexPageLayout
 
 class Knowledge(Base):
     """知识库表
@@ -61,7 +61,20 @@ class Knowledge(Base):
     is_public = Column[bool](
         Boolean, nullable=False, server_default=text("0"), comment="是否公开"
     )
-    
+
+    enable_catalog = Column[bool](
+        Boolean, nullable=False, server_default=text("1"), comment="是否启用目录"
+    )
+
+    enable_custom_body = Column[bool](
+        Boolean, nullable=False, server_default=text("0"), comment="是否启用自定义模块"
+    )
+
+    enable_user_feed = Column[bool](
+        Boolean, nullable=False, server_default=text("0"), comment="是否显示协同人员"
+    )
+    layout = Column[KnowledgeIndexPageLayout](String(20), default=KnowledgeIndexPageLayout.CATALOG, nullable=False, comment="布局")
+    sort = Column[KnowledgeIndexPageSort](String(20), default=KnowledgeIndexPageSort.CATALOG, nullable=False, comment="排序")
     content_updated_at = Column[datetime](
         DateTime, nullable=True, comment="内容最近更新时间"
     )
@@ -80,3 +93,4 @@ class Knowledge(Base):
     )
     
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")
+    collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")

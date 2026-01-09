@@ -29,6 +29,7 @@ class Document(Base):
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")
     content = relationship("DocumentContent", back_populates="document", cascade="all, delete")
 
+    collects = relationship("Collect", back_populates="document", cascade="all, delete")
 class DocumentContent(Base):
     """文档内容模型"""
 

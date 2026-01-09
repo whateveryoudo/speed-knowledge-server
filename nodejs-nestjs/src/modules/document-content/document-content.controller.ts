@@ -6,13 +6,41 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
+import { TiptapTransformer } from "@hocuspocus/transformer";
 import * as Y from "yjs";
+import extensions from "../../tiptap-extends/kit";
 
 @Controller("document-content")
 export class DocumentContentController {
   constructor(
     private readonly documentContentService: DocumentContentService
   ) {}
+
+  private getDefaultContent(title: string = "无标题文档"): {
+    content: Buffer;
+    node_json: string;
+  } {
+    const defaultJson: any = {
+      type: "doc",
+      content: [
+        {
+          type: "title",
+          content: [
+            {
+              type: "text",
+              text: title,
+            },
+          ],
+        },
+      ],
+    };
+    const ydoc = TiptapTransformer.toYdoc(defaultJson, "default", extensions);
+
+    return {
+      content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
+      node_json: JSON.stringify({ type: 'default', content: defaultJson }), // 多包一层
+    };
+  }
 
   @Post("sync-title")
   async syncTitle(@Body() body: { documentId: string; newTitle: string }) {
@@ -84,6 +112,24 @@ export class DocumentContentController {
       errCode: 0,
       data: null,
       errMessage: "Title synced successfully",
+    };
+  }
+
+  @Post("create-default")
+  async createDefault(@Body() body: { documentId: string }) {
+    const { documentId } = body;
+    const documentContent = this.getDefaultContent();
+    console.log(documentContent);
+    await this.documentContentService.createContent(
+      documentId,
+      documentContent.content,
+      documentContent.node_json
+    );
+    return {
+      success: true,
+      errCode: 0,
+      data: null,
+      errMessage: "Create default content successfully",
     };
   }
 }

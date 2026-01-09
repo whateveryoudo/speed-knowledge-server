@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { DocumentContent } from "./entities/document-content.entity";
-
+import { v4 as uuidv4 } from "uuid";
 @Injectable()
 export class DocumentContentService {
   constructor(
@@ -20,10 +20,12 @@ export class DocumentContentService {
     return documentContent;
   }
   // 新增文档内容
-  async createContent(document_id: string, content: Buffer) {
+  async createContent(document_id: string, content: Buffer, node_json: string) {
     const documentContent = this.documentContentRepository.create({
+      id: uuidv4(),
       document_id,
       content,
+      node_json,
     });
     await this.documentContentRepository.save(documentContent);
     return documentContent;
@@ -38,7 +40,6 @@ export class DocumentContentService {
       throw new NotFoundException("Document content not found");
     }
 
-    // 这里先更新content_updated_at
     await this.documentContentRepository.update(
       {
         document_id,
