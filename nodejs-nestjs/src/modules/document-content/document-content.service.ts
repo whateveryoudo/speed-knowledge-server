@@ -26,6 +26,7 @@ export class DocumentContentService {
       document_id,
       content,
       node_json,
+      content_updated_at: new Date(), // 更新一次时间
     });
     await this.documentContentRepository.save(documentContent);
     return documentContent;

@@ -33,4 +33,9 @@ class Settings(BaseSettings):
     # nodejs服务地址
     NODEJS_SERVICE_URL: str = "http://localhost:3000"
 
+    # onlyoffice配置
+    ONLYOFFICE_JWT_SECRET: str = "e39e75885d7f3688205de19c9ac041183c96624d8969dbf94d83e9da4f30feb1"
+    ONLYOFFICE_SERVER_URL: str = "http://localhost:8080"
+
+
 settings = Settings()

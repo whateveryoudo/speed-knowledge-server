@@ -79,7 +79,7 @@ class DocumentNode(Base):
         comment="更新时间",
     )
 
-    document = relationship("Document", backref="nodes")
+    document = relationship("Document", back_populates="nodes", cascade="all, delete", passive_deletes=True)
     @hybrid_property
     def document_slug(self):
         return self.document.slug if self.document else None

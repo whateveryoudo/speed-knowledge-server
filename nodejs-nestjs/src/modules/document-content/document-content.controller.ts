@@ -38,7 +38,7 @@ export class DocumentContentController {
 
     return {
       content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
-      node_json: JSON.stringify({ type: 'default', content: defaultJson }), // 多包一层
+      node_json: JSON.stringify({ default : defaultJson }), // 多包一层
     };
   }
 

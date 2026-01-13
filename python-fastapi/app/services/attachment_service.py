@@ -5,7 +5,7 @@ from fastapi import UploadFile, HTTPException
 from typing import Optional, Dict, Any
 from sqlalchemy.orm.session import Session
 from app.models.attachment import Attachment
-from app.schemas.attachment import AttachmentCreate
+from app.schemas.attachment import AttachmentCreate, AttachmentStream
 from app.core.minio_client import get_minio
 from app.models.user import User
 from datetime import datetime, timedelta
@@ -58,14 +58,8 @@ class AttachmentService:
         self.db.refresh(attachment)
         return attachment
 
-    def get(self, attachment_id: str) -> Dict[str, Any]:
-        """获取预览url
-
-        Args:
-            attachment_id (str): 附件id
-        Returns:
-            str: 预览url
-        """
+    def getStream(self, attachment_id: str) -> AttachmentStream:
+        """获取附件流"""
         attachment = (
             self.db.query(Attachment).filter(Attachment.id == attachment_id).first()
         )
@@ -74,6 +68,15 @@ class AttachmentService:
 
         return {
             "data_stream": self.minio.get_object(attachment.bucket_name, attachment.object_name),
-            "content_type": attachment.file_type,
-            "filename": attachment.file_name,
+            "file_type": attachment.file_type,
+            "file_name": attachment.file_name,
         }
+
+    def get(self, attachment_id: str) -> Attachment:
+        """获取附件记录"""
+        attachment = (
+            self.db.query(Attachment).filter(Attachment.id == attachment_id).first()
+        )
+        if not attachment:
+            raise HTTPException(status_code=404, detail="未找到附件")
+        return attachment

@@ -9,6 +9,7 @@ import { AuthService } from "../auth/auth.service";
 import { DocumentService } from "../document/document.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
+import extensions from "../../tiptap-extends/kit";
 import * as Y from "yjs";
 @Injectable()
 export class CollaborationService implements OnModuleInit {
@@ -41,7 +42,7 @@ export class CollaborationService implements OnModuleInit {
     const ydoc = new Y.Doc();
     // 把二进制更新应用到 ydoc
     Y.applyUpdate(ydoc, state);
-
+    // TiptapTransformer.extensions(extensions as any);
     // 从 ydoc 提取 ProseMirror JSON（默认根类型名是 'content'，保持与你写入时一致）
     const pmJson = TiptapTransformer.fromYdoc(ydoc as any);
     return pmJson;

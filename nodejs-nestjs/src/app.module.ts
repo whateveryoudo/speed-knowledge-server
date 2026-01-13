@@ -32,6 +32,10 @@ import { redisStore } from 'cache-manager-ioredis-yet';
     }),
     // 数据库模块
     TypeOrmModule.forRoot({
+      // 显式开启 SQL 日志并记录慢查询耗时，便于排查
+      logging: true,
+      // 超过 500ms 的查询会被标记为慢查询输出耗时
+      maxQueryExecutionTime: 500,
       type: 'mysql',
       host: process.env.DB_HOST,
       port: parseInt(process.env.DB_PORT || '3306', 10),

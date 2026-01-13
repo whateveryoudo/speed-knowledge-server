@@ -40,13 +40,14 @@ class KnowledgeService:
             slug=temp_slug,
             description=knowledge_in.description,
         )
+        self.db.add(knowledge)
+        self.db.flush()
         # 追加默认协作者
         collaborator_service = KnowledgeCollaboratorService(self.db)
         collaborator_service.join_default_collaborator(KnowledgeCollaboratorCreate(
             user_id=knowledge_in.user_id,
             knowledge_id=knowledge.id,
         ))
-        self.db.add(knowledge)
         self.db.commit()
         self.db.refresh(knowledge)
         return knowledge
@@ -71,5 +72,6 @@ class KnowledgeService:
                 .outerjoin(KnowledgeCollaborator, and_(Knowledge.id == KnowledgeCollaborator.knowledge_id, KnowledgeCollaborator.user_id == user_id, KnowledgeCollaborator.status == KnowledgeCollaboratorStatus.ACCEPTED.value))
                 .filter(or_(Knowledge.user_id == user_id, KnowledgeCollaborator.id.isnot(None)))
                 .distinct()
+                .order_by(Knowledge.created_at.desc())
                 .all())
         return knowledge_list

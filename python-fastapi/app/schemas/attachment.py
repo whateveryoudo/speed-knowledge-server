@@ -1,9 +1,10 @@
 """附件结构"""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, TypedDict, Any
 from datetime import datetime
 from app.core.config import settings
+
 
 # 这里主要是前端存储使用
 class AttachmentItem(BaseModel):
@@ -46,3 +47,10 @@ class AttachmentCreate(AttachmentBase):
     """创建附件结构"""
     bucket_name: Optional[str] = Field(default = settings.MINIO_BUCKET_NAME, description="存储桶名称", min_length=1, max_length=255)
     file_size: Optional[int] = Field(default = 0, description="文件大小：字节")
+
+# 带流结构返回
+class AttachmentStream(TypedDict):
+    """带流结构返回"""
+    data_stream: Any
+    file_type: str
+    file_name: str

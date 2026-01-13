@@ -28,7 +28,7 @@ class Document(Base):
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")
     content = relationship("DocumentContent", back_populates="document", cascade="all, delete")
-
+    nodes = relationship("DocumentNode", back_populates="document", cascade="all, delete")
     collects = relationship("Collect", back_populates="document", cascade="all, delete")
 class DocumentContent(Base):
     """文档内容模型"""
@@ -44,4 +44,4 @@ class DocumentContent(Base):
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")
 
-    document = relationship("Document", back_populates="content")
+    document = relationship("Document", back_populates="content", cascade="all, delete")

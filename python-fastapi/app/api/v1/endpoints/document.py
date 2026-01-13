@@ -85,3 +85,13 @@ async def get_document_content(
     document_service = DocumentService(db)
     document_content = document_service.get_content(document_id)
     return document_content
+
+@router.delete("/{identifier}", response_model=None)
+async def delete_document(
+    identifier: str,
+    document: Document = Depends(get_document_or_403),
+    db: Session = Depends(get_db),
+) -> None:
+    """删除文档"""
+    document_service = DocumentService(db)
+    return document_service.delete_by_id_or_slug(identifier)

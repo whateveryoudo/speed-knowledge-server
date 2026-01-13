@@ -22,7 +22,7 @@ class Attachment(Base):
 
     id = Column[str](String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True, comment="主键")
     file_name = Column[str](String(255), index=True, comment="附件名称")
-    file_type = Column[str](String(20), comment="附件类型")
+    file_type = Column[str](String(255), comment="附件类型")
     object_name= Column[str](String(255), nullable = False, comment="文件的唯一标识路径")
     file_size = Column[int](BigInteger, comment="附件大小")
     bucket_name = Column[str](String(255), nullable = False, comment = 'bucket名')
