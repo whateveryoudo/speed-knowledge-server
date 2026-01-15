@@ -12,14 +12,14 @@ import string
 import httpx
 import logging
 from sqlalchemy import func
-
+from app.services.base_service import BaseService
 
 alphabet = string.ascii_letters + string.digits
 
 logger = logging.getLogger(__name__)
 
 
-class DocumentService:
+class DocumentService(BaseService[Document]):
     """文档服务"""
 
     def _generate_slug(self) -> str:
@@ -27,7 +27,7 @@ class DocumentService:
         return "".join(secrets.choice(alphabet) for _ in range(16))
 
     def __init__(self, db: Session):
-        self.db = db
+        super().__init__(db, Document)
 
     def create_default_content(self, document_id: str):
         """构建文档内容(这里调用nodejs服务构建一个默认的空的流和json)"""
@@ -56,7 +56,7 @@ class DocumentService:
     def create(self, document_in: DocumentCreate) -> Document:
         """创建文档"""
         temp_slug = self._generate_slug()
-        while self.db.query(Document).filter(Document.slug == temp_slug).first():
+        while self.get_active_query().filter(Document.slug == temp_slug).first():
             temp_slug = self._generate_slug()
         document = Document(
             user_id=document_in.user_id,
@@ -81,7 +81,7 @@ class DocumentService:
     def get_by_id_or_slug(self, identifier: str) -> Document:
         """通过id或短链获取文档"""
         document = (
-            self.db.query(Document)
+            self.get_active_query()
             .filter(
                 (Document.id == identifier) | (Document.slug == identifier),
             )
@@ -147,7 +147,7 @@ class DocumentService:
         return document
 
     def get_content(self, document_id: str) -> str:
-        """获取文档内容"""
+        """获取文档信息"""
         document_content = (
             self.db.query(DocumentContent)
             .filter(DocumentContent.document_id == document_id)
@@ -155,13 +155,20 @@ class DocumentService:
         )
         return document_content.node_json
 
-    def delete_by_id_or_slug(self, identifier: str) -> None:
-        """通过id或短链删除文档(这里会同步删除node节点和内容)"""
+    def delete_by_id_or_slug(self, identifier: str, is_soft_delete: bool = True) -> None:
+        """通过id或短链删除文档(这里会同步删除node节点和内容（物理删除下）)"""
         document = self.get_by_id_or_slug(identifier)
+        document_node_service = DocumentNodeService(self.db)
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
             )
-        self.db.delete(document)
+        # 修改为软删除
+        if is_soft_delete:
+            document.soft_delete()
+        else:
+            self.db.delete(document)
+        # 这里同步删除节点
+        document_node_service.delete_by_document_id(document.id, is_soft_delete)
         self.db.commit()
         return None

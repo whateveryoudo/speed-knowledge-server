@@ -3,8 +3,9 @@
 from sqlalchemy import Column, Integer, String, DateTime, func
 from app.db.base import Base
 from sqlalchemy.orm import relationship
+from app.core.mixins import SoftDeleteMixin
 
-class User(Base):
+class User(Base, SoftDeleteMixin):
     """用户表
 
     Args:
@@ -21,5 +22,6 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
 
+    documents = relationship("Document", back_populates="user", cascade="all, delete")
     collects = relationship("Collect", back_populates="user", cascade="all, delete")
     knowledge_collaborators = relationship("KnowledgeCollaborator", back_populates="user")

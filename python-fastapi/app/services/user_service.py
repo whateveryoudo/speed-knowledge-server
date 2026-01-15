@@ -6,13 +6,14 @@ from sqlalchemy.orm.session import Session
 from app.models.user import User
 from app.core.security import verify_password, get_password_hash
 from app.schemas.user import UserCreate
+from app.services.base_service import BaseService
 
 
-class UserService:
+class UserService(BaseService):
     """用户服务类"""
 
     def __init__(self, db: Session) -> None:
-        self.db = db
+        super().__init__(db, User)
 
     def create(self, user_in: UserCreate) -> User:
         """创建用户
@@ -46,7 +47,7 @@ class UserService:
         Returns:
             Optional[User]: 用户
         """
-        return self.db.query(User).filter(User.email == email).first()
+        return self.get_active_query().filter(User.email == email).first()
 
     def get_by_id(self, user_id: int) -> Optional[User]:
         """根据id查询用户
@@ -57,7 +58,7 @@ class UserService:
         Returns:
             Optional[User]: 用户
         """
-        return self.db.query(User).filter(User.id == user_id).first()
+        return self.get_active_query().filter(User.id == user_id).first()
 
     def get_by_username(self, username: str) -> Optional[User]:
         """根据username查询用户
@@ -68,7 +69,7 @@ class UserService:
         Returns:
             Optional[User]: 用户
         """
-        return self.db.query(User).filter(User.username == username).first()
+        return self.get_active_query().filter(User.username == username).first()
 
     def get_by_email_or_username(self, identifier: str) -> Optional[User]:
         """根据邮箱或用户名查询用户
@@ -106,7 +107,7 @@ class UserService:
     def get_all_by_nickname_or_username(self, identifier: str) -> List[User]:
         """根据邮箱或用户名获取所有用户"""
         return (
-            self.db.query(User)
+            self.get_active_query()
             .filter(
                 User.email.like(f"%{identifier}%")
                 | User.username.like(f"%{identifier}%")

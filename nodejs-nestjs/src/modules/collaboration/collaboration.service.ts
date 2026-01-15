@@ -5,11 +5,11 @@ import { type WebSocket } from "ws";
 import { Database } from "@hocuspocus/extension-database";
 import { TiptapTransformer } from "@hocuspocus/transformer";
 import { DocumentContentService } from "../document-content/document-content.service";
+import { DocumentEditHistoryService } from "../document-edit-history/document-edit-history.service";
 import { AuthService } from "../auth/auth.service";
 import { DocumentService } from "../document/document.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
-import extensions from "../../tiptap-extends/kit";
 import * as Y from "yjs";
 @Injectable()
 export class CollaborationService implements OnModuleInit {
@@ -18,6 +18,7 @@ export class CollaborationService implements OnModuleInit {
 
   constructor(
     private documentContentService: DocumentContentService,
+    private documentEditHistoryService: DocumentEditHistoryService,
     private authService: AuthService,
     private documentService: DocumentService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
@@ -51,6 +52,7 @@ export class CollaborationService implements OnModuleInit {
   onModuleInit() {
     const documentContentService = this.documentContentService;
     const documentService = this.documentService;
+    const documentEditHistoryService = this.documentEditHistoryService;
     const yStateToPmJson = this.yStateToPmJson;
     // 配置Hocuspocus服务器
     this.hocuspocusServer = new Hocuspocus({
@@ -67,7 +69,9 @@ export class CollaborationService implements OnModuleInit {
         }
         // 存入访问次数，增加到document_base表中
         this.syncViewCount(context.documentName, decoded.id);
-        return decoded;
+        return {
+          user: decoded,
+        };
       },
       extensions: [
         new Database({
@@ -79,7 +83,7 @@ export class CollaborationService implements OnModuleInit {
             }
             return new Uint8Array(content);
           },
-          async store({ documentName, state }) {
+          async store({ documentName, state, context }) {
             const node = await yStateToPmJson(state);
             await documentContentService.updateContent(
               documentName,
@@ -90,6 +94,13 @@ export class CollaborationService implements OnModuleInit {
             await documentService.updateDocument(documentName, {
               content_updated_at: new Date(),
             });
+            // 编辑历史记录增加
+            await documentEditHistoryService.create({
+              edited_user_id: context.user.id,
+              document_id: documentName,
+              edited_datetime: new Date(),
+            });
+            
           },
         }),
       ],

@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import relationship
 import uuid
 from app.common.enums import KnowledgeCollaboratorRole, KnowledgeCollaboratorSource, KnowledgeCollaboratorStatus
-
+from app.core.mixins import SoftDeleteMixin
 class KnowledgeCollaborator(Base):
     """知识库协同人员模型"""
     __tablename__ = "knowledge_collaborator"
@@ -19,5 +19,6 @@ class KnowledgeCollaborator(Base):
     source = Column[KnowledgeCollaboratorSource](Integer, nullable=False, comment="来源")
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")
-
+    
     user = relationship("User", back_populates="knowledge_collaborators")
+    knowledge = relationship("Knowledge", back_populates="collaborators")

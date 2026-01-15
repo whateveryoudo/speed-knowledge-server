@@ -6,9 +6,10 @@ import {
   UpdateDateColumn,
   OneToOne,
   JoinColumn,
+  OneToMany,
 } from "typeorm";
 import { DocumentContent } from "../../document-content/entities/document-content.entity";
-
+import { DocumentEditHistory } from "../../document-edit-history/entities/document-edit-history.entity";
 @Entity("document_base")
 export class DocumentBase {
   @PrimaryColumn("varchar", { length: 36 })
@@ -46,4 +47,7 @@ export class DocumentBase {
 
   @OneToOne(() => DocumentContent, (content) => content.document, { cascade: true })
   content: DocumentContent;
+
+  @OneToMany(() => DocumentEditHistory, (edit_history) => edit_history.document)
+  edit_histories: DocumentEditHistory[];
 }

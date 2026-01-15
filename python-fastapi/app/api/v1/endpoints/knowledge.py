@@ -59,7 +59,7 @@ async def create_knowledge(
 
     knowledge_data = knowledge_in.model_copy(update={"user_id": current_user.id})
     created_knowledge = knowledge_service.create(knowledge_data)
-    return created_knowledge.id
+    return created_knowledge.slug
 
 
 @router.get("/list", response_model=List[KnowledgeResponse])
@@ -153,6 +153,7 @@ async def get_document_tree(
     """获取知识库的文档树"""
     document_tree_service = DocumentNodeService(db)
     document_tree = document_tree_service.get_document_tree_nodes(knowledge_id)
+    print('取到了文档树', document_tree)
     return document_tree
 
 

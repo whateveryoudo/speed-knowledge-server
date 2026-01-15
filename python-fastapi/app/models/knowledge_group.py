@@ -5,7 +5,8 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.schemas.knowledge_group import DEFAULT_DISPLAY_CONFIG
 import uuid
-class KnowledgeGroup(Base):
+from app.core.mixins import SoftDeleteMixin
+class KnowledgeGroup(SoftDeleteMixin, Base):
     """知识库分组模型"""
 
     __tablename__ = "knowledge_group"

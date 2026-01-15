@@ -12,11 +12,13 @@ from app.models.document import Document
 from typing import List
 import secrets
 import string
+from app.services.base_service import BaseService
+
 
 alphabet = string.ascii_letters + string.digits
 
 
-class KnowledgeService:
+class KnowledgeService(BaseService):
     """知识库服务"""
 
     def _generate_slug(self) -> str:
@@ -24,12 +26,12 @@ class KnowledgeService:
         return "".join(secrets.choice(alphabet) for _ in range(6))
 
     def __init__(self, db: Session) -> None:
-        self.db = db
+        super().__init__(db, Knowledge)
 
     def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
         temp_slug = self._generate_slug()
-        while self.db.query(Knowledge).filter(Knowledge.slug == temp_slug).first():
+        while self.get_active_query().filter(Knowledge.slug == temp_slug).first():
             temp_slug = self._generate_slug()
         # 默认isPublic为False
         knowledge = Knowledge(
@@ -40,7 +42,7 @@ class KnowledgeService:
             slug=temp_slug,
             description=knowledge_in.description,
         )
-        self.db.add(knowledge)
+        self.create(knowledge)
         self.db.flush()
         # 追加默认协作者
         collaborator_service = KnowledgeCollaboratorService(self.db)
@@ -55,7 +57,7 @@ class KnowledgeService:
     def get_by_id_or_slug(self, identifier: str) -> Knowledge:
         """通过知识库id/短链查询知识库(附带文档数量)"""
         knowledge = (
-            self.db.query(Knowledge)
+            self.get_active_query()
             .filter(
                 or_(Knowledge.id == identifier, Knowledge.slug == identifier),
             )
@@ -68,7 +70,7 @@ class KnowledgeService:
     def get_list_by_user_id(self, user_id: int) -> List[Knowledge]:
         """通过用户id查询知识库列表"""
         # 新增逻辑，追加协作者知识库查询
-        knowledge_list = (self.db.query(Knowledge)
+        knowledge_list = (self.get_active_query()
                 .outerjoin(KnowledgeCollaborator, and_(Knowledge.id == KnowledgeCollaborator.knowledge_id, KnowledgeCollaborator.user_id == user_id, KnowledgeCollaborator.status == KnowledgeCollaboratorStatus.ACCEPTED.value))
                 .filter(or_(Knowledge.user_id == user_id, KnowledgeCollaborator.id.isnot(None)))
                 .distinct()

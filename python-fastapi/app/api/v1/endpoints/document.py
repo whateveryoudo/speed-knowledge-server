@@ -9,6 +9,9 @@ from app.models.user import User
 from app.services.document_service import DocumentService
 from app.services.document_node_service import DocumentNodeService
 from app.models.document import Document
+from app.services.document_view_history import DocumentViewHistoryService
+from app.schemas.document_view_history import DocumentViewHistoryCreate
+from datetime import datetime
 
 router = APIRouter()
 
@@ -76,15 +79,27 @@ async def update_document(
     updated_document = document_service.update_by_id_or_slug(identifier, document_in)
     return updated_document
 
+
 @router.get("/content/{document_id}", response_model=str)
 async def get_document_content(
     document_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> str:
     """获取文档内容(这里是json数据)"""
     document_service = DocumentService(db)
     document_content = document_service.get_content(document_id)
+    # 更新浏览历史记录
+    document_view_history_service = DocumentViewHistoryService(db)
+    document_view_history_service.create(
+        DocumentViewHistoryCreate(
+            document_id=document_id,
+            viewed_user_id=current_user.id,
+            viewed_datetime=datetime.now(),
+        )
+    )
     return document_content
+
 
 @router.delete("/{identifier}", response_model=None)
 async def delete_document(

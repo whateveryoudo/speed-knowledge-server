@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from app.common.enums import DocumentNodeType
+from app.schemas.document import DocumentResponse
 
 
 class DocumentNodeBase(BaseModel):
@@ -33,6 +34,7 @@ class DocumentNodeBase(BaseModel):
     )
 
 
+
 class DocumentNodeResponse(DocumentNodeBase):
     """文档树节点响应结构"""
 
@@ -40,6 +42,6 @@ class DocumentNodeResponse(DocumentNodeBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     document_slug: Optional[str] = Field(default=None, description="所属文档短链")
-
+    document: Optional[DocumentResponse] = Field(default=None, description="所属文档")
     class Config:
         from_attributes = True

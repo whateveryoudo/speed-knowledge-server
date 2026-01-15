@@ -7,9 +7,8 @@ from app.db.base import Base
 import uuid
 from datetime import datetime
 from app.common.enums import DocumentNodeType
-
-
-class DocumentNode(Base):
+from app.core.mixins import SoftDeleteMixin
+class DocumentNode(SoftDeleteMixin, Base):
     """文档节点树"""
 
     __tablename__ = "document_node"
@@ -78,8 +77,7 @@ class DocumentNode(Base):
         server_onupdate=func.current_timestamp(),
         comment="更新时间",
     )
-
-    document = relationship("Document", back_populates="nodes", cascade="all, delete", passive_deletes=True)
+    document = relationship("Document", back_populates="nodes", cascade="all, delete")
     @hybrid_property
     def document_slug(self):
         return self.document.slug if self.document else None

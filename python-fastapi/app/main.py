@@ -9,8 +9,16 @@ from app.core.config import settings
 from app.api.v1.api import api_router
 from app.schemas.response import BaseResponse
 from app.task.scheduler import start_scheduler
+import faulthandler
+import signal
+import sys
 
 import json
+
+
+# 注册信号：收到 SIGUSR1 时自动打印当前所有线程的 Python 堆栈
+faulthandler.register(signal.SIGUSR1, file=sys.stderr)
+
 
 app = FastAPI(
     title=settings.APP_NAME,

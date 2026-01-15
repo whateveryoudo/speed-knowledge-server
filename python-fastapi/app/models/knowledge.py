@@ -19,8 +19,8 @@ from app.db.base import Base
 import uuid
 from app.schemas.attachment import default_attachment_item
 from app.common.enums import KnowledgeIndexPageSort, KnowledgeIndexPageLayout
-
-class Knowledge(Base):
+from app.core.mixins import SoftDeleteMixin
+class Knowledge(SoftDeleteMixin, Base):
     """知识库表
 
     Args:
@@ -91,6 +91,9 @@ class Knowledge(Base):
         server_onupdate=func.current_timestamp(),  # 或 mysql_on_update=func.current_timestamp()
         comment="更新时间",
     )
-    
+
+
+    documents = relationship("Document", back_populates="knowledge", cascade="all, delete")
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")
     collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")
+    collaborators = relationship("KnowledgeCollaborator", back_populates="knowledge", cascade="all, delete")

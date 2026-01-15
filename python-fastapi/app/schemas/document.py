@@ -5,7 +5,6 @@ from typing import Optional, Literal
 from datetime import datetime
 from app.common.enums import DocumentType
 
-
 class DocumentBase(BaseModel):
     """文档基础结构"""
 

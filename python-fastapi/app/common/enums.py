@@ -30,6 +30,13 @@ class KnowledgeGroupStyle(str, Enum):
     DETAIL = "detail"  # 详情
     IMAGE = "image"  # 图片
 
+class DocumentHistoryType(str, Enum):
+    """文档历史类型"""
+    VIEW = "view"  # 浏览
+    EDIT = "edit"  # 编辑
+    LIKE = "like"  # 点赞
+    COLLECT = "collect"  # 收藏
+
 class DocumentType(str, Enum):
     """文档类型:目前仅支持word"""
     WORD = "word"  # Word
