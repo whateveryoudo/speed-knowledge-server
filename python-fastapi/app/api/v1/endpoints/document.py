@@ -11,10 +11,11 @@ from app.services.document_node_service import DocumentNodeService
 from app.models.document import Document
 from app.services.document_view_history import DocumentViewHistoryService
 from app.schemas.document_view_history import DocumentViewHistoryCreate
+from app.schemas.document import DragDocumentNodeParams
 from datetime import datetime
 
 router = APIRouter()
-
+node_router = APIRouter()
 
 @router.post("/docs", response_model=str, status_code=status.HTTP_201_CREATED)
 async def create_document(
@@ -64,6 +65,17 @@ async def get_document_detail(
 ) -> DocumentResponse:
     """通过id或短链获取文档详情"""
     return document
+
+
+@node_router.put("/drag", response_model=None)
+async def drag_document(
+    drag_document_in: DragDocumentNodeParams,
+    db: Session = Depends(get_db),
+) -> None:
+    """拖拽文档节点（这里放到前面优先匹配）"""
+    print(drag_document_in)
+    document_node_service = DocumentNodeService(db)
+    return document_node_service.drag_document(drag_document_in)
 
 
 @router.put("/{identifier}", response_model=DocumentResponse)

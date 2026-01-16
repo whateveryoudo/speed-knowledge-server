@@ -19,3 +19,4 @@ captcha==0.5.0
 redis==5.0.1
 minio==7.2.18
 apscheduler==3.10.4
+volcengine-python-sdk==5.0.6

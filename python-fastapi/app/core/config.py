@@ -1,13 +1,19 @@
 from pydantic_settings import BaseSettings
+from typing import List
 
 # TODO： 结合env配置文件
 class Settings(BaseSettings):
     """应用设置"""
 
+
     APP_NAME: str = "FastAPI Server"
     API_V1_STR: str = "/api/v1"
     PORT: int = 8010
     DEBUG: bool = True
+
+    # CORS配置
+    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+
 
     # Redis配置
 
@@ -36,6 +42,12 @@ class Settings(BaseSettings):
     # onlyoffice配置
     ONLYOFFICE_JWT_SECRET: str = "e39e75885d7f3688205de19c9ac041183c96624d8969dbf94d83e9da4f30feb1"
     ONLYOFFICE_SERVER_URL: str = "http://localhost:8080"
+
+    # 火山引擎配置
+    VOLC_API_KEY: str = "5a2a1e5e-1dfc-419e-9462-59482793df92"
+    VOLC_ENDPOINT: str = "https://ark.cn-beijing.volces.com/api/v3"
+    # sdk自动填入了端点id
+    VOLC_MODEL: str = "doubao-seed-1-8-251228" 
 
 
 settings = Settings()

@@ -8,6 +8,8 @@ import uuid
 from datetime import datetime
 from app.common.enums import DocumentNodeType
 from app.core.mixins import SoftDeleteMixin
+
+
 class DocumentNode(SoftDeleteMixin, Base):
     """文档节点树"""
 
@@ -78,6 +80,11 @@ class DocumentNode(SoftDeleteMixin, Base):
         comment="更新时间",
     )
     document = relationship("Document", back_populates="nodes", cascade="all, delete")
+
     @hybrid_property
     def document_slug(self):
         return self.document.slug if self.document else None
+
+    @hybrid_property
+    def content_updated_at(self):
+        return self.document.content_updated_at if self.document else None

@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import JSON
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.schemas.response import BaseResponse
@@ -27,12 +28,14 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动时执行"""
     global scheduler
     scheduler = start_scheduler()
     print("定时任务已启动")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -41,6 +44,7 @@ async def shutdown_event():
     if scheduler:
         scheduler.shutdown()
     print("定时任务已关闭")
+
 
 # ========== Swagger验证 ==========
 def custom_openapi():
@@ -64,7 +68,11 @@ def custom_openapi():
             "description": "输入 JWT token，格式: Bearer <token> 或直接输入 token",
         }
     }
-    public_paths = ["/api/v1/auth/login", "/api/v1/auth/getVerificateCode", "/api/v1/users"]
+    public_paths = [
+        "/api/v1/auth/login",
+        "/api/v1/auth/getVerificateCode",
+        "/api/v1/users",
+    ]
     if "paths" in openapi_schema:
         for path, methods in openapi_schema["paths"].items():
             if any(path.endswith(public_path) for public_path in public_paths):
@@ -78,7 +86,19 @@ def custom_openapi():
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+
 app.openapi = custom_openapi
+
+# ========== CORS 配置 ==========
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
 # ========== 异常处理器 ==========
 
 
@@ -150,9 +170,10 @@ async def response_wrapper_middleware(request: Request, call_next):
     response = await call_next(request)
     # 跳过一些特殊路径
     # 注意：不能对 "/" 使用 startswith，否则所有路径都会匹配
-    if request.url.path in {"/", "/api/v1/openapi.json"} or request.url.path.startswith(
+    if request.url.path in {"/", "/api/v1/ai/doubao/stream", "/api/v1/openapi.json"} or request.url.path.startswith(
         "/api/docs"
     ):
+        print(response)
         return response
 
     if response.status_code >= 400:

@@ -2,7 +2,7 @@
 
 from app.models.document import Document, DocumentContent
 from fastapi import HTTPException, status
-from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
+from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse, DragDocumentNodeParams
 from typing import List
 from sqlalchemy.orm import Session
 from app.services.document_node_service import DocumentNodeService
@@ -172,3 +172,4 @@ class DocumentService(BaseService[Document]):
         document_node_service.delete_by_document_id(document.id, is_soft_delete)
         self.db.commit()
         return None
+    
