@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import datetime
 from app.schemas.attachment import AttachmentItem
 from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort
+from app.schemas.team import TeamResponse
 
 
 class KnowledgeBase(BaseModel):
@@ -32,7 +33,7 @@ class KnowledgeResponse(KnowledgeBase):
     id: str = Field(..., description="知识库ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-
+    team: TeamResponse = Field(..., description="所属团队")
     class Config:
         from_attributes = True
 

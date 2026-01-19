@@ -4,9 +4,10 @@ from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from typing import List, Optional
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeResponse, KnowledgeIndexPageResponse, KnowledgeFullResponse
-from app.core.deps import get_db, get_current_user, get_knowledge_or_403
+from app.core.deps import get_db, get_current_user, get_knowledge_or_403, get_current_team
 from app.models.user import User
 from app.models.knowledge import Knowledge
+from app.models.team import Team
 from app.services.knowledge_service import KnowledgeService
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.services.knowledge_invitation_service import KnowledgeInvitationService
@@ -64,11 +65,12 @@ async def create_knowledge(
 
 @router.get("/list", response_model=List[KnowledgeResponse])
 async def get_knowledge_list(
+    team: Team = Depends(get_current_team),
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> List[Knowledge]:
     """获取知识库列表"""
     knowledge_service = KnowledgeService(db)
-    knowledge_list = knowledge_service.get_list_by_user_id(current_user.id)
+    knowledge_list = knowledge_service.get_list_by_user_id(current_user.id, team.id)
     return knowledge_list
 
 

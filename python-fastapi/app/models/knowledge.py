@@ -50,7 +50,7 @@ class Knowledge(SoftDeleteMixin, Base):
     )
     icon = Column[str](String(20), nullable=False, comment="知识库图标")
     name = Column[str](String(128), nullable=False, comment="知识库名称")
-    slug = Column[str](String(64), nullable=False, comment="知识库短链")
+    slug = Column[str](String(64), index=True, nullable=False, unique=True, comment="知识库短链")
     description = Column[str](String(512), nullable=True, comment="简介")
     cover_url = Column(
         JSON,
@@ -75,6 +75,9 @@ class Knowledge(SoftDeleteMixin, Base):
     )
     layout = Column[KnowledgeIndexPageLayout](String(20), default=KnowledgeIndexPageLayout.CATALOG, nullable=False, comment="布局")
     sort = Column[KnowledgeIndexPageSort](String(20), default=KnowledgeIndexPageSort.CATALOG, nullable=False, comment="排序")
+    
+    team_id = Column[str](String(36), ForeignKey("team.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属团队")
+    space_id = Column[str](String(36), ForeignKey("space.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属空间（冗余字段）")
     content_updated_at = Column[datetime](
         DateTime, nullable=True, comment="内容最近更新时间"
     )
@@ -92,7 +95,7 @@ class Knowledge(SoftDeleteMixin, Base):
         comment="更新时间",
     )
 
-
+    team = relationship("Team", back_populates="knowledge_items")
     documents = relationship("Document", back_populates="knowledge", cascade="all, delete")
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")
     collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")

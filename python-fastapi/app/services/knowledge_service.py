@@ -13,6 +13,7 @@ from typing import List
 import secrets
 import string
 from app.services.base_service import BaseService
+from app.models.team import Team
 
 
 alphabet = string.ascii_letters + string.digits
@@ -42,14 +43,16 @@ class KnowledgeService(BaseService):
             slug=temp_slug,
             description=knowledge_in.description,
         )
-        self.create(knowledge)
+        self.db.add(knowledge)
         self.db.flush()
         # 追加默认协作者
         collaborator_service = KnowledgeCollaboratorService(self.db)
-        collaborator_service.join_default_collaborator(KnowledgeCollaboratorCreate(
-            user_id=knowledge_in.user_id,
-            knowledge_id=knowledge.id,
-        ))
+        collaborator_service.join_default_collaborator(
+            KnowledgeCollaboratorCreate(
+                user_id=knowledge_in.user_id,
+                knowledge_id=knowledge.id,
+            )
+        )
         self.db.commit()
         self.db.refresh(knowledge)
         return knowledge
@@ -64,16 +67,38 @@ class KnowledgeService(BaseService):
             .first()
         )
         if knowledge:
-            items_count = self.db.query(Document).filter(Document.knowledge_id == knowledge.id).count()
+            items_count = (
+                self.db.query(Document)
+                .filter(Document.knowledge_id == knowledge.id)
+                .count()
+            )
             knowledge.items_count = items_count
         return knowledge
-    def get_list_by_user_id(self, user_id: int) -> List[Knowledge]:
-        """通过用户id查询知识库列表"""
+
+    def get_list_by_user_id(self, user_id: int, team_id: str) -> List[Knowledge]:
+        """通过用户id和团队id查询知识库列表"""
         # 新增逻辑，追加协作者知识库查询
-        knowledge_list = (self.get_active_query()
-                .outerjoin(KnowledgeCollaborator, and_(Knowledge.id == KnowledgeCollaborator.knowledge_id, KnowledgeCollaborator.user_id == user_id, KnowledgeCollaborator.status == KnowledgeCollaboratorStatus.ACCEPTED.value))
-                .filter(or_(Knowledge.user_id == user_id, KnowledgeCollaborator.id.isnot(None)))
-                .distinct()
-                .order_by(Knowledge.created_at.desc())
-                .all())
+        knowledge_list = (
+            self.get_active_query()
+            .outerjoin(
+                KnowledgeCollaborator,
+                and_(
+                    Knowledge.id == KnowledgeCollaborator.knowledge_id,
+                    KnowledgeCollaborator.user_id == user_id,
+                    KnowledgeCollaborator.status
+                    == KnowledgeCollaboratorStatus.ACCEPTED.value,
+                ),
+            )
+            .outerjoin(Team, and_(Knowledge.team_id == Team.id, Team.id == team_id))
+            .filter(
+                or_(
+                    Knowledge.user_id == user_id,
+                    Knowledge.team_id == team_id,
+                    KnowledgeCollaborator.id.isnot(None),
+                )
+            )
+            .distinct()
+            .order_by(Knowledge.created_at.desc())
+            .all()
+        )
         return knowledge_list

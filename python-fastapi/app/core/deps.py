@@ -1,6 +1,6 @@
 """依赖注入"""
 
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Depends, HTTPException, status, Query, Request
 from typing import Generator
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
@@ -15,6 +15,11 @@ from app.models.knowledge_collaborator import KnowledgeCollaborator
 from app.services.knowledge_service import KnowledgeService
 from app.services.permission_service import PermissionService
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
+from app.services.space_service import SpaceService
+from app.models.space import Space
+from app.services.team_service import TeamService
+from app.models.team import Team
+from app.common.enums import SpaceType
 
 
 def get_db() -> Generator:
@@ -96,7 +101,7 @@ def get_document_or_403(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
 
     permission_service = PermissionService(db)
-    if not permission_service.can_read_document(current_user.id,document):
+    if not permission_service.can_read_document(current_user.id, document):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="你无权访问此文档"
         )
@@ -138,10 +143,56 @@ def vertify_knowledge_manage_permission(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
         )
-    
+
     permission_service = PermissionService(db)
-    if not permission_service.can_manage_knowledge(current_user.id, target_knowledge.id):
+    if not permission_service.can_manage_knowledge(
+        current_user.id, target_knowledge.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="你无权管理此知识库"
         )
     return target_knowledge
+
+
+def get_current_space(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前空间"""
+    host = request.headers.get("host", "").split(";")[0]
+    parts = host.split(".")
+    space_service = SpaceService(db)
+    if len(parts) >= 3 and parts[0] not in {"localhost"}:
+        space_domin = parts[0]
+        space = space_service.get_by_domin(space_domin)
+        if not space:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"
+            )
+        return space
+    # 当前用户的个人空间
+    space = (
+        space_service.get_active_query()
+        .filter(Space.owner_id == current_user.id, Space.type == SpaceType.PERSONAL)
+        .first()
+    )
+    if not space:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
+    return space
+
+
+def get_current_team(
+    space: Space = Depends(get_current_space),
+    db: Session = Depends(get_db),
+):
+    """获取当前团队"""
+    team_service = TeamService(db)
+    team = (
+        team_service.get_active_query()
+        .filter(Team.space_id == space.id, Team.is_default == True)
+        .first()
+    )
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在")
+    return team
