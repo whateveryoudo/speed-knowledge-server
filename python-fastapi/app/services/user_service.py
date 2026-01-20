@@ -7,6 +7,12 @@ from app.models.user import User
 from app.core.security import verify_password, get_password_hash
 from app.schemas.user import UserCreate
 from app.services.base_service import BaseService
+from app.services.space_service import SpaceService
+from app.schemas.space import SpaceCreate
+from app.services.team_service import TeamService
+from app.schemas.team import TeamCreate
+from app.common.enums import SpaceType
+from app.common.enums import TeamVisibility
 
 
 class UserService(BaseService):
@@ -34,6 +40,29 @@ class UserService(BaseService):
         )
 
         self.db.add(user)
+        self.db.flush()
+        # 追加默认空间/部门
+        space_service = SpaceService(self.db)
+        space_row = space_service.create_default_space(
+            SpaceCreate(
+                name= user.nickname or user.username,
+                description="",
+                type= SpaceType.PERSONAL,
+                owner_id=user.id,
+                contact_email=user.email
+            )
+        )
+        # 追加默认团队
+        team_service = TeamService(self.db)
+        team_service.create_default_team(
+            TeamCreate(
+                name=user.nickname or user.username,
+                description="",
+                owner_id=user.id,
+                space_id=space_row.id if space_row else None,
+                visibility=TeamVisibility.PUBLIC,
+            )
+        )
         self.db.commit()
         self.db.refresh(user)
         return user

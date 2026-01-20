@@ -7,13 +7,13 @@ from app.models.knowledge_collaborator import KnowledgeCollaborator
 from sqlalchemy import or_, and_
 from app.schemas.knowledge_collaborator import KnowledgeCollaboratorCreate
 from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
-from app.common.enums import KnowledgeCollaboratorStatus
+from app.common.enums import KnowledgeCollaboratorStatus, KnowledgeFromWay
 from app.models.document import Document
 from typing import List
 import secrets
 import string
 from app.services.base_service import BaseService
-from app.models.team import Team
+from app.schemas.knowledge import KnowledgeResponse
 
 
 alphabet = string.ascii_letters + string.digits
@@ -75,11 +75,12 @@ class KnowledgeService(BaseService):
             knowledge.items_count = items_count
         return knowledge
 
-    def get_list_by_user_id(self, user_id: int, team_id: str) -> List[Knowledge]:
+    def get_list_by_user_id(self, user_id: int) -> List[KnowledgeResponse]:
         """通过用户id和团队id查询知识库列表"""
         # 新增逻辑，追加协作者知识库查询
-        knowledge_list = (
+        rows = (
             self.get_active_query()
+            .with_entities(Knowledge, KnowledgeCollaborator.id.label("collaborator_id"))
             .outerjoin(
                 KnowledgeCollaborator,
                 and_(
@@ -89,11 +90,9 @@ class KnowledgeService(BaseService):
                     == KnowledgeCollaboratorStatus.ACCEPTED.value,
                 ),
             )
-            .outerjoin(Team, and_(Knowledge.team_id == Team.id, Team.id == team_id))
             .filter(
                 or_(
                     Knowledge.user_id == user_id,
-                    Knowledge.team_id == team_id,
                     KnowledgeCollaborator.id.isnot(None),
                 )
             )
@@ -101,4 +100,19 @@ class KnowledgeService(BaseService):
             .order_by(Knowledge.created_at.desc())
             .all()
         )
-        return knowledge_list
+        # 结构组装（直接返回pydantic模型）
+        result: List[KnowledgeResponse] = []
+        for knowledge, collaborator_id in rows:
+            item = KnowledgeResponse.model_validate(knowledge, from_attributes=True)
+            item = item.model_copy(
+                update={
+                    "source": (
+                        KnowledgeFromWay.OWN
+                        if knowledge.user_id == user_id
+                        else KnowledgeFromWay.COLLABORATION
+                    ),
+                    "collaborator_id": collaborator_id,
+                }
+            )
+            result.append(item)
+        return result

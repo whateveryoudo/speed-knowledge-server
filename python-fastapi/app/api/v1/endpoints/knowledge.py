@@ -3,8 +3,18 @@
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from typing import List, Optional
-from app.schemas.knowledge import KnowledgeCreate, KnowledgeResponse, KnowledgeIndexPageResponse, KnowledgeFullResponse
-from app.core.deps import get_db, get_current_user, get_knowledge_or_403, get_current_team
+from app.schemas.knowledge import (
+    KnowledgeCreate,
+    KnowledgeResponse,
+    KnowledgeIndexPageResponse,
+    KnowledgeFullResponse,
+)
+from app.core.deps import (
+    get_db,
+    get_current_user,
+    get_knowledge_or_403,
+    get_current_team,
+)
 from app.models.user import User
 from app.models.knowledge import Knowledge
 from app.models.team import Team
@@ -25,8 +35,7 @@ from app.schemas.knowledge_collaborator import (
     KnowledgeCollaboratorValidParams,
     KnowledgeCollaboratorCreate,
     KnowledgeCollaboratorUpdate,
-    KnowledgeCollaboratorAudit
-
+    KnowledgeCollaboratorAudit,
 )
 from app.common.enums import (
     KnowledgeInvitationStatus,
@@ -65,12 +74,11 @@ async def create_knowledge(
 
 @router.get("/list", response_model=List[KnowledgeResponse])
 async def get_knowledge_list(
-    team: Team = Depends(get_current_team),
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-) -> List[Knowledge]:
+) -> List[KnowledgeResponse]:
     """获取知识库列表"""
     knowledge_service = KnowledgeService(db)
-    knowledge_list = knowledge_service.get_list_by_user_id(current_user.id, team.id)
+    knowledge_list = knowledge_service.get_list_by_user_id(current_user.id)
     return knowledge_list
 
 
@@ -80,6 +88,7 @@ async def get_knowledge_detail(
 ) -> Knowledge:
     """通过短链/id获取知识库详情"""
     return knowledge
+
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
@@ -92,16 +101,32 @@ async def get_knowledge_index_page(
     collect_service = CollectService(db)
     if knowledge and knowledge.id:
         knowledge_index_page_schema = KnowledgeFullResponse.model_validate(knowledge)
-        knowledge_daily_stats = knowledge_daily_stats_service.get_daily_stats_by_knowledge_id(knowledge.id)
-        knowledge_daily_stats_schema = (KnowledgeDailyStatsResponse.model_validate(knowledge_daily_stats) if knowledge_daily_stats else None)
-        collected_record = collect_service.check_is_collected(current_user.id, knowledge.id, CollectResourceType.KNOWLEDGE)
+        knowledge_daily_stats = (
+            knowledge_daily_stats_service.get_daily_stats_by_knowledge_id(knowledge.id)
+        )
+        knowledge_daily_stats_schema = (
+            KnowledgeDailyStatsResponse.model_validate(knowledge_daily_stats)
+            if knowledge_daily_stats
+            else None
+        )
+        collected_record = collect_service.check_is_collected(
+            current_user.id, knowledge.id, CollectResourceType.KNOWLEDGE
+        )
         # 合并一些属性
-        return KnowledgeIndexPageResponse(**knowledge_index_page_schema.model_dump(),
-            word_count=knowledge_daily_stats_schema.word_count if knowledge_daily_stats_schema else 0,
+        return KnowledgeIndexPageResponse(
+            **knowledge_index_page_schema.model_dump(),
+            word_count=(
+                knowledge_daily_stats_schema.word_count
+                if knowledge_daily_stats_schema
+                else 0
+            ),
             has_collected=collected_record is not None,
         )
     else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+        )
+
 
 # 这里是直接创建一个默认的分组，不需要传入任何参数
 @router.post("/group/create", response_model=str, status_code=status.HTTP_201_CREATED)
@@ -155,7 +180,7 @@ async def get_document_tree(
     """获取知识库的文档树"""
     document_tree_service = DocumentNodeService(db)
     document_tree = document_tree_service.get_document_tree_nodes(knowledge_id)
-    print('取到了文档树', document_tree)
+    print("取到了文档树", document_tree)
     return document_tree
 
 
@@ -188,8 +213,7 @@ async def update_invitation_token(
     """更新知识库邀请链接token信息(权限或是否需要审核)"""
     invitation_token_service = KnowledgeInvitationService(db)
     invitation_token_info = invitation_token_service.update_invitation_token(
-        invitation_id,
-        invitation_token_update
+        invitation_id, invitation_token_update
     )
     return invitation_token_info
 
@@ -241,7 +265,10 @@ async def get_invitation_valid_info(
     )
 
 
-@router.get("/{knowledge_id}/collaborator/list", response_model=List[KnowledgeCollaboratorResponse])
+@router.get(
+    "/{knowledge_id}/collaborator/list",
+    response_model=List[KnowledgeCollaboratorResponse],
+)
 async def get_collaborator_list(
     knowledge_id: str,
     current_user: User = Depends(get_current_user),
@@ -299,14 +326,17 @@ async def apply_invitation(
         )
     )
     print(invitation_valid_info)
-    if (
-        collaborator_valid_info
-        
-    ):
+    if collaborator_valid_info:
         if collaborator_valid_info.status == KnowledgeCollaboratorStatus.ACCEPTED.value:
-            return BaseResponse.success_reponse(data=collaborator_valid_info, message="您已加入该知识库")
-        elif collaborator_valid_info.status == KnowledgeCollaboratorStatus.PENDING.value:
-            return BaseResponse.success_reponse(data=collaborator_valid_info, message="等待管理员审核")
+            return BaseResponse.success_reponse(
+                data=collaborator_valid_info, message="您已加入该知识库"
+            )
+        elif (
+            collaborator_valid_info.status == KnowledgeCollaboratorStatus.PENDING.value
+        ):
+            return BaseResponse.success_reponse(
+                data=collaborator_valid_info, message="等待管理员审核"
+            )
 
     # 根据邀请链接的配置初始化协作者状态
     collaborator_status = (
@@ -323,7 +353,12 @@ async def apply_invitation(
     )
     return collaborator_service.join_collaborator(temp_collaborator_info)
 
-@router.delete("/collaborator/{collaborator_id}", response_model=None, status_code=status.HTTP_200_OK)
+
+@router.delete(
+    "/collaborator/{collaborator_id}",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+)
 async def delete_collaborator(
     collaborator_id: str,
     current_user: User = Depends(get_current_user),
@@ -333,7 +368,10 @@ async def delete_collaborator(
     collaborator_service = KnowledgeCollaboratorService(db)
     collaborator_service.delete_collaborator(collaborator_id)
 
-@router.put("/collaborator/{collaborator_id}", response_model=KnowledgeCollaboratorResponse)
+
+@router.put(
+    "/collaborator/{collaborator_id}", response_model=KnowledgeCollaboratorResponse
+)
 async def update_collaborator_info(
     collaborator_id: str,
     collaborator_info: KnowledgeCollaboratorUpdate,
@@ -342,9 +380,15 @@ async def update_collaborator_info(
 ) -> KnowledgeCollaboratorResponse:
     """更新知识库协作者信息"""
     collaborator_service = KnowledgeCollaboratorService(db)
-    return collaborator_service.update_collaborator_info(collaborator_id, collaborator_info)
+    return collaborator_service.update_collaborator_info(
+        collaborator_id, collaborator_info
+    )
 
-@router.post("/collaborator/{collaborator_id}/audit", response_model=KnowledgeCollaboratorResponse)
+
+@router.post(
+    "/collaborator/{collaborator_id}/audit",
+    response_model=KnowledgeCollaboratorResponse,
+)
 async def audit_collaborator(
     collaborator_id: str,
     audit_in: KnowledgeCollaboratorAudit,

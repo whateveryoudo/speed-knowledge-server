@@ -4,9 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from app.schemas.attachment import AttachmentItem
-from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort
+from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort, KnowledgeFromWay
 from app.schemas.team import TeamResponse
-
 
 class KnowledgeBase(BaseModel):
     """知识库基础结构"""
@@ -34,6 +33,8 @@ class KnowledgeResponse(KnowledgeBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     team: TeamResponse = Field(..., description="所属团队")
+    source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源")
+    collaborator_id: Optional[str] = Field(default=None, description="协同者ID")
     class Config:
         from_attributes = True
 

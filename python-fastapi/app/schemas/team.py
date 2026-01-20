@@ -16,6 +16,7 @@ class TeamBase(BaseModel):
 
 class TeamCreate(TeamBase):
     members: Optional[List[int]] = Field(None, description="团队成员ID列表")
+    slug: Optional[str] = Field(None, description="团队标识")
     pass
 
 

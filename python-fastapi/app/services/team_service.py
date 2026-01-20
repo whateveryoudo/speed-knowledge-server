@@ -5,6 +5,9 @@ from app.services.base_service import BaseService
 from datetime import datetime
 import secrets
 import string
+from app.services.team_member_service import TeamMemberService
+from app.schemas.team_member import TeamMemberCreate
+from app.common.enums import TeamMemberRole
 
 alphabet = string.ascii_letters + string.digits
 
@@ -32,6 +35,24 @@ class TeamService(BaseService):
         self.db.commit()
         self.db.refresh(team_row)
         return team_row
+
+    def create_default_team(self, team_create: TeamCreate):
+        # 排除members
+        temp_slug = self._generate_slug()
+        while self.get_active_query().filter(Team.slug == temp_slug).first():
+            temp_slug = self._generate_slug()
+        team_row = Team(**team_create.model_dump(exclude={"members","slug"}), slug = temp_slug)
+        self.db.add(team_row)
+        self.db.flush()
+        # 追加默认成员
+        team_member_service = TeamMemberService(self.db)
+        team_member_service.add_member(TeamMemberCreate(
+            team_id=team_row.id,
+            user_id=team_row.owner_id,
+            role=TeamMemberRole.OWNER,
+        ))
+        self.db.refresh(team_row)
+        return team_row    
 
     def update_team(self, team_update: TeamUpdate):
         self.db.query(Team).filter(Team.id == team_update.id).update(

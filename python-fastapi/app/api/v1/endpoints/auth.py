@@ -6,13 +6,13 @@ import io
 import uuid
 import redis
 import base64
-from captcha.image import ImageCaptcha
+from app.common.simpleImageCaptcha import SimpleImageCaptcha
 from fastapi.responses import StreamingResponse
 from app.core.redis_client import get_redis
 from app.schemas.user import Token, CaptchaResponse
 from app.core.deps import get_db
 from app.services.user_service import UserService
-from app.core.security import create_access_token,verify_captcha
+from app.core.security import create_access_token, verify_captcha
 from app.schemas.user import OAuth2PasswordRequestFormWithCaptcha
 
 router = APIRouter()
@@ -64,7 +64,7 @@ async def getverificate_code(
     # 生成4位随机验证码
     captcha_txt = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
 
-    image = ImageCaptcha(width=90, height=32, font_sizes=(26,28))
+    image = SimpleImageCaptcha(width=90, height=32, font_sizes=(25, 28))
 
     data_stream = image.generate(captcha_txt)
 
