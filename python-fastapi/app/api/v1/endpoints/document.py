@@ -13,9 +13,12 @@ from app.services.document_view_history import DocumentViewHistoryService
 from app.schemas.document_view_history import DocumentViewHistoryCreate
 from app.schemas.document import DragDocumentNodeParams
 from datetime import datetime
+from app.services.collect_service import CollectService
+from app.common.enums import CollectResourceType
 
 router = APIRouter()
 node_router = APIRouter()
+
 
 @router.post("/docs", response_model=str, status_code=status.HTTP_201_CREATED)
 async def create_document(
@@ -62,9 +65,17 @@ async def get_document_list_by_knowledge_id(
 @router.get("/{identifier}", response_model=DocumentResponse)
 async def get_document_detail(
     document: Document = Depends(get_document_or_403),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
     """通过id或短链获取文档详情"""
-    return document
+    collect_service = CollectService(db)
+    collected_record = collect_service.check_is_collected(
+        current_user.id, document.id, CollectResourceType.DOCUMENT
+    )
+    return DocumentResponse.model_validate(document).model_copy(
+        update={"has_collected": collected_record is not None}
+    )
 
 
 @node_router.put("/drag", response_model=None)
