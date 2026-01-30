@@ -24,6 +24,6 @@ class User(Base, SoftDeleteMixin):
 
     documents = relationship("Document", back_populates="user", cascade="all, delete")
     collects = relationship("Collect", back_populates="user", cascade="all, delete")
-    knowledge_collaborators = relationship("KnowledgeCollaborator", back_populates="user")
+    collaborators = relationship("Collaborator", back_populates="user")
     space_members = relationship("SpaceMember", back_populates="user")
     team_members = relationship("TeamMember", back_populates="user")

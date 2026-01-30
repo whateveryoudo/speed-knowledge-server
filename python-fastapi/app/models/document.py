@@ -35,6 +35,7 @@ class Document(SoftDeleteMixin, Base):
     content = relationship("DocumentContent", back_populates="document", cascade="all, delete")
     nodes = relationship("DocumentNode", back_populates="document", cascade="all, delete")
     collects = relationship("Collect", back_populates="document", cascade="all, delete")
+    collaborators = relationship("Collaborator", back_populates="document", cascade="all, delete")
 class DocumentContent(Base):
     """文档内容模型"""
 

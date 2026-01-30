@@ -11,8 +11,8 @@ from .knowledge_group import KnowledgeGroup
 from .attachment import Attachment
 from .document import Document, DocumentContent
 from .document_node import DocumentNode
-from .knowledge_invitation import KnowledgeInvitation
-from .knowledge_collaborator import KnowledgeCollaborator
+from .invitation import Invitation
+from .collaborator import Collaborator
 from .knowledge_daily_stats import KnowledgeDailyStats
 from .collect import Collect
 from .document_view_history import DocumentViewHistory
@@ -31,8 +31,8 @@ __all__ = [
     "Document",
     "DocumentContent",
     "DocumentNode",
-    "KnowledgeInvitation",
-    "KnowledgeCollaborator",
+    "Invitation",
+    "Collaborator",
     "KnowledgeDailyStats",
     "Collect",
     "DocumentViewHistory",

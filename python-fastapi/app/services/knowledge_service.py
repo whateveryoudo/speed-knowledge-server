@@ -3,11 +3,11 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
-from app.models.knowledge_collaborator import KnowledgeCollaborator
+from app.models.collaborator import Collaborator
 from sqlalchemy import or_, and_
-from app.schemas.knowledge_collaborator import KnowledgeCollaboratorCreate
-from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
-from app.common.enums import KnowledgeCollaboratorStatus, KnowledgeFromWay
+from app.schemas.collaborator import CollaboratorCreate
+from app.services.collaborator_service import CollaboratorService
+from app.common.enums import CollaboratorStatus, KnowledgeFromWay
 from app.models.document import Document
 from typing import List
 import secrets
@@ -46,9 +46,9 @@ class KnowledgeService(BaseService):
         self.db.add(knowledge)
         self.db.flush()
         # 追加默认协作者
-        collaborator_service = KnowledgeCollaboratorService(self.db)
+        collaborator_service = CollaboratorService(self.db)
         collaborator_service.join_default_collaborator(
-            KnowledgeCollaboratorCreate(
+            CollaboratorCreate(
                 user_id=knowledge_in.user_id,
                 knowledge_id=knowledge.id,
             )
@@ -80,20 +80,20 @@ class KnowledgeService(BaseService):
         # 新增逻辑，追加协作者知识库查询
         rows = (
             self.get_active_query()
-            .with_entities(Knowledge, KnowledgeCollaborator.id.label("collaborator_id"))
+            .with_entities(Knowledge, Collaborator.id.label("collaborator_id"))
             .outerjoin(
-                KnowledgeCollaborator,
+                Collaborator,
                 and_(
-                    Knowledge.id == KnowledgeCollaborator.knowledge_id,
-                    KnowledgeCollaborator.user_id == user_id,
-                    KnowledgeCollaborator.status
-                    == KnowledgeCollaboratorStatus.ACCEPTED.value,
+                    Knowledge.id == Collaborator.knowledge_id,
+                    Collaborator.user_id == user_id,
+                    Collaborator.status
+                    == CollaboratorStatus.ACCEPTED.value,
                 ),
             )
             .filter(
                 or_(
                     Knowledge.user_id == user_id,
-                    KnowledgeCollaborator.id.isnot(None),
+                    Collaborator.id.isnot(None),
                 )
             )
             .distinct()

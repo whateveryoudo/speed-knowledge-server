@@ -7,10 +7,7 @@ from .knowledge import (
     KnowledgeGroupType,
     KnowledgeGroupStyle,
     KnowledgeFromWay,
-    KnowledgeCollaboratorRole,
-    KnowledgeCollaboratorStatus,
-    KnowledgeCollaboratorSource,
-    KnowledgeInvitationStatus,
+    
 )
 from .document import (
     DocumentHistoryType,
@@ -18,7 +15,13 @@ from .document import (
     DocumentNodeDragAction,
     DocumentNodeType,
 )
-
+from .collaborator import (
+    CollaboratorRole,
+    CollaboratorStatus,
+    CollaboratorSource,
+    InvitationStatus,
+    CollaborateResourceType,
+)
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -32,10 +35,11 @@ __all__ = [
     "KnowledgeGroupType",
     "KnowledgeGroupStyle",
     "KnowledgeFromWay",
-    "KnowledgeCollaboratorRole",
-    "KnowledgeCollaboratorStatus",
-    "KnowledgeCollaboratorSource",
-    "KnowledgeInvitationStatus",
+    "CollaboratorRole",
+    "CollaboratorStatus",
+    "CollaboratorSource",
+    "CollaborateResourceType",
+    "InvitationStatus",
     "DocumentHistoryType",
     "DocumentType",
     "DocumentNodeDragAction",

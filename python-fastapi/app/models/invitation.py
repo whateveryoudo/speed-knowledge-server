@@ -4,13 +4,13 @@ from app.db.base import Base
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
 from datetime import datetime
 import uuid
-from app.common.enums import KnowledgeCollaboratorRole, KnowledgeInvitationStatus
+from app.common.enums import CollaboratorRole, InvitationStatus, CollaborateResourceType
 
 
-class KnowledgeInvitation(Base):
-    """知识库邀请链接模型"""
+class Invitation(Base):
+    """邀请链接模型(知识库/文档)"""
 
-    __tablename__ = "knowledge_invitation"
+    __tablename__ = "invitation"
 
     id = Column[str](
         String(36),
@@ -23,30 +23,43 @@ class KnowledgeInvitation(Base):
         String(36),
         ForeignKey("knowledge_base.id", ondelete="CASCADE"),
         index=True,
-        nullable=False,
+        nullable=True,
         comment="所属知识库",
+    )
+    document_id = Column[str](
+        String(36),
+        ForeignKey("document_base.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+        comment="所属文档",
     )
     inviter_id = Column[int](
         Integer, index=True, nullable=True, default=None, comment="被邀请用户id"
+    )
+    invitate_type = Column[CollaborateResourceType](
+        String(20),
+        nullable=False,
+        default=CollaborateResourceType.KNOWLEDGE.value,
+        comment="邀请来源:knowledge-知识库,document-文档",
     )
     token = Column[str](
         String(45), nullable=False, unique=True, comment="邀请链接token"
     )
 
-    role = Column[KnowledgeCollaboratorRole](
+    role = Column[CollaboratorRole](
         Integer,
         nullable=False,
-        default=KnowledgeCollaboratorRole.READ.value,
+        default=CollaboratorRole.READ.value,
         comment="角色",
     )
     need_approval = Column[int](
         Integer, nullable=True, default=0, comment="是否需要审批:0-否,1-是"
     )
 
-    status = Column[KnowledgeInvitationStatus](
+    status = Column[InvitationStatus](
         Integer,
         nullable=False,
-        default=KnowledgeInvitationStatus.ACTIVE.value,
+        default=InvitationStatus.ACTIVE.value,
         comment="状态:1-正常,2-已撤销",
     )
 

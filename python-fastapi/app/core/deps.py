@@ -11,10 +11,8 @@ from app.services.user_service import UserService
 from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.services.document_service import DocumentService
-from app.models.knowledge_collaborator import KnowledgeCollaborator
 from app.services.knowledge_service import KnowledgeService
 from app.services.permission_service import PermissionService
-from app.services.knowledge_collaborator_service import KnowledgeCollaboratorService
 from app.services.space_service import SpaceService
 from app.models.space import Space
 from app.services.team_service import TeamService

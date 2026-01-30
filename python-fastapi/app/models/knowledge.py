@@ -99,4 +99,4 @@ class Knowledge(SoftDeleteMixin, Base):
     documents = relationship("Document", back_populates="knowledge", cascade="all, delete")
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")
     collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")
-    collaborators = relationship("KnowledgeCollaborator", back_populates="knowledge", cascade="all, delete")
+    collaborators = relationship("Collaborator", back_populates="knowledge", cascade="all, delete")
