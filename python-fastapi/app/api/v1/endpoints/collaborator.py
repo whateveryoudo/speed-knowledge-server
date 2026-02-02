@@ -9,12 +9,18 @@ from app.schemas.invitation import (
 from app.schemas.collaborator import (
     CollaboratorResponse,
     CollaboratorCreate,
+    CollaboratorJoin,
     CollaboratorValidParams,
     CollaboratorUpdate,
     CollaboratorAudit,
 )
 from app.schemas.response import BaseResponse
-from app.common.enums import InvitationStatus, CollaboratorStatus, CollaboratorSource
+from app.common.enums import (
+    InvitationStatus,
+    CollaboratorStatus,
+    CollaboratorSource,
+    CollaborateResourceType,
+)
 from app.models.user import User
 from app.core.deps import get_db, get_current_user
 from app.models.collaborator import Collaborator
@@ -93,12 +99,23 @@ async def get_invitation_valid_info(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="邀请链接已失效"
         )
-    collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
-        CollaboratorValidParams(
-            knowledge_id=invitation_valid_info.knowledge_id,
-            user_id=current_user.id,
+    if invitation_valid_info.invitate_type == CollaborateResourceType.KNOWLEDGE:
+        collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
+            CollaboratorValidParams(
+                knowledge_id=invitation_valid_info.knowledge_id,
+                user_id=current_user.id,
+                resource_type=invitation_valid_info.invitate_type,
+            )
         )
-    )
+    else:
+        collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
+            CollaboratorValidParams(
+                document_id=invitation_valid_info.document_id,
+                user_id=current_user.id,
+                resource_type=invitation_valid_info.invitate_type,
+            )
+        )
+
     return InvitationValidResponse(
         invitation=invitation_valid_info, collaborator=collaborator_valid_info
     )
@@ -122,7 +139,7 @@ async def get_collaborator_list(
     return collaborators
 
 
-@router.post("/collaborator/default/create", response_model=CollaboratorResponse)
+@router.post("/default/create", response_model=CollaboratorResponse)
 async def create_default_collaborator(
     default_collaborator_in: CollaboratorCreate,
     current_user: User = Depends(get_current_user),
@@ -134,6 +151,8 @@ async def create_default_collaborator(
         CollaboratorCreate(
             user_id=current_user.id,
             knowledge_id=default_collaborator_in.knowledge_id,
+            document_id=default_collaborator_in.document_id,
+            target_type=default_collaborator_in.target_type,
         ),
         use_by_router=True,
     )
@@ -141,7 +160,7 @@ async def create_default_collaborator(
 
 @router.post("/invitation/apply", response_model=CollaboratorResponse)
 async def apply_invitation(
-    invitation_info: CollaboratorCreate,
+    invitation_info: CollaboratorJoin,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CollaboratorResponse:
@@ -186,6 +205,7 @@ async def apply_invitation(
         user_id=current_user.id,
         knowledge_id=invitation_valid_info.knowledge_id,
         status=collaborator_status,
+        target_type=invitation_valid_info.invitate_type,
         source=CollaboratorSource.INVITATION.value,
         role=invitation_valid_info.role,
     )
@@ -222,7 +242,7 @@ async def update_collaborator_info(
 
 
 @router.post(
-    "/collaborator/{collaborator_id}/audit",
+    "/{collaborator_id}/audit",
     response_model=CollaboratorResponse,
 )
 async def audit_collaborator(

@@ -4,7 +4,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
 from datetime import datetime
 from sqlalchemy.orm import relationship
 import uuid
-from app.common.enums import CollaboratorRole, CollaboratorSource, CollaboratorStatus
+from app.common.enums import CollaboratorRole, CollaboratorSource, CollaboratorStatus, CollaborateResourceType
 from app.core.mixins import SoftDeleteMixin
 class Collaborator(Base):
     """协同人员模型(知识库/文档)"""
@@ -15,6 +15,7 @@ class Collaborator(Base):
     document_id = Column[str](String(36), ForeignKey("document_base.id", ondelete="CASCADE"), index=True, nullable=True, comment="所属文档")
     user_id = Column[int](Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属用户")
     role = Column[CollaboratorRole](Integer, nullable=False, comment="角色")
+    target_type = Column[CollaborateResourceType](Integer, nullable=False, comment="目标类型:知识库/文档")
 
     status = Column[CollaboratorStatus](Integer, nullable=False, default=CollaboratorStatus.PENDING.value, comment="状态")
     source = Column[CollaboratorSource](Integer, nullable=False, comment="来源")

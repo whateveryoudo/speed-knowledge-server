@@ -9,7 +9,7 @@ from app.schemas.user import UserResponse
 
 class CollaboratorBase(BaseModel):
     """协作者基础结构"""
-    knowledge_id: str = Field(..., description="所属知识库")
+    knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
     document_id: Optional[str] = Field(default=None, description="所属文档")
     user_id: int = Field(..., description="所属用户")
     role: CollaboratorRole = Field(..., description="角色")
@@ -34,7 +34,9 @@ class CollaboratorCreate(CollaboratorBase):
     role: Optional[CollaboratorRole] = Field(default=None, description="角色")
     status: Optional[CollaboratorStatus] = Field(default=None, description="状态")
     source: Optional[CollaboratorSource] = Field(default=None, description="来源")
-
+class CollaboratorJoin(BaseModel):
+    """协作者加入结构-Route使用"""
+    invitation_token: str = Field(..., description="邀请token")
 class CollaboratorUpdate(BaseModel):
     """协作者更新结构-Route使用"""
     role: Optional[CollaboratorRole] = Field(default=None, description="角色")
@@ -55,7 +57,9 @@ class CollaboratorValidInfo(BaseModel):
 class CollaboratorValidParams(BaseModel):
     """协作者获取校验信息参数"""
     user_id: int = Field(..., description="所属用户")
-    knowledge_id: str = Field(..., description="所属知识库")
+    knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
+    document_id: Optional[str] = Field(default=None, description="所属文档")
+    resource_type: CollaborateResourceType = Field(..., description="资源类型")
 
 class CollaboratorAudit(BaseModel):
     """协作者审核结构-Route使用"""

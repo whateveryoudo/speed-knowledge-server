@@ -64,8 +64,8 @@ class InvitationService:
             for k, v in has_active_record.__dict__.items()
             if not k.startswith("_") and k not in ["id", "created_at", "updated_at"]
         }
-        record_dict['token'] = self._generate_token()
-        record_dict['status'] = InvitationStatus.ACTIVE.value
+        record_dict["token"] = self._generate_token()
+        record_dict["status"] = InvitationStatus.ACTIVE.value
         # 历史改为已撤销
         has_active_record.status = InvitationStatus.REVOKED.value
         new_record = Invitation(**record_dict)
@@ -86,11 +86,14 @@ class InvitationService:
             resource_id = resource_identifier
         else:
             # 通过slug查询资源id
-            resource_id = (
+            resource_row = (
                 self.db.query(target_model)
                 .filter(target_model.slug == resource_identifier)
                 .first()
-            ).id
+            )
+            if resource_row is None:
+                raise HTTPException(status_code=404, detail="资源不存在")
+            resource_id = resource_row.id
         if resource_id is None:
             raise HTTPException(status_code=404, detail="资源不存在")
         print(f"resource_id: {resource_id}")
@@ -116,11 +119,15 @@ class InvitationService:
                 temp_token = self._generate_token()
             if resource_type == CollaborateResourceType.KNOWLEDGE.value:
                 has_active_record = Invitation(
-                    knowledge_id=resource_id, token=temp_token
+                    knowledge_id=resource_id,
+                    invitate_type=resource_type,
+                    token=temp_token,
                 )
             else:
                 has_active_record = Invitation(
-                    document_id=resource_id, token=temp_token
+                    document_id=resource_id,
+                    invitate_type=resource_type,
+                    token=temp_token,
                 )
             self.db.add(has_active_record)
             self.db.commit()
@@ -130,14 +137,15 @@ class InvitationService:
 
     def get_invitation_valid_info(self, token: str) -> InvitationValidInfo:
         """获取邀请链接token信息(这里会进行一些封装)"""
+        print(f"token: {token}")
         has_active_record = (
             self.db.query(
                 Invitation,
                 Knowledge.name.label("knowledge_name"),
                 Document.name.label("document_name"),
             )
-            .join(Knowledge, Invitation.knowledge_id == Knowledge.id)
-            .join(Document, Invitation.document_id == Document.id)
+            .outerjoin(Knowledge, Invitation.knowledge_id == Knowledge.id)
+            .outerjoin(Document, Invitation.document_id == Document.id)
             .filter(
                 Invitation.token == token,
                 Invitation.status == InvitationStatus.ACTIVE.value,
@@ -151,6 +159,8 @@ class InvitationService:
             knowledge_id=invitation.knowledge_id,
             status=invitation.status,
             knowledge_name=knowledge_name,
+            document_id=invitation.document_id,
+            invitate_type=invitation.invitate_type,
             document_name=document_name,
         )
 
