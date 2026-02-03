@@ -30,12 +30,14 @@ class InvitationResponse(InvitationBase):
 class InvitationValidInfo(BaseModel):
     """邀请信息状态(知识库/文档)"""
 
-    knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
     status: InvitationStatus = Field(..., description="状态")
+    role: CollaboratorRole = Field(..., description="角色")
+    knowledge_id: Optional[str] = Field(default=None, description="知识库id")
+    document_id: Optional[str] = Field(default=None, description="文档id")
     knowledge_name: Optional[str] = Field(default=None, description="知识库名称")
-    document_id: Optional[str] = Field(default=None, description="所属文档")
     document_name: Optional[str] = Field(default=None, description="文档名称")
     invitate_type: CollaborateResourceType = Field(..., description="资源类型")
+    need_approval: Optional[int] = Field(default=None, description="是否需要审批")
 
     class Config:
         from_attributes = True

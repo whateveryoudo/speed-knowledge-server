@@ -82,18 +82,18 @@ class InvitationService:
             target_model = Knowledge
         else:
             target_model = Document
-        if isUUID(resource_identifier):
-            resource_id = resource_identifier
-        else:
-            # 通过slug查询资源id
-            resource_row = (
-                self.db.query(target_model)
-                .filter(target_model.slug == resource_identifier)
-                .first()
+        # 通过slug/id查询资源
+        resource_row = (
+            self.db.query(target_model)
+            .filter(
+                (target_model.slug == resource_identifier)
+                | (target_model.id == resource_identifier)
             )
-            if resource_row is None:
-                raise HTTPException(status_code=404, detail="资源不存在")
-            resource_id = resource_row.id
+            .first()
+        )
+        if resource_row is None:
+            raise HTTPException(status_code=404, detail="资源不存在")
+        resource_id = resource_row.id
         if resource_id is None:
             raise HTTPException(status_code=404, detail="资源不存在")
         print(f"resource_id: {resource_id}")
@@ -126,6 +126,7 @@ class InvitationService:
             else:
                 has_active_record = Invitation(
                     document_id=resource_id,
+                    knowledge_id=resource_row.knowledge_id,  # 同时存入所属知识库id
                     invitate_type=resource_type,
                     token=temp_token,
                 )
@@ -142,7 +143,7 @@ class InvitationService:
             self.db.query(
                 Invitation,
                 Knowledge.name.label("knowledge_name"),
-                Document.name.label("document_name"),
+                Document.name.label("document_name")
             )
             .outerjoin(Knowledge, Invitation.knowledge_id == Knowledge.id)
             .outerjoin(Document, Invitation.document_id == Document.id)
@@ -156,12 +157,14 @@ class InvitationService:
             return None
         invitation, knowledge_name, document_name = has_active_record
         return InvitationValidInfo(
-            knowledge_id=invitation.knowledge_id,
             status=invitation.status,
-            knowledge_name=knowledge_name,
+            role=invitation.role,
+            knowledge_id=invitation.knowledge_id,
             document_id=invitation.document_id,
+            knowledge_name=knowledge_name,
             invitate_type=invitation.invitate_type,
             document_name=document_name,
+            need_approval=invitation.need_approval,
         )
 
     def get_invitation_by_token(self, token: str) -> InvitationResponse:

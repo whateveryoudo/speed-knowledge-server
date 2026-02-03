@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from fastapi import HTTPException, status
 from app.schemas.collaborator import (
     CollaboratorValidInfo,
@@ -14,6 +14,7 @@ from app.schemas.collaborator import (
     CollaboratorCreate,
     CollaboratorUpdate,
     CollaboratorAudit,
+    CollaboratorUpdateInfo,
 )
 from app.common.enums import (
     CollaboratorSource,
@@ -28,6 +29,26 @@ class CollaboratorService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def __get_resource_by_slug(
+        self, resource_type: CollaborateResourceType, resource_identifier: str
+    ) -> Optional[Union[Knowledge, Document]]:
+        """获取资源(解决传入短链获取对应id的场景)"""
+        resource_model = (
+            Knowledge
+            if resource_type == CollaborateResourceType.KNOWLEDGE
+            else Document
+        )
+        resource = (
+            self.db.query(resource_model)
+            .filter(resource_model.slug == resource_identifier)
+            .first()
+        )
+        if resource is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="资源不存在"
+            )
+        return resource
 
     def get_collaborator_valid_info(
         self, collaborator_in: CollaboratorValidParams
@@ -96,40 +117,67 @@ class CollaboratorService:
         """获取协作者列表(这里需要根据短链先获取对应的id)"""
         from sqlalchemy import case
 
-        resource_model = (
-            Knowledge
-            if resource_type == CollaborateResourceType.KNOWLEDGE
-            else Document
-        )
-        resource = (
-            self.db.query(resource_model)
-            .filter(resource_model.slug == resource_identifier)
-            .first()
-        )
-        if resource is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="资源不存在"
-            )
+        resource = self.__get_resource_by_slug(resource_type, resource_identifier)
         # 定义排序权重(正在审核1，创建者2,其余按照倒序排列)
         sort_order = case(
             (Collaborator.status == CollaboratorStatus.PENDING.value, 1),
             (Collaborator.role == CollaboratorRole.ADMIN.value, 2),
             else_=3,
         )
-        collaborators = (
-            self.db.query(Collaborator)
-            .filter(
-                Collaborator.knowledge_id == resource.id
-                if resource_type == CollaborateResourceType.KNOWLEDGE
-                else Collaborator.document_id == resource.id
+        if resource_type == CollaborateResourceType.KNOWLEDGE:
+            # 知识库协作者查询
+            sorted_collaborators = (
+                self.db.query(Collaborator)
+                .filter(
+                    Collaborator.knowledge_id == resource.id,
+                    Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                )
+                .options(joinedload(Collaborator.user))
+                .order_by(
+                    sort_order, Collaborator.created_at.desc()
+                )  # 先按权重排序，再按创建时间排序
+                .all()
             )
-            .options(joinedload(Collaborator.user))
-            .order_by(
-                sort_order, Collaborator.created_at.desc()
-            )  # 先按权重排序，再按创建时间排序
-            .all()
-        )
-        return collaborators
+        else:
+            # 文档协作者查询(这里需要同步查询对应知识库的协作者)
+            document_collaborators = (
+                self.db.query(Collaborator)
+                .filter(Collaborator.document_id == resource.id)
+                .options(joinedload(Collaborator.user))
+                .order_by(
+                    sort_order, Collaborator.created_at.desc()
+                )  # 先按权重排序，再按创建时间排序
+                .all()
+            )
+            # 查询知识库当前文档所属知识库的协作者
+            knowledge_collaborators = (
+                self.db.query(Collaborator)
+                .filter(
+                    Collaborator.knowledge_id == resource.knowledge_id,
+                    Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                    Collaborator.target_type
+                    == CollaborateResourceType.KNOWLEDGE.value,  # 只查询知识库协作者
+                )  # 只显示已接受的)
+                .options(joinedload(Collaborator.user))
+                .order_by(
+                    sort_order, Collaborator.created_at.desc()
+                )  # 先按权重排序，再按创建时间排序
+                .all()
+            )
+            all_collaborators = list(document_collaborators) + list(
+                knowledge_collaborators
+            )
+            # 排序：进行中>文档>知识库>
+            sorted_collaborators = sorted(
+                all_collaborators,
+                key=lambda x: (
+                    0 if x.status == CollaboratorStatus.ACCEPTED.value else 1,
+                    1 if x.document_id == resource.id else 2,
+                    x.created_at,
+                ),
+            )
+
+        return sorted_collaborators
 
     def delete_collaborator(self, collaborator_id: str) -> None:
         """删除协作者"""
@@ -172,6 +220,29 @@ class CollaboratorService:
         self.db.commit()
         self.db.refresh(collaborator)
         return collaborator
+
+    def get_to_audit_count(
+        self, resource_type: CollaborateResourceType, resource_identifier: str
+    ) -> int:
+        """获取待审批数量(这里传入的是协作者短链)"""
+        resource = self.__get_resource_by_slug(resource_type, resource_identifier)
+        return (
+            self.db.query(Collaborator)
+            .filter(
+                Collaborator.target_type == resource_type,
+                (
+                    Collaborator.knowledge_id == resource.id
+                    if resource_type == CollaborateResourceType.KNOWLEDGE
+                    else (
+                        Collaborator.document_id == resource.id
+                        if resource_type == CollaborateResourceType.KNOWLEDGE
+                        else Collaborator.document_id == resource.id
+                    )
+                ),
+                Collaborator.status == CollaboratorStatus.PENDING.value,
+            )
+            .count()
+        )
 
     def audit_collaborator(
         self, collaborator_id: str, audit_in: CollaboratorAudit

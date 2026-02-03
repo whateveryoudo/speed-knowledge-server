@@ -11,6 +11,7 @@ class CollaboratorBase(BaseModel):
     """协作者基础结构"""
     knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
     document_id: Optional[str] = Field(default=None, description="所属文档")
+    target_type: CollaborateResourceType = Field(..., description="目标类型")
     user_id: int = Field(..., description="所属用户")
     role: CollaboratorRole = Field(..., description="角色")
     status: CollaboratorStatus = Field(..., description="状态")
@@ -56,9 +57,9 @@ class CollaboratorValidInfo(BaseModel):
 
 class CollaboratorValidParams(BaseModel):
     """协作者获取校验信息参数"""
-    user_id: int = Field(..., description="所属用户")
-    knowledge_id: Optional[str] = Field(default=None, description="所属知识库")
-    document_id: Optional[str] = Field(default=None, description="所属文档")
+    user_id: int = Field(..., description="用户id")
+    knowledge_id: str = Field(..., description="知识库id")
+    document_id: Optional[str] = Field(default=None, description="文档id")
     resource_type: CollaborateResourceType = Field(..., description="资源类型")
 
 class CollaboratorAudit(BaseModel):

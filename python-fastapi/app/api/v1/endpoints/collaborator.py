@@ -99,23 +99,45 @@ async def get_invitation_valid_info(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="邀请链接已失效"
         )
-    if invitation_valid_info.invitate_type == CollaborateResourceType.KNOWLEDGE:
+    # 先校验当前用户是否已经加入该知识库/文档
+    collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
+        CollaboratorValidParams(
+            user_id=current_user.id,
+            knowledge_id=invitation_valid_info.knowledge_id,
+            document_id=invitation_valid_info.document_id,
+            resource_type=invitation_valid_info.invitate_type,
+        )
+    )
+    # 如果已经加入了该知识库/文档，则直接返回响应
+    if collaborator_valid_info:
+        return InvitationValidResponse(
+            invitation=invitation_valid_info, collaborator=collaborator_valid_info
+        )
+    # 如果需要审批，则先获取审批信息
+    if invitation_valid_info.need_approval == 1:
+        # 开启审批(这里直接传入两个值，在get_collaborator_valid_info中做了类型判断的)
         collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
             CollaboratorValidParams(
                 knowledge_id=invitation_valid_info.knowledge_id,
-                user_id=current_user.id,
-                resource_type=invitation_valid_info.invitate_type,
-            )
-        )
-    else:
-        collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
-            CollaboratorValidParams(
                 document_id=invitation_valid_info.document_id,
                 user_id=current_user.id,
                 resource_type=invitation_valid_info.invitate_type,
             )
         )
-
+    else:
+        # 直接加入协作，然后返回响应
+        temp_collaborator_info = Collaborator(
+            user_id=current_user.id,
+            knowledge_id=invitation_valid_info.knowledge_id,
+            document_id=invitation_valid_info.document_id,
+            status=CollaboratorStatus.ACCEPTED.value,
+            target_type=invitation_valid_info.invitate_type.value,
+            source=CollaboratorSource.INVITATION.value,
+            role=invitation_valid_info.role.value,
+        )
+        collaborator_valid_info = collaborator_service.join_collaborator(
+            temp_collaborator_info
+        )
     return InvitationValidResponse(
         invitation=invitation_valid_info, collaborator=collaborator_valid_info
     )
@@ -180,8 +202,10 @@ async def apply_invitation(
         )
     collaborator_valid_info = collaborator_service.get_collaborator_valid_info(
         CollaboratorValidParams(
-            knowledge_id=invitation_valid_info.knowledge_id,
             user_id=current_user.id,
+            knowledge_id=invitation_valid_info.knowledge_id,
+            document_id=invitation_valid_info.document_id,
+            resource_type=invitation_valid_info.invitate_type,
         )
     )
     print(invitation_valid_info)
@@ -204,6 +228,7 @@ async def apply_invitation(
     temp_collaborator_info = Collaborator(
         user_id=current_user.id,
         knowledge_id=invitation_valid_info.knowledge_id,
+        document_id=invitation_valid_info.document_id,
         status=collaborator_status,
         target_type=invitation_valid_info.invitate_type,
         source=CollaboratorSource.INVITATION.value,
@@ -254,3 +279,14 @@ async def audit_collaborator(
     """审核知识库协作者"""
     collaborator_service = CollaboratorService(db)
     return collaborator_service.audit_collaborator(collaborator_id, audit_in)
+
+@router.get("/{resource_type}/{resource_identifier}/to_audit_count", response_model=int)
+async def get_to_audit_count(
+    resource_type: str,
+    resource_identifier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> int:
+    """获取待审批数量"""
+    collaborator_service = CollaboratorService(db)
+    return collaborator_service.get_to_audit_count(resource_type, resource_identifier)
