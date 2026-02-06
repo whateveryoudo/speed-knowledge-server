@@ -14,8 +14,10 @@ class KnowledgeBase(BaseModel):
     name: str = Field(..., description="知识库名称", min_length=1, max_length=50)
     slug: str = Field(..., description="知识库短链", min_length=1, max_length=50)
     group_id: str = Field(..., description="所属分组")
+    team_id: str = Field(..., description="所属团队")
+    space_id: str = Field(..., description="所属空间")
     description: Optional[str] = Field(
-        default=None, description="知识库描述", min_length=1, max_length=250
+        default=None, description="知识库描述", max_length=250
     )
     cover_url: Optional[AttachmentItem] = Field(default=None, description="封面图URL")
     is_public: Optional[bool] = Field(default=False, description="是否公开")

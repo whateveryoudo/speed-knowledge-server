@@ -10,6 +10,16 @@ class KnowledgeIndexPageLayout(str, Enum):
     CARD = "card"  # 卡片视图
     COLUMN = "column"  # 专栏视图
 
+class KnowledgeAbility(str, Enum):
+    """角色能力(知识库)"""
+    CREATE_BOOK = 'create_book'  # 创建知识库
+
+    CREATE_BOOK_COLLABORATOR = 'create_book_collaborator'  # 创建知识库协作者
+    EXPORT_BOOK = 'export_book'  # 导出知识库
+    MODIFY_BOOK_SETTING = 'modify_book_setting'  # 修改知识库设置
+    SHARE_BOOK = 'share_book'  # 分享知识库
+    MODIFY_BOOK_PERMISSION = 'modify_book_permission'  # 修改知识库权限
+
 
 class KnowledgeIndexPageSort(str, Enum):
     """知识库文档树首页排序"""

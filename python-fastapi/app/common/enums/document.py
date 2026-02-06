@@ -11,6 +11,16 @@ class DocumentHistoryType(str, Enum):
     LIKE = "like"  # 点赞
     COLLECT = "collect"  # 收藏
 
+class DocumentAbility(str, Enum):
+    """角色能力"""
+    DOC_CTEATE = 'doc_create'  # 创建
+    DOC_READ = 'doc_read'  # 只读
+    DOC_EDIT = 'doc_edit'  # 编辑
+    DOC_DELETE = 'doc_delete'  # 删除
+    DOC_JOIN = 'doc_join'  # 加入
+    DOC_SHARE = 'doc_share'  # 分享
+    DOC_COMMENT = 'doc_comment'  # 评论
+
 
 class DocumentType(str, Enum):
     """文档类型:目前仅支持word"""

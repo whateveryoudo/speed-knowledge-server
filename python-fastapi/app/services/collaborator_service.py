@@ -8,13 +8,11 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.models.collaborator import Collaborator
+from app.models.permission_group import PermissionGroup
 from app.schemas.collaborator import (
-    CollaboratorBase,
     CollaboratorResponse,
     CollaboratorCreate,
-    CollaboratorUpdate,
     CollaboratorAudit,
-    CollaboratorUpdateInfo,
 )
 from app.common.enums import (
     CollaboratorSource,
@@ -30,7 +28,7 @@ class CollaboratorService:
     def __init__(self, db: Session):
         self.db = db
 
-    def __get_resource_by_slug(
+    def get_resource_by_slug(
         self, resource_type: CollaborateResourceType, resource_identifier: str
     ) -> Optional[Union[Knowledge, Document]]:
         """获取资源(解决传入短链获取对应id的场景)"""
@@ -73,13 +71,37 @@ class CollaboratorService:
 
         return None
 
+    def __get_permission_group_by_resource(
+        self, collaborator_in: CollaboratorCreate
+    ) -> PermissionGroup:
+        """通过类型和id查找对应的权限组"""
+        permission_group = (
+            self.db.query(PermissionGroup)
+            .filter(
+                PermissionGroup.target_type == collaborator_in.target_type,
+                (
+                    PermissionGroup.target_id == collaborator_in.knowledge_id
+                    if collaborator_in.target_type == CollaborateResourceType.KNOWLEDGE
+                    else PermissionGroup.target_id == collaborator_in.document_id
+                ),
+            )
+            .first()
+        )
+        if permission_group is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="权限组不存在"
+            )
+        return permission_group
+
     def join_default_collaborator(
         self, collaborator_in: CollaboratorCreate, use_by_router: bool = False
     ) -> CollaboratorResponse:
         """加入创建者作为默认协作者"""
+        permission_group = self.__get_permission_group_by_resource(collaborator_in)
         if collaborator_in.target_type == CollaborateResourceType.KNOWLEDGE:
             collaborator = Collaborator(
                 user_id=collaborator_in.user_id,
+                permission_group_id=permission_group.id,
                 knowledge_id=collaborator_in.knowledge_id,
                 status=CollaboratorStatus.ACCEPTED.value,
                 source=CollaboratorSource.CREATOR.value,
@@ -89,6 +111,7 @@ class CollaboratorService:
         else:
             collaborator = Collaborator(
                 user_id=collaborator_in.user_id,
+                permission_group_id=permission_group.id,
                 document_id=collaborator_in.document_id,
                 status=CollaboratorStatus.ACCEPTED.value,
                 source=CollaboratorSource.CREATOR.value,
@@ -100,10 +123,13 @@ class CollaboratorService:
         if use_by_router:
             self.db.commit()
         self.db.refresh(collaborator)
+
         return collaborator
 
     def join_collaborator(self, collaborator_in: Collaborator) -> CollaboratorResponse:
         """加入协作者"""
+        permission_group = self.__get_permission_group_by_resource(collaborator_in)
+        collaborator_in.permission_group_id = permission_group.id
         self.db.add(collaborator_in)
         self.db.flush()
         self.db.commit()
@@ -117,7 +143,7 @@ class CollaboratorService:
         """获取协作者列表(这里需要根据短链先获取对应的id)"""
         from sqlalchemy import case
 
-        resource = self.__get_resource_by_slug(resource_type, resource_identifier)
+        resource = self.get_resource_by_slug(resource_type, resource_identifier)
         # 定义排序权重(正在审核1，创建者2,其余按照倒序排列)
         sort_order = case(
             (Collaborator.status == CollaboratorStatus.PENDING.value, 1),
@@ -225,7 +251,7 @@ class CollaboratorService:
         self, resource_type: CollaborateResourceType, resource_identifier: str
     ) -> int:
         """获取待审批数量(这里传入的是协作者短链)"""
-        resource = self.__get_resource_by_slug(resource_type, resource_identifier)
+        resource = self.get_resource_by_slug(resource_type, resource_identifier)
         return (
             self.db.query(Collaborator)
             .filter(

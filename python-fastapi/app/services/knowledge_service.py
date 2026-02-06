@@ -1,5 +1,6 @@
 """知识库服务"""
 
+from tokenize import group
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
@@ -8,7 +9,14 @@ from sqlalchemy import or_, and_
 from app.schemas.collaborator import CollaboratorCreate
 from app.services.collaborator_service import CollaboratorService
 from app.common.enums import CollaboratorStatus, KnowledgeFromWay
+from app.services.permission_group_service import PermissionGroupService
+from app.schemas.permission_group import PermissionGroupCreate
 from app.models.document import Document
+from app.common.enums import (
+    CollaboratorRole,
+    CollaborateResourceType,
+    collaborator_role_name,
+)
 from typing import List
 import secrets
 import string
@@ -38,19 +46,34 @@ class KnowledgeService(BaseService):
         knowledge = Knowledge(
             user_id=knowledge_in.user_id,
             name=knowledge_in.name,
+            team_id=knowledge_in.team_id,
             group_id=knowledge_in.group_id,
             icon=knowledge_in.icon,
             slug=temp_slug,
+            space_id=knowledge_in.space_id,
             description=knowledge_in.description,
         )
         self.db.add(knowledge)
         self.db.flush()
+        # 创建默认权限组(追加3个角色权限)
+        for role in CollaboratorRole:
+            permission_group_service = PermissionGroupService(self.db)
+            permission_group_service.create_permission_group(
+                # 权限组名称: 知识库名称(知识库短链)-角色名称
+                PermissionGroupCreate(
+                    name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
+                    role=role,
+                    target_type=CollaborateResourceType.KNOWLEDGE,
+                    target_id=knowledge.id,
+                )
+            )
         # 追加默认协作者
         collaborator_service = CollaboratorService(self.db)
         collaborator_service.join_default_collaborator(
             CollaboratorCreate(
                 user_id=knowledge_in.user_id,
                 knowledge_id=knowledge.id,
+                target_type=CollaborateResourceType.KNOWLEDGE,
             )
         )
         self.db.commit()
@@ -86,8 +109,8 @@ class KnowledgeService(BaseService):
                 and_(
                     Knowledge.id == Collaborator.knowledge_id,
                     Collaborator.user_id == user_id,
-                    Collaborator.status
-                    == CollaboratorStatus.ACCEPTED.value,
+                    Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                    Collaborator.user_id!= Knowledge.user_id,  # 排除 协作者是创建者这条记录
                 ),
             )
             .filter(

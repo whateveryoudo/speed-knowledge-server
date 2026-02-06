@@ -7,16 +7,18 @@ from .knowledge import (
     KnowledgeGroupType,
     KnowledgeGroupStyle,
     KnowledgeFromWay,
-    
+    KnowledgeAbility,
 )
 from .document import (
     DocumentHistoryType,
     DocumentType,
     DocumentNodeDragAction,
     DocumentNodeType,
+    DocumentAbility,
 )
 from .collaborator import (
     CollaboratorRole,
+    collaborator_role_name,
     CollaboratorStatus,
     CollaboratorSource,
     InvitationStatus,
@@ -35,7 +37,9 @@ __all__ = [
     "KnowledgeGroupType",
     "KnowledgeGroupStyle",
     "KnowledgeFromWay",
+    "KnowledgeAbility",
     "CollaboratorRole",
+    "collaborator_role_name",
     "CollaboratorStatus",
     "CollaboratorSource",
     "CollaborateResourceType",
@@ -44,4 +48,5 @@ __all__ = [
     "DocumentType",
     "DocumentNodeDragAction",
     "DocumentNodeType",
+    "DocumentAbility",
 ]

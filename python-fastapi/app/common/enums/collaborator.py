@@ -12,6 +12,13 @@ class CollaboratorRole(int, Enum):
     EDIT = 2  # 编辑
     ADMIN = 3  # 管理员
 
+# 角色名称映射
+collaborator_role_name = {
+    CollaboratorRole.READ.value: "只读",
+    CollaboratorRole.EDIT.value: "编辑",
+    CollaboratorRole.ADMIN.value: "管理员",
+}
+
 
 class CollaboratorStatus(int, Enum):
     """协作者状态"""
@@ -38,5 +45,5 @@ class InvitationStatus(int, Enum):
 class CollaborateResourceType(str, Enum):
     """资源类型"""
 
-    KNOWLEDGE = 'knowledge'  # 知识库
-    DOCUMENT = 'document'  # 文档
+    KNOWLEDGE = "knowledge"  # 知识库
+    DOCUMENT = "document"  # 文档

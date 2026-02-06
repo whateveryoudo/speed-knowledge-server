@@ -17,6 +17,8 @@ from .knowledge_daily_stats import KnowledgeDailyStats
 from .collect import Collect
 from .document_view_history import DocumentViewHistory
 from .document_edit_history import DocumentEditHistory
+from .permission_group import PermissionGroup
+from .permission_ability import PermissionAbility
 
 __all__ = [
     "User",
@@ -37,4 +39,6 @@ __all__ = [
     "Collect",
     "DocumentViewHistory",
     "DocumentEditHistory",
+    "PermissionGroup",
+    "PermissionAbility",
 ]
