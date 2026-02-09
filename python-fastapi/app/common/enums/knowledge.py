@@ -12,8 +12,9 @@ class KnowledgeIndexPageLayout(str, Enum):
 
 class KnowledgeAbility(str, Enum):
     """角色能力(知识库)"""
-    CREATE_BOOK = 'create_book'  # 创建知识库
-
+    CREATE_BOOK = 'create_book'  # 创建知识库(这个权限不应该出现在这层，先定死吧，目前只有个人空间)
+    READ_BOOK = 'read_book'  # 访问知识库
+    DELETE_BOOK = 'delete_book'  # 删除知识库
     CREATE_BOOK_COLLABORATOR = 'create_book_collaborator'  # 创建知识库协作者
     EXPORT_BOOK = 'export_book'  # 导出知识库
     MODIFY_BOOK_SETTING = 'modify_book_setting'  # 修改知识库设置

@@ -62,6 +62,12 @@ class CollaboratorValidParams(BaseModel):
     document_id: Optional[str] = Field(default=None, description="文档id")
     resource_type: CollaborateResourceType = Field(..., description="资源类型")
 
+
+class QueryPermissionGroupParams(BaseModel):
+    """查询权限组参数"""
+    user_id: int = Field(..., description="用户id")
+    target_type: CollaborateResourceType = Field(..., description="资源类型")
+    target_id: str = Field(..., description="资源id")
 class CollaboratorAudit(BaseModel):
     """协作者审核结构-Route使用"""
     audit_status: Literal['agree','reject'] = Field(..., description="审核状态")

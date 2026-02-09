@@ -12,6 +12,7 @@ from app.common.enums import CollaboratorStatus, KnowledgeFromWay
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.models.document import Document
+from app.services.permission_service import PermissionService
 from app.common.enums import (
     CollaboratorRole,
     CollaborateResourceType,
@@ -36,6 +37,7 @@ class KnowledgeService(BaseService):
 
     def __init__(self, db: Session) -> None:
         super().__init__(db, Knowledge)
+        self.permission_service = PermissionService(db)
 
     def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
@@ -127,8 +129,10 @@ class KnowledgeService(BaseService):
         result: List[KnowledgeResponse] = []
         for knowledge, collaborator_id in rows:
             item = KnowledgeResponse.model_validate(knowledge, from_attributes=True)
+            ability = self.permission_service.get_permission_ability_by_resource(user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id)
             item = item.model_copy(
                 update={
+                    "ability": ability,
                     "source": (
                         KnowledgeFromWay.OWN
                         if knowledge.user_id == user_id

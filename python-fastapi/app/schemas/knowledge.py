@@ -1,10 +1,10 @@
 """知识库结构"""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Union, Dict
 from datetime import datetime
 from app.schemas.attachment import AttachmentItem
-from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort, KnowledgeFromWay
+from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort, KnowledgeFromWay, KnowledgeAbility, DocumentAbility
 from app.schemas.team import TeamResponse
 
 class KnowledgeBase(BaseModel):
@@ -37,6 +37,7 @@ class KnowledgeResponse(KnowledgeBase):
     team: TeamResponse = Field(..., description="所属团队")
     source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源")
     collaborator_id: Optional[str] = Field(default=None, description="协同者ID")
+    ability: Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]] = Field(default=None, description="知识库权限能力")
     class Config:
         from_attributes = True
 

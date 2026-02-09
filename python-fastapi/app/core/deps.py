@@ -1,7 +1,7 @@
 """依赖注入"""
 
 from fastapi import Depends, HTTPException, status, Query, Request
-from typing import Generator
+from typing import Generator, Union
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -18,6 +18,7 @@ from app.models.space import Space
 from app.services.team_service import TeamService
 from app.models.team import Team
 from app.common.enums import SpaceType
+from app.common.enums import KnowledgeAbility, DocumentAbility
 
 
 def get_db() -> Generator:
@@ -87,23 +88,76 @@ def get_current_user_from_query(
     return user
 
 
+def vertify_document_permission(
+    ability_key: Union[KnowledgeAbility, DocumentAbility],
+    identifier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """验证资源权限(文档)"""
+    document_service = DocumentService(db)
+    target_document = document_service.get_by_id_or_slug(identifier)
+    if not target_document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
+    permission_service = PermissionService(db)
+    # 当前文档所属的知识库能力集
+    knowledge_ability = permission_service.get_permission_ability_by_resource(
+        current_user.id, ability_key, target_document.knowledge_id
+    )
+    # 当前文档能力集
+    document_ability = permission_service.get_permission_ability_by_resource(
+        current_user.id, ability_key, target_document.id
+    )
+    # 合并能力集
+
+    merged_ability = {}
+    all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
+    for key in all_keys:
+        merged_ability[key] = bool(
+            knowledge_ability.get(key, False) or document_ability.get(key, False)
+        )
+    if not merged_ability.get(ability_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}此文档",
+        )
+    return target_document
+
+
 def get_document_or_403(
     identifier: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Document:
     """获取文档或返回403"""
-    document_service = DocumentService(db)
-    document = document_service.get_by_id_or_slug(identifier)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
-    
-    permission_service = PermissionService(db)
-    if not permission_service.can_read_document(current_user.id, document):
+    return vertify_document_permission(
+        DocumentAbility.DOC_READ, identifier, current_user, db
+    )
+
+
+def vertify_knowledge_permission(
+    ability_key: KnowledgeAbility,
+    identifier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """验证资源权限"""
+    knowledge_service = KnowledgeService(db)
+    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+    if not target_knowledge:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="你无权访问此文档"
+            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
         )
-    return document
+    permission_service = PermissionService(db)
+    ability = permission_service.get_permission_ability_by_resource(
+        current_user.id, ability_key, target_knowledge.id
+    )
+    if not ability or not ability.get(ability_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}此资源",
+        )
+    return target_knowledge
 
 
 def get_knowledge_or_403(
@@ -112,21 +166,9 @@ def get_knowledge_or_403(
     db: Session = Depends(get_db),
 ) -> Knowledge:
     """获取知识库或返回403"""
-    knowledge_service = KnowledgeService(db)
-    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
-    if not target_knowledge:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-        )
-
-    permission_service = PermissionService(db)
-    if not permission_service.can_read_knowledge(
-        current_user.id, target_knowledge.id, target_knowledge.is_public
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="你无权访问此知识库"
-        )
-    return target_knowledge
+    return vertify_knowledge_permission(
+        KnowledgeAbility.READ_BOOK, identifier, current_user, db
+    )
 
 
 def vertify_knowledge_manage_permission(

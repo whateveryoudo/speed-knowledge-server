@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from app.schemas.collaborator import (
     CollaboratorValidInfo,
     CollaboratorValidParams,
+    QueryPermissionGroupParams,
 )
 from sqlalchemy.orm import Session, joinedload
 from app.models.knowledge import Knowledge
@@ -314,3 +315,28 @@ class CollaboratorService:
             return CollaboratorRole.ADMIN.value
 
         return None
+
+    def get_permission_group_by_resource(
+        self, query_params: QueryPermissionGroupParams
+    ) -> Optional[str]:
+        """通过资源类型和资源id,用户id查找对应的权限组"""
+        print(query_params.target_id)
+        target_row = (
+            self.db.query(Collaborator)
+            .filter(
+                (
+                    Collaborator.knowledge_id == query_params.target_id
+                    if query_params.target_type.value
+                    == CollaborateResourceType.KNOWLEDGE
+                    else Collaborator.document_id == query_params.target_id
+                ),
+                Collaborator.user_id == query_params.user_id,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+            )
+            .first()
+        )
+        if target_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="协作信息不存在"
+            )
+        return target_row.permission_group_id

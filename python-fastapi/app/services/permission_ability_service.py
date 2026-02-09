@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Union
 from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.common.enums import (
@@ -75,6 +75,8 @@ class PermissionAbilityService:
         },
     }
 
+   
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -101,3 +103,28 @@ class PermissionAbilityService:
             self.db.add(permission_ability)
         self.db.commit()
         return permission_abilities
+
+    def add_permission_ability_by_permission_group_id(
+        self,
+        permission_group_id: str,
+        ability_key: Union[KnowledgeAbility, DocumentAbility],
+        enable: bool,
+    ) -> None:
+        """通过权限组id,添加权限能力"""
+        permission_ability = PermissionAbility(
+            permission_group_id=permission_group_id,
+            ability_key=ability_key.value,
+            enable=enable,
+        )
+        self.db.add(permission_ability)
+        self.db.commit()
+
+    def get_ability_by_permission_group_id(
+        self, permission_group_id: str
+    ) -> List[PermissionAbility]:
+        """通过权限组id获取权限能力集合"""
+        return (
+            self.db.query(PermissionAbility)
+            .filter(PermissionAbility.permission_group_id == permission_group_id)
+            .all()
+        )
