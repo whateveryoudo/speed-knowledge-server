@@ -22,12 +22,12 @@ class PermissionAbility(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     permission_group_id = Column(
         String(36),
-        ForeignKey("permission_groups.id"),
+        ForeignKey("permission_groups.id", ondelete="CASCADE"),
         nullable=False,
         comment="权限组ID",
     )
     ability_key = Column[Union[KnowledgeAbility, DocumentAbility]](
-        Integer, nullable=False, comment="能力键"
+        String(30), nullable=False, comment="能力键"
     )
     enable = Column(
         Boolean, nullable=False, server_default=text("0"), comment="是否启用"
@@ -35,4 +35,4 @@ class PermissionAbility(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now())
 
-    permission_group = relationship("PermissionGroup", back_populates="abilities")
+    permission_group = relationship("PermissionGroup", back_populates="abilities", cascade="all, delete")

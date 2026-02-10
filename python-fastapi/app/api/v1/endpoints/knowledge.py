@@ -12,8 +12,7 @@ from app.schemas.knowledge import (
 from app.core.deps import (
     get_db,
     get_current_user,
-    get_knowledge_or_403,
-    get_current_team,
+    VertifyKnowledgePermission,
 )
 from app.models.user import User
 from app.models.knowledge import Knowledge
@@ -25,9 +24,12 @@ from app.schemas.document_node import DocumentNodeResponse
 from app.services.knowledge_daily_stats_service import KnowledgeDailyStatsService
 from app.schemas.knowledge_daily_stats import KnowledgeDailyStatsResponse
 from app.services.collect_service import CollectService
+from app.services.permission_service import PermissionService
 
 from app.common.enums import (
     CollectResourceType,
+    CollaborateResourceType,
+    KnowledgeAbility,
 )
 from app.schemas.knowledge_group import (
     KnowledgeGroupUpdate,
@@ -64,15 +66,19 @@ async def get_knowledge_list(
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
-    knowledge: Knowledge = Depends(get_knowledge_or_403),
+    current_user: User = Depends(get_current_user),
+    knowledge: Knowledge = Depends(VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)),
+    db: Session = Depends(get_db),
 ) -> Knowledge:
     """通过短链/id获取知识库详情"""
-    return knowledge
+    # 同时追加当前用户的能力集合
+    knowledge_service = KnowledgeService(db)
+    return knowledge_service.to_wrap_knowledge_response(knowledge, current_user.id)
 
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
-    knowledge: Knowledge = Depends(get_knowledge_or_403),
+    knowledge: Knowledge = Depends(VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeIndexPageResponse:
@@ -162,3 +168,15 @@ async def get_document_tree(
     document_tree = document_tree_service.get_document_tree_nodes(knowledge_id)
     print("取到了文档树", document_tree)
     return document_tree
+
+
+@router.delete("/{identifier}", response_model=None, status_code=status.HTTP_200_OK)
+async def delete_knowledge(
+    knowledge: Knowledge = Depends(
+        VertifyKnowledgePermission(KnowledgeAbility.DELETE_BOOK)
+    ),
+    db: Session = Depends(get_db),
+) -> bool:
+    """删除知识库(软删除)"""
+    knowledge_service = KnowledgeService(db)
+    return knowledge_service.soft_delete(knowledge.id)

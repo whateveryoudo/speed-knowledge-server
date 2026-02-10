@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from app.common.enums import CollaboratorRole, CollaborateResourceType
+from app.common.enums import CollaboratorRole, CollaborateResourceType, collaborator_role_name
 
 
 class PermissionGroupBase(BaseModel):
@@ -13,6 +13,7 @@ class PermissionGroupBase(BaseModel):
     role: CollaboratorRole = Field(..., description="角色")
     target_type: CollaborateResourceType = Field(..., description="目标类型")
     target_id: str = Field(..., description="目标ID")
+    collaborator_id: str = Field(..., description="所属协同记录")
 
 
 class PermissionGroupCreate(PermissionGroupBase):

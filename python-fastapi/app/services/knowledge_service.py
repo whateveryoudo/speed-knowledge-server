@@ -21,6 +21,7 @@ from app.common.enums import (
 from typing import List
 import secrets
 import string
+from datetime import datetime
 from app.services.base_service import BaseService
 from app.schemas.knowledge import KnowledgeResponse
 
@@ -30,6 +31,19 @@ alphabet = string.ascii_letters + string.digits
 
 class KnowledgeService(BaseService):
     """知识库服务"""
+
+    def to_wrap_knowledge_response(
+        self, knowledge: Knowledge, user_id: int
+    ) -> KnowledgeResponse:
+        """包装知识库响应(追加一些其他参数)"""
+        ability = self.permission_service.get_permission_ability_by_resource(
+            user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id
+        )
+        return KnowledgeResponse.model_validate(knowledge).model_copy(
+            update={
+                "ability": ability,
+            }
+        )
 
     def _generate_slug(self) -> str:
         """生成知识库短链"""
@@ -57,6 +71,15 @@ class KnowledgeService(BaseService):
         )
         self.db.add(knowledge)
         self.db.flush()
+        # 追加默认协作者
+        collaborator_service = CollaboratorService(self.db)
+        target_collaborator = collaborator_service.join_default_collaborator(
+            CollaboratorCreate(
+                user_id=knowledge_in.user_id,
+                knowledge_id=knowledge.id,
+                target_type=CollaborateResourceType.KNOWLEDGE,
+            )
+        )
         # 创建默认权限组(追加3个角色权限)
         for role in CollaboratorRole:
             permission_group_service = PermissionGroupService(self.db)
@@ -65,19 +88,12 @@ class KnowledgeService(BaseService):
                 PermissionGroupCreate(
                     name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
                     role=role,
+                    collaborator_id=target_collaborator.id,
                     target_type=CollaborateResourceType.KNOWLEDGE,
                     target_id=knowledge.id,
                 )
             )
-        # 追加默认协作者
-        collaborator_service = CollaboratorService(self.db)
-        collaborator_service.join_default_collaborator(
-            CollaboratorCreate(
-                user_id=knowledge_in.user_id,
-                knowledge_id=knowledge.id,
-                target_type=CollaborateResourceType.KNOWLEDGE,
-            )
-        )
+
         self.db.commit()
         self.db.refresh(knowledge)
         return knowledge
@@ -112,7 +128,8 @@ class KnowledgeService(BaseService):
                     Knowledge.id == Collaborator.knowledge_id,
                     Collaborator.user_id == user_id,
                     Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                    Collaborator.user_id!= Knowledge.user_id,  # 排除 协作者是创建者这条记录
+                    Collaborator.user_id
+                    != Knowledge.user_id,  # 排除 协作者是创建者这条记录
                 ),
             )
             .filter(
@@ -129,7 +146,10 @@ class KnowledgeService(BaseService):
         result: List[KnowledgeResponse] = []
         for knowledge, collaborator_id in rows:
             item = KnowledgeResponse.model_validate(knowledge, from_attributes=True)
-            ability = self.permission_service.get_permission_ability_by_resource(user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id)
+            ability = self.permission_service.get_permission_ability_by_resource(
+                user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id
+            )
+            self.to_wrap_knowledge_response(knowledge, user_id)
             item = item.model_copy(
                 update={
                     "ability": ability,
@@ -143,3 +163,12 @@ class KnowledgeService(BaseService):
             )
             result.append(item)
         return result
+
+    def soft_delete(self, knowledge_id: str) -> bool:
+        """软删除知识库"""
+        knowledge = self.get_active_query().filter(Knowledge.id == knowledge_id).first()
+        if knowledge:
+            knowledge.deleted_at = datetime.now()
+            self.db.commit()
+            return True
+        return False

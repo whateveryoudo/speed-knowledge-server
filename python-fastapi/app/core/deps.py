@@ -1,7 +1,7 @@
 """依赖注入"""
 
 from fastapi import Depends, HTTPException, status, Query, Request
-from typing import Generator, Union
+from typing import Generator, Union, Optional
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -17,7 +17,7 @@ from app.services.space_service import SpaceService
 from app.models.space import Space
 from app.services.team_service import TeamService
 from app.models.team import Team
-from app.common.enums import SpaceType
+from app.common.enums import CollaborateResourceType, SpaceType
 from app.common.enums import KnowledgeAbility, DocumentAbility
 
 
@@ -102,11 +102,11 @@ def vertify_document_permission(
     permission_service = PermissionService(db)
     # 当前文档所属的知识库能力集
     knowledge_ability = permission_service.get_permission_ability_by_resource(
-        current_user.id, ability_key, target_document.knowledge_id
+        current_user.id, CollaborateResourceType.KNOWLEDGE, target_document.knowledge_id
     )
     # 当前文档能力集
     document_ability = permission_service.get_permission_ability_by_resource(
-        current_user.id, ability_key, target_document.id
+        current_user.id, CollaborateResourceType.DOCUMENT, target_document.id
     )
     # 合并能力集
 
@@ -135,63 +135,56 @@ def get_document_or_403(
     )
 
 
-def vertify_knowledge_permission(
-    ability_key: KnowledgeAbility,
-    identifier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> None:
-    """验证资源权限"""
-    knowledge_service = KnowledgeService(db)
-    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
-    if not target_knowledge:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+class VertifyKnowledgePermission:
+    """验证知识库权限"""
+    def __init__(self, ability_key: KnowledgeAbility):
+        self.ability_key = ability_key
+    def __call__(
+        self,
+        identifier: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Optional[Knowledge]:
+        """验证资源权限"""
+        knowledge_service = KnowledgeService(db)
+        target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+        if not target_knowledge:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+            )
+        permission_service = PermissionService(db)
+        ability = permission_service.get_permission_ability_by_resource(
+            current_user.id, CollaborateResourceType.KNOWLEDGE, target_knowledge.id
         )
-    permission_service = PermissionService(db)
-    ability = permission_service.get_permission_ability_by_resource(
-        current_user.id, ability_key, target_knowledge.id
-    )
-    if not ability or not ability.get(ability_key):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}此资源",
-        )
-    return target_knowledge
+        print(ability)
+        if not ability or not ability.get(self.ability_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}此资源",
+            )
+        return target_knowledge
 
+# def vertify_knowledge_manage_permission(
+#     identifier: str,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db),
+# ) -> Knowledge:
+#     """验证知识库管理权限"""
+#     knowledge_service = KnowledgeService(db)
+#     target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+#     if not target_knowledge:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+#         )
 
-def get_knowledge_or_403(
-    identifier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Knowledge:
-    """获取知识库或返回403"""
-    return vertify_knowledge_permission(
-        KnowledgeAbility.READ_BOOK, identifier, current_user, db
-    )
-
-
-def vertify_knowledge_manage_permission(
-    identifier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Knowledge:
-    """验证知识库管理权限"""
-    knowledge_service = KnowledgeService(db)
-    target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
-    if not target_knowledge:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-        )
-
-    permission_service = PermissionService(db)
-    if not permission_service.can_manage_knowledge(
-        current_user.id, target_knowledge.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="你无权管理此知识库"
-        )
-    return target_knowledge
+#     permission_service = PermissionService(db)
+#     if not permission_service.can_manage_knowledge(
+#         current_user.id, target_knowledge.id
+#     ):
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN, detail="你无权管理此知识库"
+#         )
+#     return target_knowledge
 
 
 def get_current_space(

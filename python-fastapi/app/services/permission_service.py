@@ -1,9 +1,10 @@
 """权限能力聚合服务"""
 
+from tokenize import group
 from typing import Optional, Dict, Union
 from sqlalchemy.orm import Session
 from app.models.document import Document
-from app.common.enums import CollaboratorRole
+from app.common.enums import CollaboratorRole, collaborator_role_name
 from app.services.collaborator_service import CollaboratorService
 from app.services.document_service import DocumentService
 from app.schemas.collaborator import QueryPermissionGroupParams
@@ -96,16 +97,19 @@ class PermissionService:
         self, user_id: int, target_type: CollaborateResourceType, target_id: str
     ) -> Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]]:
         """通过资源类型和资源id,用户id查找对应的权限能力"""
-        permission_group_id = (
-            self.collaborator_service.get_permission_group_by_resource(
-                QueryPermissionGroupParams(
-                    user_id=user_id, target_type=target_type, target_id=target_id
-                )
+        target_collaborator = self.collaborator_service.get_collaborator_by_resource(
+            QueryPermissionGroupParams(
+                user_id=user_id, target_type=target_type, target_id=target_id
             )
         )
-        if permission_group_id is None:
+        if target_collaborator is None:
+            return None
+        # 拿到关联的权限组多条记录，筛选出当前role对应的权限组信息
+        groups = target_collaborator.permission_groups or []
+        group = next((g for g in groups if g.role == target_collaborator.role), None)
+        if group is None:
             return None
         abilities = self.permission_ability_service.get_ability_by_permission_group_id(
-            permission_group_id
+            group.id
         )
         return {ability.ability_key: ability.enable for ability in abilities}

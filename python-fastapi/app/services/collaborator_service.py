@@ -75,7 +75,7 @@ class CollaboratorService:
     def __get_permission_group_by_resource(
         self, collaborator_in: CollaboratorCreate
     ) -> PermissionGroup:
-        """通过类型和id查找对应的权限组"""
+        """通过类型和id查找对应的权限组(已废弃)"""
         permission_group = (
             self.db.query(PermissionGroup)
             .filter(
@@ -96,13 +96,12 @@ class CollaboratorService:
 
     def join_default_collaborator(
         self, collaborator_in: CollaboratorCreate, use_by_router: bool = False
-    ) -> CollaboratorResponse:
+    ) -> Collaborator:
         """加入创建者作为默认协作者"""
-        permission_group = self.__get_permission_group_by_resource(collaborator_in)
+        # permission_group = self.__get_permission_group_by_resource(collaborator_in)
         if collaborator_in.target_type == CollaborateResourceType.KNOWLEDGE:
             collaborator = Collaborator(
                 user_id=collaborator_in.user_id,
-                permission_group_id=permission_group.id,
                 knowledge_id=collaborator_in.knowledge_id,
                 status=CollaboratorStatus.ACCEPTED.value,
                 source=CollaboratorSource.CREATOR.value,
@@ -112,7 +111,6 @@ class CollaboratorService:
         else:
             collaborator = Collaborator(
                 user_id=collaborator_in.user_id,
-                permission_group_id=permission_group.id,
                 document_id=collaborator_in.document_id,
                 status=CollaboratorStatus.ACCEPTED.value,
                 source=CollaboratorSource.CREATOR.value,
@@ -129,8 +127,8 @@ class CollaboratorService:
 
     def join_collaborator(self, collaborator_in: Collaborator) -> CollaboratorResponse:
         """加入协作者"""
-        permission_group = self.__get_permission_group_by_resource(collaborator_in)
-        collaborator_in.permission_group_id = permission_group.id
+        # permission_group = self.__get_permission_group_by_resource(collaborator_in)
+        # collaborator_in.permission_group_id = permission_group.id
         self.db.add(collaborator_in)
         self.db.flush()
         self.db.commit()
@@ -316,10 +314,10 @@ class CollaboratorService:
 
         return None
 
-    def get_permission_group_by_resource(
+    def get_collaborator_by_resource(
         self, query_params: QueryPermissionGroupParams
-    ) -> Optional[str]:
-        """通过资源类型和资源id,用户id查找对应的权限组"""
+    ) -> Optional[Collaborator]:
+        """通过资源类型和资源id,用户id查找对应的协作者记录"""
         print(query_params.target_id)
         target_row = (
             self.db.query(Collaborator)
@@ -339,4 +337,4 @@ class CollaboratorService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="协作信息不存在"
             )
-        return target_row.permission_group_id
+        return target_row
