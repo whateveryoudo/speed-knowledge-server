@@ -73,7 +73,7 @@ class KnowledgeService(BaseService):
         self.db.flush()
         # 追加默认协作者
         collaborator_service = CollaboratorService(self.db)
-        target_collaborator = collaborator_service.join_default_collaborator(
+        collaborator_service.join_default_collaborator(
             CollaboratorCreate(
                 user_id=knowledge_in.user_id,
                 knowledge_id=knowledge.id,
@@ -88,7 +88,6 @@ class KnowledgeService(BaseService):
                 PermissionGroupCreate(
                     name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
                     role=role,
-                    collaborator_id=target_collaborator.id,
                     target_type=CollaborateResourceType.KNOWLEDGE,
                     target_id=knowledge.id,
                 )

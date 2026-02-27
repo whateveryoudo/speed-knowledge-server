@@ -1,12 +1,12 @@
 """权限能力聚合服务"""
 
-from tokenize import group
 from typing import Optional, Dict, Union
 from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.common.enums import CollaboratorRole, collaborator_role_name
 from app.services.collaborator_service import CollaboratorService
 from app.services.document_service import DocumentService
+from app.services.permission_group_service import PermissionGroupService
 from app.schemas.collaborator import QueryPermissionGroupParams
 from app.services.permission_ability_service import PermissionAbilityService
 from app.common.enums import CollaborateResourceType, KnowledgeAbility, DocumentAbility
@@ -39,6 +39,7 @@ class PermissionService:
         self.collaborator_service = CollaboratorService(db)
         self.document_service = DocumentService(db)
         self.permission_ability_service = PermissionAbilityService(db)
+        self.permission_group_service = PermissionGroupService(db)
         # self.document_collaborator_service = DocumentCollaboratorService(db)
 
     def get_user_role_in_knowledge(
@@ -97,6 +98,7 @@ class PermissionService:
         self, user_id: int, target_type: CollaborateResourceType, target_id: str
     ) -> Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]]:
         """通过资源类型和资源id,用户id查找对应的权限能力"""
+        # 先查找用户所属的权限
         target_collaborator = self.collaborator_service.get_collaborator_by_resource(
             QueryPermissionGroupParams(
                 user_id=user_id, target_type=target_type, target_id=target_id
@@ -104,12 +106,17 @@ class PermissionService:
         )
         if target_collaborator is None:
             return None
-        # 拿到关联的权限组多条记录，筛选出当前role对应的权限组信息
-        groups = target_collaborator.permission_groups or []
-        group = next((g for g in groups if g.role == target_collaborator.role), None)
-        if group is None:
+        target_permission_group = (
+            self.permission_group_service.get_permission_group_by_resource(
+                role=target_collaborator.role,
+                target_type=target_type,
+                target_id=target_id,
+            )
+        )
+        if target_permission_group is None:
             return None
+
         abilities = self.permission_ability_service.get_ability_by_permission_group_id(
-            group.id
+            target_permission_group.id
         )
         return {ability.ability_key: ability.enable for ability in abilities}

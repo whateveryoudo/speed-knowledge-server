@@ -20,3 +20,6 @@ redis==5.0.1
 minio==7.2.18
 apscheduler==3.10.4
 volcengine-python-sdk==5.0.6
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+dashscope>=1.25.12

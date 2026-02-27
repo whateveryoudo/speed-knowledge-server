@@ -4,7 +4,7 @@ from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from typing import List
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
-from app.core.deps import get_db, get_current_user, get_document_or_403
+from app.core.deps import get_db, get_current_user, VertifyDocumentPermission
 from app.models.user import User
 from app.services.document_service import DocumentService
 from app.services.document_node_service import DocumentNodeService
@@ -14,7 +14,7 @@ from app.schemas.document_view_history import DocumentViewHistoryCreate
 from app.schemas.document import DragDocumentNodeParams
 from datetime import datetime
 from app.services.collect_service import CollectService
-from app.common.enums import CollectResourceType
+from app.common.enums import CollectResourceType, DocumentAbility
 
 router = APIRouter()
 node_router = APIRouter()
@@ -64,7 +64,9 @@ async def get_document_list_by_knowledge_id(
 
 @router.get("/{identifier}", response_model=DocumentResponse)
 async def get_document_detail(
-    document: Document = Depends(get_document_or_403),
+    document: Document = Depends(
+        VertifyDocumentPermission(DocumentAbility.DOC_READ)
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
@@ -93,7 +95,9 @@ async def drag_document(
 async def update_document(
     identifier: str,
     document_in: DocumentUpdate,
-    document: Document = Depends(get_document_or_403),
+    document: Document = Depends(
+        VertifyDocumentPermission(DocumentAbility.DOC_EDIT)
+    ),
     db: Session = Depends(get_db),
 ) -> Document:
     """更新文档"""
@@ -127,7 +131,9 @@ async def get_document_content(
 @router.delete("/{identifier}", response_model=None)
 async def delete_document(
     identifier: str,
-    document: Document = Depends(get_document_or_403),
+    document: Document = Depends(
+        VertifyDocumentPermission(DocumentAbility.DOC_DELETE)
+    ),
     db: Session = Depends(get_db),
 ) -> None:
     """删除文档"""

@@ -137,8 +137,10 @@ def get_document_or_403(
 
 class VertifyKnowledgePermission:
     """验证知识库权限"""
+
     def __init__(self, ability_key: KnowledgeAbility):
         self.ability_key = ability_key
+
     def __call__(
         self,
         identifier: str,
@@ -163,6 +165,52 @@ class VertifyKnowledgePermission:
                 detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}此资源",
             )
         return target_knowledge
+
+
+class VertifyDocumentPermission:
+    """验证文档权限"""
+
+    def __init__(self, ability_key: DocumentAbility):
+        self.ability_key = ability_key
+
+    def __call__(
+        self,
+        identifier: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Optional[Document]:
+        """验证资源权限(文档)"""
+        document_service = DocumentService(db)
+        target_document = document_service.get_by_id_or_slug(identifier)
+        if not target_document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+            )
+        permission_service = PermissionService(db)
+        # 当前文档所属的知识库能力集
+        knowledge_ability = permission_service.get_permission_ability_by_resource(
+            current_user.id, CollaborateResourceType.KNOWLEDGE,
+            target_document.knowledge_id,
+        )
+        # 当前文档能力集
+        document_ability = permission_service.get_permission_ability_by_resource(
+            current_user.id, CollaborateResourceType.DOCUMENT, target_document.id
+        )
+        # 合并能力集
+
+        merged_ability = {}
+        all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
+        for key in all_keys:
+            merged_ability[key] = bool(
+                knowledge_ability.get(key, False) or document_ability.get(key, False)
+            )
+        if not merged_ability.get(self.ability_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}此文档",
+            )
+        return target_document
+
 
 # def vertify_knowledge_manage_permission(
 #     identifier: str,

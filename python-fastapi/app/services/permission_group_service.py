@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from app.common.enums import CollaboratorRole, collaborator_role_name
+from app.common.enums import CollaboratorRole, CollaborateResourceType
 from app.schemas.permission_group import (
     PermissionGroupCreate,
     PermissionGroupUpdate,
@@ -21,9 +21,7 @@ class PermissionGroupService:
         self, permission_group_in: PermissionGroupCreate
     ) -> PermissionGroup:
         """创建权限组"""
-        permission_group = PermissionGroup(
-            **permission_group_in.model_dump()
-        )
+        permission_group = PermissionGroup(**permission_group_in.model_dump())
         print(permission_group)
 
         self.db.add(permission_group)
@@ -39,6 +37,23 @@ class PermissionGroupService:
         )
         self.db.commit()
         return permission_group
+
+    def get_permission_group_by_resource(
+        self,
+        role: CollaboratorRole,
+        target_type: CollaborateResourceType,
+        target_id: str,
+    ) -> Optional[PermissionGroup]:
+        """通过资源target_id, role, target_type获取权限组"""
+        return (
+            self.db.query(PermissionGroup)
+            .filter(
+                PermissionGroup.role == role,
+                PermissionGroup.target_type == target_type,
+                PermissionGroup.target_id == target_id,
+            )
+            .first()
+        )
 
     def get_permission_group_by_id(self, permission_group_id: str):
         """根据ID获取权限组"""

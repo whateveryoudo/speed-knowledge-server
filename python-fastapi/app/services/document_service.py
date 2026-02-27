@@ -2,9 +2,15 @@
 
 from app.models.document import Document, DocumentContent
 from fastapi import HTTPException, status
-from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse, DragDocumentNodeParams
+from app.schemas.document import (
+    DocumentCreate,
+    DocumentUpdate,
+    DocumentResponse,
+    DragDocumentNodeParams,
+)
 from typing import List
 from sqlalchemy.orm import Session
+from app.services.collaborator_service import CollaboratorService
 from app.services.document_node_service import DocumentNodeService
 from app.core.config import settings
 import secrets
@@ -13,6 +19,14 @@ import httpx
 import logging
 from sqlalchemy import func
 from app.services.base_service import BaseService
+from app.schemas.collaborator import CollaboratorCreate
+from app.common.enums import (
+    CollaborateResourceType,
+    CollaboratorRole,
+    collaborator_role_name,
+)
+from app.services.permission_group_service import PermissionGroupService
+from app.schemas.permission_group import PermissionGroupCreate
 
 alphabet = string.ascii_letters + string.digits
 
@@ -73,6 +87,27 @@ class DocumentService(BaseService[Document]):
         # 追加文档id
         temp_document_in = document_in.model_copy(update={"id": document.id})
         document_node_service.create_node(temp_document_in, document_in.parent_id)
+        # 追加默认协作者
+        collaborator_service = CollaboratorService(self.db)
+        collaborator_service.join_default_collaborator(
+            CollaboratorCreate(
+                user_id=document_in.user_id,
+                document_id=document.id,
+                target_type=CollaborateResourceType.DOCUMENT,
+            )
+        )
+        # 创建默认权限组(追加3个角色权限)
+        for role in CollaboratorRole:
+            permission_group_service = PermissionGroupService(self.db)
+            permission_group_service.create_permission_group(
+                # 权限组名称: 文档名称(文档短链)-角色名称
+                PermissionGroupCreate(
+                    name=f"{document.name}({document.slug})-{collaborator_role_name[role.value]}",
+                    role=role,
+                    target_type=CollaborateResourceType.DOCUMENT,
+                    target_id=document.id,
+                )
+            )
         self.db.commit()
         # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
         self.create_default_content(document.id)
@@ -155,7 +190,9 @@ class DocumentService(BaseService[Document]):
         )
         return document_content.node_json
 
-    def delete_by_id_or_slug(self, identifier: str, is_soft_delete: bool = True) -> None:
+    def delete_by_id_or_slug(
+        self, identifier: str, is_soft_delete: bool = True
+    ) -> None:
         """通过id或短链删除文档(这里会同步删除node节点和内容（物理删除下）)"""
         document = self.get_by_id_or_slug(identifier)
         document_node_service = DocumentNodeService(self.db)
@@ -172,4 +209,3 @@ class DocumentService(BaseService[Document]):
         document_node_service.delete_by_document_id(document.id, is_soft_delete)
         self.db.commit()
         return None
-    
