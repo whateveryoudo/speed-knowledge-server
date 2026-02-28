@@ -9,12 +9,12 @@ class DoubaoQuery(BaseModel):
 
 class Suggestion(BaseModel):
     id: str = Field(default="")
-    from_: int = Field(default=0)
-    to: int = Field(default=0)
+    node_id: str = Field(default="")
     message: str = Field(default="")
     rule_id: str = Field(default="")
+    text_index: Optional[int] = Field(default=None)
     severity: Literal['error', 'warning', 'info'] = Field(default="info")
-    replacement: Optional[str] = Field(default=None)
+    fixCommand: Optional[Dict[str, Any]] = Field(default=None)
     meta: Optional[Dict[str, Any]] = Field(default={})
     
 

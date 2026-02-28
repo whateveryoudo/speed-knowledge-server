@@ -5,67 +5,82 @@ from langchain_core.messages import HumanMessage
 from typing import Dict, Any, List
 from app.schemas.ai import Suggestion
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
 
-chat = ChatTongyi(model_name="qwen-max")
-
-
-
-def flatten_tiptap_doc(doc: Dict[str, Any]) -> str:
-    """扁平化 tiptap 文档结构
+chat = ChatTongyi(api_key=os.getenv("DASHSCOPE_API_KEY"), model_name="qwen-max", timeout=30)
+def build_tools_str(fixable_rules: List[Dict[str, Any]]) -> str:
+    """构建工具字符串
 
     Args:
-        doc (Dict[str, Any]): tiptap 文档结构(json)
+        rules (Dict[str, Any]): 规则(json)
 
     Returns:
-        str: 扁平化后的文档内容(包含 title, content, headings, paragraphs, lists, tables, images, etc.)
+        str: 构建后的工具字符串
     """
-    result = []
-
-    def walk(node: Dict[str, Any], path: List[int]):
-        node_type = node.get("type")
-        content = node.get("content", "")
-
-        if node_type == "paragraph":
-            text_parts = []
-            for c in content:
-                if c.get("type") == "text":
-                    text_parts.append(c.get("text", ""))
-            text = "".join(text_parts).strip()
-            if text:
-                result.append(f"段落{len(result) + 1}: {text}")
-        for child in content:
-            if isinstance(child, dict):
-                walk(child, path + [0])
-
-    walk(doc, [])
-    return "\n".join(result)
+    tools_definition = []
+    for rule in fixable_rules:
+        tool_desc = f"""
+- **Rule ID**: `{rule['id']}`
+  - **Description**: {rule['description']}
+  - **Action**: `{rule['fixCommand']['action']}`
+  - **Params Template**: {json.dumps(rule['fixCommand'].get('params', {}), ensure_ascii=False)}
+"""
+        tools_definition.append(tool_desc)
+    tools_str = (
+        "\n".join(tools_definition) if tools_definition else "暂无可自动修复的规则。"
+    )
+    return tools_str
 
 
-def build_prompt(flat_text: str, rules: List[Dict[str, Any]]) -> str:
+def build_prompt(doc: Dict[str, Any], rules: List[Dict[str, Any]]) -> str:
+    doc_str = json.dumps(doc, ensure_ascii=False, indent=2)
     result_str = json.dumps(rules, ensure_ascii=False, indent=2)
+    tools_str = build_tools_str(rules)
     return f"""
-你是一个政府公文/统计报告规范审稿助手，需要根据“规则”和“全文内容”给出结构化修改建议。
+你是一个政府公文/统计报告规范审稿助手，精通Tiptap和ProseMirror的文档结构，你可以参考：[https://tiptap.dev/docs/editor/core-concepts/nodes-and-marks]，需要根据“规则”和“全文内容”给出结构化修改建议。
 【规则（JSON）】:
 {result_str}
+文档结构说明：
+- 每个块级节点（如 paragraph, heading）都有唯一的 `attrs.nodeId`。
+- 块级节点内部包含多个子节点，其中 `type: "text"` 的节点代表文本片段。
+- **注意**：text 节点本身没有 ID。
+- text包含marks属性，为list, 包含textStyle
+
+# Available Fix Tools (动态生成的可执行命令)
+当发现错误且规则定义了 `fixCommand` 时，你必须严格使用该规则定义的 `action` 和 `params` 结构生成修复指令。
+以下是每个规则对应的修复工具定义：
+
+{tools_str}
 
 【全文内容】:
-{flat_text}
+{doc_str}
 
 请根据规则找出需要修改或补充的地方，输出一个 JSON 数组，数组每个元素形如：
+1. **整段错误**（如段落缩进不对）：只返回 `nodeId`。
+2. **局部错误**（如错别字、某段文字颜色不对）：
+   - 返回 `node_id` (所在段落)。
+   - 返回 `text_index` (整数)：表示错误发生在该段落内的**第几个 text 节点**（从 0 开始计数）。
+   - **重要**：遍历时只统计 `type === "text"` 的节点，忽略其他类型。
+输出示例：
+[
 {{
     "id": "string, 唯一标识",
-    "from": int, 修改开始位置, // 建议的起始字符索引，基于上面【全文内容】的字符串
-    "to": int, 修改结束位置, // 建议的结束字符索引（不含）
+    "node_id": "string, 唯一标识",
+    "text_index": int, 文本节点索引,
     "message": string, 问题说明,
     "rule_id": string, 规则ID,
     "severity": "error/warning/info", 修改级别,
-    "replacement": string, 替换内容
+    "fixCommand": {{
+        "action": "string (必须与规则定义一致)",
+        "params": "object (必须与规则定义一致，只获取key值，value要从description中判断如何设置，可替换具体值)"
+    }} | null, 
     "meta": {{"section": "可选的短链/章节说明"}}
 }}
-
+]
+每条建议必须包含合法的 node_id（字符串），否则视为无效建议
 只输出 JSON 数组，不要输出任何其他内容。
 """.strip()
 
@@ -73,27 +88,30 @@ def build_prompt(flat_text: str, rules: List[Dict[str, Any]]) -> str:
 def call_llm_for_suggestions(
     doc: Dict[str, Any], rules: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    flat_text = flatten_tiptap_doc(doc)
-    prompt = build_prompt(flat_text, rules)
+    prompt = build_prompt(doc, rules)
+    print(prompt);
     messages = [HumanMessage(content=prompt)]
-    response = chat.invoke(messages)
+    
     try:
+        print(f"Prompt: {prompt}")
+        response = chat.invoke(messages)
         raw_list = json.loads(response.content)
         if not isinstance(raw_list, list):
             return []
-    except json.JSONDecodeError:
+    except Exception as e:
+        print(f"error: {e}")
         return []
     suggestions = []
     for item in raw_list:
         try:
             suggestion = Suggestion(
                 id=str(uuid.uuid4()),
-                from_=item.get("from", 0),
-                to=item.get("to"),
+                node_id=item.get("node_id"),
                 message=item.get("message"),
+                text_index=item.get("text_index"),
                 rule_id=item.get("rule_id"),
                 severity=item.get("severity"),
-                replacement=item.get("replacement"),
+                fixCommand=item.get("fixCommand"),
                 meta=item.get("meta", {}),
             )
             suggestions.append(suggestion)

@@ -9,7 +9,7 @@ router = APIRouter()
 
 @router.post("/check", response_model=CheckDocumentResponse)
 async def check_document(
-    payload: CheckDocumentRequest, db: Session = Depends(get_db)
+    payload: CheckDocumentRequest
 ) -> CheckDocumentResponse:
     """检查文档
 
