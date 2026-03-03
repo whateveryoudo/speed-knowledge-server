@@ -1,8 +1,9 @@
 import json
 import uuid
 from langchain_community.chat_models import ChatTongyi
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from app.schemas.ai import Suggestion
 from dotenv import load_dotenv
 import os
@@ -10,7 +11,37 @@ import os
 load_dotenv()
 
 
-chat = ChatTongyi(api_key=os.getenv("DASHSCOPE_API_KEY"), model_name="qwen-max", timeout=30)
+chat = ChatTongyi(api_key=os.getenv("DASHSCOPE_API_KEY"), model_name="qwen-plus", timeout=30)
+# chat = ChatOpenAI(
+#     api_key=os.getenv("DASHSCOPE_API_KEY"),
+#     base_url=os.getenv("DASHSCOPE_BASE_URL"),
+#     model="Qwen3-8B",
+#     timeout=30,
+#     temperature=0.0,
+#     max_tokens=1000,
+# )
+
+
+def extra_json_array(content: str) -> List[Dict[str, Any]]:
+    """提取JSON数组
+
+    Args:
+        content (str): 内容:后端返回的是含json字符串的东西，不好直接json.loads
+
+    Returns:
+        List[Dict[str, Any]]: JSON数组
+    """
+    try:
+        start_index = content.find("[")
+        end_index = content.find("]")
+        if start_index == -1 or end_index == -1 or start_index > end_index:
+            raise ValueError("LLM 返回数据中无JSON数组")
+        json_str = content[start_index : end_index + 1]
+        return json.loads(json_str)
+    except Exception as e:
+        raise ValueError(f"Error parsing JSON array: {e}")
+
+
 def build_tools_str(fixable_rules: List[Dict[str, Any]]) -> str:
     """构建工具字符串
 
@@ -39,7 +70,8 @@ def build_prompt(doc: Dict[str, Any], rules: List[Dict[str, Any]]) -> str:
     doc_str = json.dumps(doc, ensure_ascii=False, indent=2)
     result_str = json.dumps(rules, ensure_ascii=False, indent=2)
     tools_str = build_tools_str(rules)
-    return f"""
+    think_str = f"{{nothink}}\n"
+    return f"""{think_str}
 你是一个政府公文/统计报告规范审稿助手，精通Tiptap和ProseMirror的文档结构，你可以参考：[https://tiptap.dev/docs/editor/core-concepts/nodes-and-marks]，需要根据“规则”和“全文内容”给出结构化修改建议。
 【规则（JSON）】:
 {result_str}
@@ -47,7 +79,7 @@ def build_prompt(doc: Dict[str, Any], rules: List[Dict[str, Any]]) -> str:
 - 每个块级节点（如 paragraph, heading）都有唯一的 `attrs.nodeId`。
 - 块级节点内部包含多个子节点，其中 `type: "text"` 的节点代表文本片段。
 - **注意**：text 节点本身没有 ID。
-- text包含marks属性，为list, 包含textStyle
+- text包含marks属性，为list, 包含textStyle,如果没有marks，则跳过样式检查
 
 # Available Fix Tools (动态生成的可执行命令)
 当发现错误且规则定义了 `fixCommand` 时，你必须严格使用该规则定义的 `action` 和 `params` 结构生成修复指令。
@@ -75,32 +107,42 @@ def build_prompt(doc: Dict[str, Any], rules: List[Dict[str, Any]]) -> str:
     "severity": "error/warning/info", 修改级别,
     "fixCommand": {{
         "action": "string (必须与规则定义一致)",
-        "params": "object (必须与规则定义一致，只获取key值，value要从description中判断如何设置，可替换具体值)"
+        "params": "object (必须与规则定义一致，只获取key值，value要从description中判断如何设置，可替换具体值,注意不要漏掉结尾的引号)"
     }} | null, 
     "meta": {{"section": "可选的短链/章节说明"}}
 }}
 ]
-每条建议必须包含合法的 node_id（字符串），否则视为无效建议
-只输出 JSON 数组，不要输出任何其他内容。
+每条建议必须包含合法的 node_id（字符串），否则视为无效建议。
+【非常重要】：
+- 只输出“存在问题、需要修改”的条目。
+- 对于“已经符合规范、无需修改”的节点，**不要输出任何数组元素**，也不要写“符合规范”的 message。
+- 如果整个文档都符合所有规则，请返回空数组：[]
+
+只能输出合法 JSON 数组，格式必须严格符合：
+- JSON 结构一定要合法，不要出现 message 断词的问题。
+- key 和字符串一律用双引号。
+- params 是对象就写 `"params": {...}`，不要写成 `"params:{...}`，不要漏掉结尾的引号。
+- 不输出任何解释文字，只输出 JSON。 
 """.strip()
 
 
 def call_llm_for_suggestions(
     doc: Dict[str, Any], rules: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+) -> Optional[List[Dict[str, Any]]]:
     prompt = build_prompt(doc, rules)
-    print(prompt);
+    print(prompt)
     messages = [HumanMessage(content=prompt)]
-    
     try:
         print(f"Prompt: {prompt}")
         response = chat.invoke(messages)
+        print(response)
+        # raw_list = extra_json_array(response.content)
         raw_list = json.loads(response.content)
         if not isinstance(raw_list, list):
             return []
     except Exception as e:
         print(f"error: {e}")
-        return []
+        raise ValueError(f"Error calling LLM: {e}")
     suggestions = []
     for item in raw_list:
         try:

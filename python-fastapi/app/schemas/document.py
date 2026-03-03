@@ -41,6 +41,9 @@ class DocumentCreate(BaseModel):
     parent_id: Optional[str] = Field(default=None, description="父节点ID")
     type: DocumentType = Field(..., description="文档类型")
 
+class UpdateDocumentContent(BaseModel):
+    """更新文档内容参数"""
+    content: str = Field(..., description="文档内容")
 
 class DocumentUpdate(BaseModel):
     """更新文档结构"""

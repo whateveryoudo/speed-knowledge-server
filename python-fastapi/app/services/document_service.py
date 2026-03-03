@@ -67,6 +67,31 @@ class DocumentService(BaseService[Document]):
                 f"Create default content by nodejs failed:documentId={document_id},error={e}"
             )
 
+    def update_content_json(self, document_id: str, node_json: str):
+        """更新文档内容JSON(这里调用nodejs服务更新json)"""
+        try:
+            nodejs_service_url = settings.NODEJS_SERVICE_URL
+            url = f"{nodejs_service_url}/document-content/update-content-json"
+            payload = {
+                "documentId": document_id,
+                "node_json": node_json,
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                logger.info(
+                    f"Update content json by nodejs success:documentId={document_id}"
+                )
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Create default content by nodejs failed:documentId={document_id},error={e}",
+                exc_info=True,
+            )
+        except Exception as e:
+            logger.error(
+                f"Update content json by nodejs failed:documentId={document_id},error={e}"
+            )
+
     def create(self, document_in: DocumentCreate) -> Document:
         """创建文档"""
         temp_slug = self._generate_slug()
@@ -112,6 +137,12 @@ class DocumentService(BaseService[Document]):
         # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
         self.create_default_content(document.id)
         return document
+
+    def update_content(self, document_id: str, content: str):
+        """更新文档内容(这里仅更新json,不更新流，非协同保存场景)"""
+        # 调用node服务更新JSON
+        self.update_content_json(document_id, content)
+        return self.get_by_id_or_slug(document_id)
 
     def get_by_id_or_slug(self, identifier: str) -> Document:
         """通过id或短链获取文档"""

@@ -14,7 +14,7 @@ import extensions from "../../tiptap-extends/kit";
 export class DocumentContentController {
   constructor(
     private readonly documentContentService: DocumentContentService
-  ) {}
+  ) { }
 
   private getDefaultContent(title: string = "无标题文档"): {
     content: Buffer;
@@ -38,7 +38,7 @@ export class DocumentContentController {
 
     return {
       content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
-      node_json: JSON.stringify({ default : defaultJson }), // 多包一层
+      node_json: JSON.stringify({ default: defaultJson }), // 多包一层
     };
   }
 
@@ -130,6 +130,18 @@ export class DocumentContentController {
       errCode: 0,
       data: null,
       errMessage: "Create default content successfully",
+    };
+  }
+
+  @Post("update-content-json")
+  async updateContentJson(@Body() body: { documentId: string; node_json: string }) {
+    const { documentId, node_json } = body;
+    await this.documentContentService.updateContentJson(documentId, node_json);
+    return {
+      success: true,
+      errCode: 0,
+      data: null,
+      errMessage: "Update content json successfully",
     };
   }
 }

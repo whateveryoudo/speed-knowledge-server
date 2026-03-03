@@ -8,7 +8,7 @@ export class DocumentContentService {
   constructor(
     @InjectRepository(DocumentContent)
     private documentContentRepository: Repository<DocumentContent>
-  ) {}
+  ) { }
   // 获取文档内容
   async getDocumentContent(document_id: string) {
     const documentContent = await this.documentContentRepository.findOne({
@@ -45,9 +45,26 @@ export class DocumentContentService {
       {
         document_id,
       },
-      { content_updated_at: new Date(), node_json,content }
+      { content_updated_at: new Date(), node_json, content }
     );
     console.log('更新成功');
+  }
+
+  async updateContentJson(document_id: string, node_json: string) {
+    const documentContent = await this.documentContentRepository.findOne({
+      where: { document_id },
+    });
+    if (!documentContent) {
+      throw new NotFoundException("Document content not found");
+    }
+
+    await this.documentContentRepository.update(
+      {
+        document_id,
+      },
+      { content_updated_at: new Date(), node_json }
+    );
+    console.log('更新JSON成功');
   }
 
   async getContent(document_id: string) {

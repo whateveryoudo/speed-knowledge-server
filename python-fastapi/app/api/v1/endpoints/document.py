@@ -11,7 +11,7 @@ from app.services.document_node_service import DocumentNodeService
 from app.models.document import Document
 from app.services.document_view_history import DocumentViewHistoryService
 from app.schemas.document_view_history import DocumentViewHistoryCreate
-from app.schemas.document import DragDocumentNodeParams
+from app.schemas.document import DragDocumentNodeParams, UpdateDocumentContent
 from datetime import datetime
 from app.services.collect_service import CollectService
 from app.common.enums import CollectResourceType, DocumentAbility
@@ -127,6 +127,17 @@ async def get_document_content(
     )
     return document_content
 
+@router.put("/content/{document_id}", response_model=DocumentResponse)
+async def update_document_content(
+    document_id: str,
+    params_in: UpdateDocumentContent,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentResponse:
+    """更新文档内容"""
+    document_service = DocumentService(db)
+    updated_document = document_service.update_content(document_id, params_in.content)
+    return updated_document
 
 @router.delete("/{identifier}", response_model=None)
 async def delete_document(
