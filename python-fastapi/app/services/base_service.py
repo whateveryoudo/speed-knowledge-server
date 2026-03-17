@@ -20,6 +20,7 @@ class BaseService(Generic[ModelType]):
         """获取所有已删除的数据"""
         return self.model.filter_deleted(self.db.query(self.model))
 
+
     def get_all_query(self, include_deleted: bool = True):
         """获取所有记录查询数据"""
         query = self.db.query(self.model)

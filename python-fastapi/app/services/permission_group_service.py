@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import List
 from sqlalchemy.orm import Session
-from app.common.enums import CollaboratorRole, collaborator_role_name
+from app.common.enums import (
+    CollaborateResourceType,
+)
 from app.schemas.permission_group import (
     PermissionGroupCreate,
-    PermissionGroupUpdate,
-    PermissionGroupResponse,
 )
 from app.models.permission_group import PermissionGroup
 from app.services.permission_ability_service import PermissionAbilityService
@@ -21,10 +21,7 @@ class PermissionGroupService:
         self, permission_group_in: PermissionGroupCreate
     ) -> PermissionGroup:
         """创建权限组"""
-        permission_group = PermissionGroup(
-            **permission_group_in.model_dump()
-        )
-        print(permission_group)
+        permission_group = PermissionGroup(**permission_group_in.model_dump())
 
         self.db.add(permission_group)
         self.db.flush()
@@ -46,4 +43,16 @@ class PermissionGroupService:
             self.db.query(PermissionGroup)
             .filter(PermissionGroup.id == permission_group_id)
             .first()
+        )
+
+    def get_permission_groups_by_resource(
+        self, target_type: CollaborateResourceType, target_id: str
+    ) -> List[PermissionGroup]:
+        """根据资源类型和资源id查找对应的权限组(多条)"""
+        return (
+            self.db.query(PermissionGroup)
+            .filter(
+                PermissionGroup.target_type == target_type,
+                PermissionGroup.target_id == target_id,
+            )
         )

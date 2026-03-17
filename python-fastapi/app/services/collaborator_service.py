@@ -318,7 +318,6 @@ class CollaboratorService:
         self, query_params: QueryPermissionGroupParams
     ) -> Optional[Collaborator]:
         """通过资源类型和资源id,用户id查找对应的协作者记录"""
-        print(query_params.target_id)
         target_row = (
             self.db.query(Collaborator)
             .filter(

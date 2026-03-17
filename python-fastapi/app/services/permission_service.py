@@ -10,6 +10,7 @@ from app.services.document_service import DocumentService
 from app.schemas.collaborator import QueryPermissionGroupParams
 from app.services.permission_ability_service import PermissionAbilityService
 from app.common.enums import CollaborateResourceType, KnowledgeAbility, DocumentAbility
+from app.services.permission_group_service import PermissionGroupService
 
 # from app.services.document_collaborator_service import DocumentCollaboratorService
 
@@ -39,6 +40,7 @@ class PermissionService:
         self.collaborator_service = CollaboratorService(db)
         self.document_service = DocumentService(db)
         self.permission_ability_service = PermissionAbilityService(db)
+        self.permission_group_service = PermissionGroupService(db)
         # self.document_collaborator_service = DocumentCollaboratorService(db)
 
     def get_user_role_in_knowledge(
@@ -105,7 +107,7 @@ class PermissionService:
         if target_collaborator is None:
             return None
         # 拿到关联的权限组多条记录，筛选出当前role对应的权限组信息
-        groups = target_collaborator.permission_groups or []
+        groups = self.permission_group_service.get_permission_groups_by_resource(target_type, target_id)
         group = next((g for g in groups if g.role == target_collaborator.role), None)
         if group is None:
             return None

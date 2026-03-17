@@ -72,9 +72,6 @@ class Collaborator(Base):
         comment="更新时间",
     )
 
-    permission_groups = relationship(
-        "PermissionGroup", back_populates="collaborator"
-    )
     user = relationship("User", back_populates="collaborators")
     knowledge = relationship("Knowledge", back_populates="collaborators")
     document = relationship("Document", back_populates="collaborators")
