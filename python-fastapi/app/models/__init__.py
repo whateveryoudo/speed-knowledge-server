@@ -19,6 +19,7 @@ from .document_view_history import DocumentViewHistory
 from .document_edit_history import DocumentEditHistory
 from .permission_group import PermissionGroup
 from .permission_ability import PermissionAbility
+from .vector_sync import VectorSync
 
 __all__ = [
     "User",
@@ -41,4 +42,5 @@ __all__ = [
     "DocumentEditHistory",
     "PermissionGroup",
     "PermissionAbility",
+    "VectorSync",
 ]

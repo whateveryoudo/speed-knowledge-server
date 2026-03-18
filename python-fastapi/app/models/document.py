@@ -3,6 +3,7 @@
 from app.db.base import Base
 from sqlalchemy import Column, UniqueConstraint, String, Text, Integer, ForeignKey, func, DateTime, LargeBinary, Boolean, text
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.mysql import LONGTEXT, LONGBLOB
 from datetime import datetime
 import uuid
 from app.common.enums import DocumentType
@@ -44,8 +45,8 @@ class DocumentContent(Base):
    
     id = Column[str](String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True, comment="主键")
     document_id = Column[str](String(36), ForeignKey("document_base.id", ondelete="CASCADE"), index=True, nullable=False, comment="所属文档")
-    node_json = Column[str](Text, nullable=False, comment="文档内容(为协同编辑的的二进制json数据)")
-    content = Column(LargeBinary, nullable=False, comment="文档内容(为协同编辑的的二进制数据)")
+    node_json = Column[str](LONGTEXT, nullable=False, comment="文档内容(为协同编辑的的二进制json数据)")
+    content = Column(LONGBLOB, nullable=False, comment="文档内容(为协同编辑的的二进制数据)")
     content_updated_at = Column[datetime](DateTime, nullable=True, comment="内容最近更新时间")
     created_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), comment="创建时间")
     updated_at = Column[datetime](DateTime, nullable=False, server_default=func.current_timestamp(), server_onupdate=func.current_timestamp(), comment="更新时间")

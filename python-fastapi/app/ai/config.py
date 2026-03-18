@@ -24,6 +24,7 @@ class AIConfig(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra="allow"
 
 
 settings = AIConfig()

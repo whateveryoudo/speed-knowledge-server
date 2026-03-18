@@ -8,6 +8,7 @@ import { DocumentContentService } from "../document-content/document-content.ser
 import { DocumentEditHistoryService } from "../document-edit-history/document-edit-history.service";
 import { AuthService } from "../auth/auth.service";
 import { DocumentService } from "../document/document.service";
+import { VectorSyncService } from "../vector-sync/vector-sync.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
 import * as Y from "yjs";
@@ -15,14 +16,15 @@ import * as Y from "yjs";
 export class CollaborationService implements OnModuleInit {
   private hocuspocusServer: Hocuspocus;
   private readonly VIEW_COUNT_TTL = 3600 * 24;
-
+  private readonly SYNC_VECTOR_KNOWLEDGE_ID = process.env.SYNC_VECTOR_KNOWLEDGE_ID;
   constructor(
     private documentContentService: DocumentContentService,
     private documentEditHistoryService: DocumentEditHistoryService,
     private authService: AuthService,
     private documentService: DocumentService,
+    private vectorSyncService: VectorSyncService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache
-  ) {}
+  ) { }
   private async syncViewCount(documentId: string, userId: number) {
     const cacheKey = `document_view_count:${documentId}:${userId}`;
     const cacheValue = await this.cacheManager.get(cacheKey);
@@ -53,7 +55,9 @@ export class CollaborationService implements OnModuleInit {
     const documentContentService = this.documentContentService;
     const documentService = this.documentService;
     const documentEditHistoryService = this.documentEditHistoryService;
+    const vectorSyncService = this.vectorSyncService;
     const yStateToPmJson = this.yStateToPmJson;
+    const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
     // 配置Hocuspocus服务器
     this.hocuspocusServer = new Hocuspocus({
       name: "Speed Editor Collaboration Server",
@@ -75,7 +79,7 @@ export class CollaborationService implements OnModuleInit {
       },
       extensions: [
         new Database({
-          async fetch({ documentName }) {
+          async fetch({ documentName, context }) {
             const content =
               await documentContentService.getContent(documentName);
             if (!content || content.length === 0) {
@@ -101,12 +105,17 @@ export class CollaborationService implements OnModuleInit {
               edited_datetime: new Date(),
             });
             
+            // 增加向量同步任务(注意：这里需要传入知识库id)
+            if (syncVectorKnowledgeId === context.knowledgeId) {
+              await vectorSyncService.touch(context.knowledgeId, documentName);
+            }
           },
         }),
       ],
     });
   }
-  handleConnection(ws: WebSocket, request: any) {
-    this.hocuspocusServer.handleConnection(ws, request);
+  // 增加额外自定义参数
+  handleConnection(ws: WebSocket, request: any, context: { knowledgeId: string }) {
+    this.hocuspocusServer.handleConnection(ws, request, context);
   }
 }

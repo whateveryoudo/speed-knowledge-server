@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.api.v1.api import api_router
 from app.schemas.response import BaseResponse
 from app.task.scheduler import start_scheduler
+from app.messaging.rabbitmq_consumer import start_rabbitmq_consumer
 import faulthandler
 import signal
 import sys
@@ -35,6 +36,10 @@ async def startup_event():
     global scheduler
     scheduler = start_scheduler()
     print("定时任务已启动")
+
+    # 创建mq队列，消费消息（TODO:放入后台任务）
+    # await start_rabbitmq_consumer()
+    # print("MQ队列已启动")
 
 
 @app.on_event("shutdown")

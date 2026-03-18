@@ -38,6 +38,7 @@ dependencies = [
   "qdrant-client>=1.17.1",
   "langchain-huggingface>=1.2.1",
   "dashscope>=1.25.14",
+  "aio-pika>=9.6.1",
 ]
 [dependency-groups]
 dev = [

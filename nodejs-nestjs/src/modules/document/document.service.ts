@@ -25,7 +25,6 @@ export class DocumentService {
     if (!DocumentBase) {
       throw new NotFoundException("Document content not found");
     }
-    console.log(documentIn, 333);
     this.DocumentBaseRepository.merge(DocumentBase, documentIn);
     await this.DocumentBaseRepository.save(DocumentBase);
     return DocumentBase;

@@ -5,13 +5,17 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { VectorSyncModule } from './modules/vector-sync/vector-sync.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentContentModule } from './modules/document-content/document-content.module';
 import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-ioredis-yet';
+import { ScheduleModule } from '@nestjs/schedule';
 
+import { redisStore } from 'cache-manager-ioredis-yet';
+console.log(process.env);
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     // 配置模块
     ConfigModule.forRoot({
       isGlobal: true,
@@ -43,12 +47,13 @@ import { redisStore } from 'cache-manager-ioredis-yet';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: process.env.NODE_ENV === 'development' // 生产环境应设为 false
+      // synchronize: process.env.NODE_ENV === 'development' // 生产环境应设为 false（同步服务在python端）
     }),
     UserModule,
     AuthModule,
     CollaborationModule,
     DocumentContentModule,
+    VectorSyncModule,
   ],
   controllers: [AppController],
   providers: [AppService],
