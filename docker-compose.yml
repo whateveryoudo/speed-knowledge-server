@@ -77,6 +77,7 @@ services:
       - db
       - redis
       - minio
+      - qdrant
   rabbitmq:
     image: rabbitmq:3-management
     container_name: speed-knowledge-rabbitmq
@@ -89,9 +90,20 @@ services:
       - "${RABBITMQ_UI_PORT:-15672}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: speed-knowledge-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-speed-knowledge}
+
 volumes:
   mysql-data:
     external: true
   redis-data:
   rabbitmq-data:
-
+  qdrant-data:

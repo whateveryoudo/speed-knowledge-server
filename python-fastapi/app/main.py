@@ -6,12 +6,14 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import JSON
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.schemas.response import BaseResponse
 from app.task.scheduler import start_scheduler
 from app.messaging.rabbitmq_consumer import start_rabbitmq_consumer
 import faulthandler
+import asyncio
 import signal
 import sys
 
@@ -22,24 +24,36 @@ import json
 faulthandler.register(signal.SIGUSR1, file=sys.stderr)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期"""
+    global scheduler
+    scheduler = start_scheduler()
+    consumer_task = asyncio.create_task(start_rabbitmq_consumer())
+
+    app.state.scheduler = scheduler
+    app.state.consumer_task = consumer_task
+    try:
+        yield
+    finally:
+        try:
+            scheduler.shutdown()
+        except Exception as e:
+            print(f"关闭定时任务失败: {e}")
+        consumer_task.cancel()
+        try:
+            await consumer_task
+        except Exception as e:
+            print(f"关闭消费者任务失败: {e}")
+
+
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时执行"""
-    global scheduler
-    scheduler = start_scheduler()
-    print("定时任务已启动")
-
-    # 创建mq队列，消费消息（TODO:放入后台任务）
-    # await start_rabbitmq_consumer()
-    # print("MQ队列已启动")
 
 
 @app.on_event("shutdown")
@@ -101,7 +115,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["*"],
 )
 
 # ========== 异常处理器 ==========
@@ -175,9 +189,11 @@ async def response_wrapper_middleware(request: Request, call_next):
     response = await call_next(request)
     # 跳过一些特殊路径
     # 注意：不能对 "/" 使用 startswith，否则所有路径都会匹配
-    if request.url.path in {"/", "/api/v1/ai/doubao/stream", "/api/v1/openapi.json"} or request.url.path.startswith(
-        "/api/docs"
-    ):
+    if request.url.path in {
+        "/",
+        "/api/v1/ai/doubao/stream",
+        "/api/v1/openapi.json",
+    } or request.url.path.startswith("/api/docs"):
         print(response)
         return response
 

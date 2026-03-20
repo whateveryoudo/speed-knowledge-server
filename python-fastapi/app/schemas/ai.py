@@ -6,3 +6,6 @@ class DoubaoQuery(BaseModel):
     action: AIAction = Field(default=AIAction.CUSTOM)
     content: Optional[str] = Field(default=None)
     customPrompt: Optional[str] = Field(default=None)    
+
+class RobotQuery(BaseModel):
+    content: str = Field(default="")

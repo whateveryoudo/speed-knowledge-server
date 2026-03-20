@@ -14,6 +14,11 @@ def _walk(node: Any, result: List[str]) -> None:
             for child in node.get("content", []):
                 _walk(child, result)
             result.append("\n")
+        else: # 其他类型，如{"type":"doc","content":[...]}
+            temp_content = node.get("content")
+            if temp_content and isinstance(temp_content, list):
+                for child in temp_content:
+                    _walk(child, result)
     elif isinstance(node, list):
         for child in node:
             _walk(child, result)
@@ -25,7 +30,8 @@ def get_tiptap_text(node_json_str: str) -> str:
     try:
         node_json = json.loads(node_json_str)
         result: List[str] = []
-        _walk(node_json, result)
+        # 去除第一层的default
+        _walk(node_json.get("default", []), result)
         text = "".join(result)
 
         lines = [line.strip() for line in text.splitlines()]
@@ -39,4 +45,5 @@ def get_tiptap_text(node_json_str: str) -> str:
             prev_empty = is_empty
         return "\n".join(cleaned)
     except Exception as e:
+        print(f"获取tiptap文本时发生错误: {e}")
         return ""

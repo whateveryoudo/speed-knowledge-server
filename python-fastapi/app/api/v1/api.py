@@ -13,7 +13,7 @@ from app.api.v1.endpoints import (
     collect,
     dashboard,
 )
-from app.api.v1.endpoints.ai import doubao
+from app.api.v1.endpoints.ai import doubao, robot
 
 api_router = APIRouter()
 
@@ -30,3 +30,4 @@ api_router.include_router(document.node_router, prefix="/document-node")
 api_router.include_router(collect.router, prefix="/collect")
 api_router.include_router(collaborator.router, prefix="/collaborator")
 api_router.include_router(doubao.router, prefix="/ai/doubao")
+api_router.include_router(robot.router, prefix="/ai/robot")

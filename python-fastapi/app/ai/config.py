@@ -1,15 +1,15 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class AIConfig(BaseSettings):
     """ai相关配置"""
 
-    PUBLIC_HELP_KNOWLEDGE_SLUG: str
+    SYNC_VECTOR_KNOWLEDGE_ID: str
 
     QDRANT_URL: str
     QDRANT_COLLECTION: str
-
+    QDRANT_API_KEY: Optional[str]
     # 本地向量库
     EMBED_MODEL_NAME: str
     CHUNK_SIZE: int

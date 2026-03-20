@@ -16,6 +16,7 @@ def get_qdrant_client() -> QdrantClient:
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> QdrantVectorStore:
+    print("进入get_vector_store")
     embedding = get_embeddings()
     client = get_qdrant_client()
     dim = len(embedding.embed_query("ping"))

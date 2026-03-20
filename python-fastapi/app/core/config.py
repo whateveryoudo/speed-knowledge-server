@@ -50,7 +50,16 @@ class Settings(BaseSettings):
     RABBITMQ_URL: str
     RABBITMQ_ROUTING_KEY: str
     RABBITMQ_EXCHANGE: str
+
     RABBITMQ_QUEUE: str
+    # 重试
+    RABBITMQ_RETRY_QUEUE: str
+    # 死信
+    RABBITMQ_DLQ_QUEUE: str
+
+    # 重试次数和间隔
+    RABBITMQ_MAX_RETRIES: int
+    RABBITMQ_RETRY_DELAY_MS: int
 
     # onlyoffice配置
     ONLYOFFICE_JWT_SECRET: str
