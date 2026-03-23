@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "app"
+    ],
+    "graphs": {
+        "speed_doc_robot": "app.ai.robot.speed_doc_robot:graph"
+    },
+    "env": ".env"
+}

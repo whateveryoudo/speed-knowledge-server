@@ -1,9 +1,11 @@
-from langchain_core.tools import Tool, create_retriever_tool
+from langchain_core.tools import create_retriever_tool
+from langchain.tools import tool
 from app.ai.config import settings
 from app.ai.retrieval.public_retriever import get_public_retriever
 
 
-def get_doc_search_tool() -> Tool:
+def doc_search():
+    """获取检索器"""
     retriever = get_public_retriever(settings.SYNC_VECTOR_KNOWLEDGE_ID)
     tool = create_retriever_tool(
         retriever,
