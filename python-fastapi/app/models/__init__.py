@@ -20,6 +20,8 @@ from .document_edit_history import DocumentEditHistory
 from .permission_group import PermissionGroup
 from .permission_ability import PermissionAbility
 from .vector_sync import VectorSync
+from .chat_session import ChatSession
+from .chat_message import ChatMessage
 
 __all__ = [
     "User",
@@ -43,4 +45,6 @@ __all__ = [
     "PermissionGroup",
     "PermissionAbility",
     "VectorSync",
+    "ChatSession",
+    "ChatMessage",
 ]

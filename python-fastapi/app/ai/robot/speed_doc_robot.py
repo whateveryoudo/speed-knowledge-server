@@ -6,6 +6,7 @@ from IPython.display import Image, display
 from app.ai.clients.llm import get_llm
 from app.ai.tools.doc_tools import doc_search
 from app.ai.tools.web_tools import web_search
+from langgraph.checkpoint.memory import InMemorySaver
 import operator
 
 SYSTEM_PROMPT = """你是一个帮助用户解答问题的智能助手。
@@ -72,6 +73,7 @@ graph.add_edge("tools", "llm_call")
 
 @lru_cache(maxsize=1)
 def get_speed_doc_bot():
-    agent = graph.compile()
+    checkpointer = InMemorySaver()
+    agent = graph.compile(checkpointer=checkpointer)
     display(Image(agent.get_graph().draw_mermaid_png()))
     return agent
