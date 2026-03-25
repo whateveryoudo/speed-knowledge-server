@@ -4,7 +4,6 @@ from app.ai.robot.robot_agent_adapter import RobotAgentAdapter
 from app.services.chat_session_service import ChatSessionService
 from app.services.chat_message_service import ChatMessageService
 from app.schemas.chat_message import ChatMessageCreate
-from app.schemas.chat_session import ChatSessionUpdate
 from app.common.enums import ChatMessageRole, ChatMessageType
 from app.common.utils import get_field
 import json
@@ -35,11 +34,40 @@ class RobotChatService:
                     self.chat_message_service.create(
                         ChatMessageCreate(
                             session_id=session_id,
+                            content=json.dumps(
+                                tool_calls,
+                                ensure_ascii=False,
+                            ),
+                            role=ChatMessageRole.ASSISTANT,
+                            type=ChatMessageType.TOOL_CALL,
+                        )
+                    )
+                else:
+                    self.chat_message_service.create(
+                        ChatMessageCreate(
+                            session_id=session_id,
                             content=get_field(last, "content"),
                             role=ChatMessageRole.ASSISTANT,
                             type=ChatMessageType.TEXT,
                         )
                     )
+
+            elif msg_type == "tool":
+                # ToolMessage
+                self.chat_message_service.create(
+                    ChatMessageCreate(
+                        session_id=session_id,
+                        content=json.dumps(
+                            {
+                                "content": get_field(last, "content"),
+                                "tool_call_id": get_field(last, "tool_call_id"),
+                            },
+                            ensure_ascii=False,
+                        ),
+                        role=ChatMessageRole.TOOL,
+                        type=ChatMessageType.TOOL_RESULT,
+                    )
+                )
             else:
                 if get_field(last, "role", None) == "user":
                     # 人类输入
@@ -61,8 +89,4 @@ class RobotChatService:
                 delta = text
             last_send = text
             yield {"content": delta}
-        # 会话的摘要更新
-        self.chat_session_service.update(
-            session_id, ChatSessionUpdate(last_message_preview=text)
-        )
         yield {"done": True}

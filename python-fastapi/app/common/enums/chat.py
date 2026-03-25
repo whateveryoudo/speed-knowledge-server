@@ -1,5 +1,5 @@
 from enum import Enum
-class ChatRole(str, Enum):
+class ChatMessageRole(str, Enum):
     """AI 消息角色"""
 
     USER = "user"  # 用户

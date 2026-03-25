@@ -24,6 +24,7 @@ from .collaborator import (
     InvitationStatus,
     CollaborateResourceType,
 )
+from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -49,4 +50,7 @@ __all__ = [
     "DocumentNodeDragAction",
     "DocumentNodeType",
     "DocumentAbility",
+    "ChatMessageRole",
+    "ChatMessageType",
+    "ChatSessionStatus",
 ]

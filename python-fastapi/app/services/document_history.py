@@ -9,7 +9,10 @@ from app.common.pagination import paginate_query, paginate_response
 from app.schemas.response import PaginationQuery, PaginationResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
-from app.models.document import Document
+from app.models import (
+    Knowledge,
+    Document,
+)
 from app.services.collect_service import CollectService
 from app.common.enums import CollectResourceType, DocumentHistoryType
 from app.models.document_edit_history import DocumentEditHistory
@@ -48,7 +51,7 @@ class DocumentHistoryService:
                 # 预加载知识库信息（通过文档关联）
                 joinedload(model.document).joinedload(
                     Document.knowledge
-                ),
+                ).joinedload(Knowledge.team),
                 # 预加载文档创建者信息
                 joinedload(model.document).joinedload(
                     Document.user
@@ -88,6 +91,7 @@ class DocumentHistoryService:
                 if item.document.user
                 else ""
             )
+            print(f"knowledge: {item.document.knowledge}")
             # 查询文档是否被收藏
             collected_row = collection_service.check_is_collected(
                 query_in.user_id, item.document_id, CollectResourceType.DOCUMENT
@@ -101,11 +105,14 @@ class DocumentHistoryService:
                 doc_id=item.document_id,
                 update_datetime=update_datetime,
                 doc_creator=doc_creator,
+                doc_belong_space_id=item.document.knowledge.space_id,
+                doc_belong_team_slug=item.document.knowledge.team.slug,
                 doc_belong_knowledge_name=(
                     item.document.knowledge.name
                     if item.document.knowledge
                     else ""
                 ),
+                doc_belong_knowledge_id=item.document.knowledge.id,
                 doc_belong_knowledge_slug=item.document.knowledge.slug,
                 doc_name=item.document.name,
                 doc_type=item.document.type,

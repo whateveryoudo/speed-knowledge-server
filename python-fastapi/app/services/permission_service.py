@@ -107,11 +107,26 @@ class PermissionService:
         if target_collaborator is None:
             return None
         # 拿到关联的权限组多条记录，筛选出当前role对应的权限组信息
-        groups = self.permission_group_service.get_permission_groups_by_resource(target_type, target_id)
+        groups = self.permission_group_service.get_permission_groups_by_resource(
+            target_type, target_id
+        )
         group = next((g for g in groups if g.role == target_collaborator.role), None)
         if group is None:
             return None
         abilities = self.permission_ability_service.get_ability_by_permission_group_id(
             group.id
         )
-        return {ability.ability_key: ability.enable for ability in abilities}
+        result = {}
+        # 对读取的值包一次，转为枚举
+        for ability in abilities:
+            key = ability.ability_key
+            try:
+                enum_key = KnowledgeAbility(key)
+            except ValueError:
+                try:
+                    enum_key = DocumentAbility(key)
+                except ValueError:
+                    enum_key = None
+            if enum_key is not None:
+                result[enum_key] = ability.enable
+        return result

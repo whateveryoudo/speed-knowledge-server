@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Integer
 from app.db.base import Base
 import uuid
 from datetime import datetime
@@ -15,7 +15,7 @@ class ChatSession(Base):
         default=lambda: str(uuid.uuid4()),
         comment="会话id",
     )
-    user_id = Column(String(36), index=True, comment="用户id")
+    user_id = Column(Integer, index=True, comment="用户id")
     title = Column(String(255), nullable=False, comment="会话标题")
     status = Column[ChatSessionStatus](
         String(20), nullable=False, default=ChatSessionStatus.ACTIVE, comment="会话状态"

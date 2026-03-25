@@ -11,7 +11,8 @@ class DocumentHistoryQueryBase(BaseModel):
     doc_type: Optional[DocumentType] = Field(None, description="文档类型")
     doc_belong_knowledge_id: Optional[str] = Field(None, description="知识库ID")
     doc_belong_knowledge_slug: Optional[str] = Field(None, description="知识库短链")
-
+    doc_belong_space_id: Optional[str] = Field(None, description="空间ID")
+    doc_belong_team_slug: Optional[str] = Field(None, description="团队短链")
 class DocumentHistoryQuery(DocumentHistoryQueryBase):
     """文档历史查询结构"""
     user_id: Optional[int] = Field(None, description="用户ID")
