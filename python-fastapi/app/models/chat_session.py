@@ -3,9 +3,9 @@ from app.db.base import Base
 import uuid
 from datetime import datetime
 from app.common.enums.chat import ChatSessionStatus
+from app.core.mixins import SoftDeleteMixin
 
-
-class ChatSession(Base):
+class ChatSession(SoftDeleteMixin, Base):
     __tablename__ = "chat_session"
 
     id = Column(

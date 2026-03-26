@@ -27,7 +27,7 @@ class ChatMessageService(BaseService[ChatMessage]):
         self, query_in: ChatMessageQuery
     ) -> PaginationResponse[ChatMessageResponse]:
         """获取聊天消息列表(带分页)"""
-        query = self.get_active_query()
+        query = self.db.query(ChatMessage)
         if query_in.session_id:
             query = query.filter(ChatMessage.session_id == query_in.session_id)
 

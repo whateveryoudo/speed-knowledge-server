@@ -1,7 +1,7 @@
 from app.models.chat_session import ChatSession
 from app.schemas.chat_session import (
     ChatSessionCreate,
-    ChatSessionQuery,
+    ChatSessionFullQuery,
     ChatSessionResponse,
     ChatSessionUpdate,
 )
@@ -35,14 +35,16 @@ class ChatSessionService(BaseService[ChatSession]):
         return self.db.query(ChatSession).filter(ChatSession.id == session_id).first()
 
     def get_list(
-        self, query_in: ChatSessionQuery
+        self, query_in: ChatSessionFullQuery
     ) -> PaginationResponse[ChatSessionResponse]:
         """获取聊天消息列表(带分页)"""
         query = self.get_active_query()
+        if query_in.user_id:
+            query = query.filter(ChatSession.user_id == query_in.user_id)
         if query_in.title:
             query = query.filter(ChatSession.title.like(f"%{query_in.title}%"))
         if query_in.status:
-            query = query.filter(ChatSession.status == query_in.status)
+            query = query.filter(ChatSession.status == query_in.status.value)
         items, total = paginate_query(
             query,
             PaginationQuery(

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from app.common.enums import ChatMessageRole, ChatMessageType
-
+from typing import Optional
 class ChatMessageBase(BaseModel):
     """聊天消息基础结构"""
 
@@ -23,7 +23,7 @@ class ChatMessageCreate(BaseModel):
 
 class ChatMessageQuery(BaseModel):
     """聊天消息查询结构"""
-    session_id: str = Field(..., description="会话ID")
+    session_id: Optional[str] = Field(None, description="会话ID")
     page: int = Field(1, description="页码")
     page_size: int = Field(10, description="每页条数")
 

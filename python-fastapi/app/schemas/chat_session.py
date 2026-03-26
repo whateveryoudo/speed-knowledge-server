@@ -1,7 +1,6 @@
 from langgraph.store.base import Op
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from pydantic import Field
 from typing import Optional
 from app.common.enums.chat import ChatSessionStatus
 
@@ -30,6 +29,10 @@ class ChatSessionQuery(BaseModel):
     status: Optional[ChatSessionStatus] = Field(None, description="会话状态")
     page: int = Field(1, description="页码")
     page_size: int = Field(10, description="每页条数")
+
+class ChatSessionFullQuery(ChatSessionQuery):
+    """聊天会话查询结构(包含已删除的数据)"""
+    user_id: int = Field(..., description="用户ID")
 
 class ChatSessionCreate(ChatSessionBase):
     """创建聊天会话结构"""
