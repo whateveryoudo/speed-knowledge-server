@@ -36,11 +36,10 @@ class ChatSessionFullQuery(ChatSessionQuery):
 
 class ChatSessionCreate(ChatSessionBase):
     """创建聊天会话结构"""
-    session_id: Optional[str] = Field(default=None, description="会话ID")
+    id: str = Field(..., description="会话ID")
     user_id: int = Field(..., description="用户ID")
     title: str = Field(..., description="会话标题")
     status: ChatSessionStatus = Field(..., description="会话状态")
-    last_message_preview: Optional[str] = Field(default=None, description="最后一条消息预览(摘要)")
 
 
 class ChatSessionResponse(ChatSessionBase):

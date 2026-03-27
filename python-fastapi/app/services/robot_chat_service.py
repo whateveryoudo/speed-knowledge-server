@@ -63,6 +63,6 @@ class RobotChatService:
             yield {"content": delta}
         # 会话的摘要更新
         self.chat_session_service.update(
-            session_id, ChatSessionUpdate(last_message_preview=text)
+            session_id, ChatSessionUpdate(last_message_preview=text[:50])
         )
         yield {"done": True}

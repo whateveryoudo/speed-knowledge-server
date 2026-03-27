@@ -20,7 +20,7 @@ class ChatSessionService(BaseService[ChatSession]):
     def create(self, chat_session_in: ChatSessionCreate):
         """创建会话"""
         chat_session = ChatSession(
-            id=chat_session_in.session_id,
+            id=chat_session_in.id,
             user_id=chat_session_in.user_id,
             title=chat_session_in.title,
             status=chat_session_in.status,
