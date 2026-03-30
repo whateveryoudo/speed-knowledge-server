@@ -16,5 +16,5 @@ def get_public_retriever(knowledge_id: str) -> VectorStoreRetriever:
 
 def search_public(knowledge_id: str, query: str) -> List[Dict[str, Any]]:
     retriever = get_public_retriever(knowledge_id)
-    docs = retriever.get_relevant_documents(query)
+    docs = retriever.invoke(query)
     return [{"text": doc.page_content, "metadata": doc.metadata} for doc in docs]

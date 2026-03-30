@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     API_V1_STR: str
     PORT: int
     DEBUG: bool
+    DOMAIN: str
 
     # CORS配置
     CORS_ORIGINS_RAW: str = "*"

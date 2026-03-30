@@ -1,11 +1,16 @@
 from typing import Iterator, Dict, Any
 from app.ai.robot.speed_doc_robot import get_speed_doc_bot
+from sqlalchemy.orm import Session
 
 
 class RobotAgentAdapter:
+    def __init__(self, services: dict[str, Any]) -> None:
+        self.services = services
+
     def stream_events(self, content: str, session_id: str) -> Iterator[Dict[str, Any]]:
         agent = get_speed_doc_bot()
-        config = {"configurable": {"thread_id": session_id}}
+        # 注入服务到配置中
+        config = {"configurable": {"thread_id": session_id, "services": self.services}}
         for event in agent.stream(
             {"messages": [{"role": "user", "content": content}]},
             stream_mode="values",

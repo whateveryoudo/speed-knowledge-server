@@ -1,18 +1,25 @@
 from typing import Iterator, Dict, Any
 from sqlalchemy.orm import Session
 from app.ai.robot.robot_agent_adapter import RobotAgentAdapter
+from app.ai.citation.replace import replace_citation_brackets
 from app.services.chat_session_service import ChatSessionService
 from app.services.chat_message_service import ChatMessageService
 from app.schemas.chat_message import ChatMessageCreate
 from app.schemas.chat_session import ChatSessionUpdate
 from app.common.enums import ChatMessageRole, ChatMessageType
 from app.common.utils import get_field
-import json
+from app.services.document_service import DocumentService
 
 
 class RobotChatService:
     def __init__(self, db: Session, session_id: str):
-        self.adapter = RobotAgentAdapter()
+        # 这里注入一些服务
+        document_service = DocumentService(db)
+        self.adapter = RobotAgentAdapter(
+            {
+                "document_service": document_service,
+            }
+        )
         self.chat_session_service = ChatSessionService(db)
         self.chat_message_service = ChatMessageService(db)
 
@@ -22,7 +29,7 @@ class RobotChatService:
             content,
             session_id,
         ):
-            print(event)
+            # print(event)
             messages = event.get("messages", [])
             if not messages:
                 continue
@@ -35,7 +42,9 @@ class RobotChatService:
                     self.chat_message_service.create(
                         ChatMessageCreate(
                             session_id=session_id,
-                            content=get_field(last, "content"),
+                            content=replace_citation_brackets(
+                                get_field(last, "content")
+                            ),
                             role=ChatMessageRole.ASSISTANT,
                             type=ChatMessageType.TEXT,
                         )
@@ -59,6 +68,8 @@ class RobotChatService:
                 delta = text[len(last_send) :]
             else:
                 delta = text
+            print("delta", delta)    
+            delta = replace_citation_brackets(delta)
             last_send = text
             yield {"content": delta}
         # 会话的摘要更新

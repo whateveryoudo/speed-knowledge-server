@@ -1,5 +1,6 @@
 """文档服务"""
 
+from __future__ import annotations
 from app.models.document import Document, DocumentContent
 from fastapi import HTTPException, status
 from app.schemas.document import (
@@ -25,6 +26,9 @@ from app.common.enums import CollaboratorRole
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.common.enums import collaborator_role_name
+from app.models.knowledge import Knowledge
+from app.models.space import Space
+from app.models.team import Team
 
 alphabet = string.ascii_letters + string.digits
 
@@ -208,3 +212,29 @@ class DocumentService(BaseService[Document]):
         document_node_service.delete_by_document_id(document.id, is_soft_delete)
         self.db.commit()
         return None
+
+    def resolve_document_links_batch(self, document_ids: list[str]) -> dict[str, str]:
+        """批量获取文档相关链接(一次join)"""
+        print('document_ids', document_ids)
+        rows = (
+            self.db.query(
+                Document.id.label("document_id"),
+                Document.slug.label("document_slug"),
+                Knowledge.slug.label("knowledge_slug"),
+                Team.slug.label("team_slug"),
+                Space.domain.label("space_domain"),
+            )
+            .join(Knowledge, Document.knowledge_id == Knowledge.id)
+            .join(Space, Knowledge.space_id == Space.id)
+            .join(Team, Knowledge.team_id == Team.id)
+            .filter(Document.deleted_at.is_(None))
+            .filter(Document.id.in_(document_ids))
+            .all()
+        )
+        result: dict[str, str] = {}
+        for r in rows:
+            # 构建文档相关链接(个人空间不存在domin)
+            result[r.document_id] = (
+                f"http://{r.space_domain or settings.DOMAIN}/{r.team_slug or ''}/knowledge/{r.knowledge_slug or ''}/document/{r.document_slug or ''}"
+            )
+        return result

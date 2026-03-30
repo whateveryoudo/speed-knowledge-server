@@ -17,14 +17,14 @@ SYSTEM_PROMPT = """你是一个帮助用户解答问题的智能助手。
 2. doc_search 的返回结果必须作为回答依据：
    - 不能用常识替代文档里的操作步骤。
    - 如果 doc_search 返回为空，才允许使用 web_search 或通用知识，但必须明确说明“未在知识库找到，只能提供通用建议”。
-3. 回答时尽量引用 doc_search 中检索到的原句/要点（必要时做整理），不要编造文档内容。"""
+3. 回答时尽量引用 doc_search 中检索到的原句/要点（必要时做整理，可以选择性带出编号），不要编造文档内容。"""
 
 
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
 
 
-tools = [doc_search(), web_search]
+tools = [doc_search, web_search]
 tools_by_name = {tool.name: tool for tool in tools}
 model_with_tools = get_llm().bind_tools(tools)
 
