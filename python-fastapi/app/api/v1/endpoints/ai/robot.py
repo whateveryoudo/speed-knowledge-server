@@ -56,16 +56,15 @@ async def chat_stream(
                         status=ChatSessionStatus.ACTIVE,
                     )
                 )
-                yield f"data: {json.dumps({'session_id': session_id}, ensure_ascii=False)}\n\n"
             for event in robot_chat_service.stream_events(
                 request.content,
                 session_id,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except HTTPException as e:
-            yield f"data: {json.dumps({'error': e.detail})}\n\n"
+            yield f"data: {json.dumps({'event': 'error', 'data': e.detail})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'event': 'error', 'data': str(e)})}\n\n"
 
     return StreamingResponse(
         generate(),

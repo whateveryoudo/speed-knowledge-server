@@ -2,14 +2,14 @@ from __future__ import annotations
 from app.ai.citation.context import get_citations, CitationRef
 import re
 
-_REF_PATTERN = re.compile(r"【(\d+)】")
+_REF_PATTERN = re.compile(r"\[\[citation:(\d+)\]\]")
 
 
 def replace_citation_brackets(text: str) -> str:
     """替换文本中的引用括号"""
     citations = get_citations()
     by_ref: dict[int, CitationRef] = {
-        citation.get("ref"): citation for citation in citations
+        citation.get("single_ref"): citation for citation in citations
     }
     def _sub(m: re.Match[str]) -> str:
         idx = int(m.group(1))

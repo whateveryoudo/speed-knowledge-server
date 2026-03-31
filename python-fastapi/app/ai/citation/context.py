@@ -4,7 +4,8 @@ from typing import TypedDict
 
 class CitationRef(TypedDict, total=False):
     ref: int
-    document_id: str
+    single_ref: str
+    document_link: str
 
 _citations_var: contextvars.ContextVar[list[CitationRef]] = contextvars.ContextVar('citations', default=[])
 
@@ -21,4 +22,4 @@ def next_ref_index() -> int:
     cur = _citations_var.get()
     if not cur:
         return 1
-    return max(c["ref"] for c in cur) + 1
+    return max(c["ref"] for c in cur)

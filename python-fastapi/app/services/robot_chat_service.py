@@ -1,6 +1,8 @@
+from __future__ import annotations
 from typing import Iterator, Dict, Any
 from sqlalchemy.orm import Session
 from app.ai.robot.robot_agent_adapter import RobotAgentAdapter
+from app.ai.citation.context import get_citations
 from app.ai.citation.replace import replace_citation_brackets
 from app.services.chat_session_service import ChatSessionService
 from app.services.chat_message_service import ChatMessageService
@@ -23,57 +25,48 @@ class RobotChatService:
         self.chat_session_service = ChatSessionService(db)
         self.chat_message_service = ChatMessageService(db)
 
-    def stream_events(self, content: str, session_id: str) -> Iterator[Dict[str, Any]]:
-        last_send = ""
-        for event in self.adapter.stream_events(
-            content,
+    def stream_events(self, input: str, session_id: str) -> Iterator[Dict[str, Any]]:
+        self.chat_message_service.create(
+            ChatMessageCreate(
+                session_id=session_id,
+                content=input,
+                role=ChatMessageRole.USER,
+                type=ChatMessageType.TEXT,
+            )
+        )
+
+        full_text_parts: list[str]() = []
+        # 提供给前端会话id,本次会话设计到的链接映射（这里都放到context类型中）
+        citations = get_citations()
+        yield {
+            "event": "context",
+            "data": {"session_id": session_id, "citations": citations},
+        }
+        for chunk, meta in self.adapter.stream_events(
+            input,
             session_id,
         ):
-            # print(event)
-            messages = event.get("messages", [])
-            if not messages:
+            chunk_type = getattr(chunk, "type", "") or chunk.__class__.__name__
+            token = getattr(chunk, "content", "") or ""
+            if "AIMessageChunk" not in str(chunk_type):
                 continue
-            last = messages[-1]
-            msg_type = get_field(last, "type", None)
-            if msg_type == "ai":
-                # AIMessage
-                tool_calls = get_field(last, "additional_kwargs", {}).get("tool_calls")
-                if tool_calls is None:
-                    self.chat_message_service.create(
-                        ChatMessageCreate(
-                            session_id=session_id,
-                            content=replace_citation_brackets(
-                                get_field(last, "content")
-                            ),
-                            role=ChatMessageRole.ASSISTANT,
-                            type=ChatMessageType.TEXT,
-                        )
-                    )
-            else:
-                if get_field(last, "role", None) == "user":
-                    # 人类输入
-                    self.chat_message_service.create(
-                        ChatMessageCreate(
-                            session_id=session_id,
-                            content=get_field(last, "content"),
-                            role=ChatMessageRole.USER,
-                            type=ChatMessageType.TEXT,
-                        )
-                    )
-            text = get_field(last, "content", None)
+            if not token:
+                continue
 
-            if not text or msg_type != "ai":
-                continue
-            if text.startswith(last_send):
-                delta = text[len(last_send) :]
-            else:
-                delta = text
-            print("delta", delta)    
-            delta = replace_citation_brackets(delta)
-            last_send = text
-            yield {"content": delta}
+            full_text_parts.append(token)
+            yield {"event": "message", "data": token}
+        full_text = "".join(full_text_parts)
+        # ai消息更新
+        self.chat_message_service.create(
+            ChatMessageCreate(
+                session_id=session_id,
+                content=replace_citation_brackets(full_text),
+                role=ChatMessageRole.ASSISTANT,
+                type=ChatMessageType.TEXT,
+            )
+        )
         # 会话的摘要更新
         self.chat_session_service.update(
-            session_id, ChatSessionUpdate(last_message_preview=text[:50])
+            session_id, ChatSessionUpdate(last_message_preview=full_text[:50])
         )
-        yield {"done": True}
+        yield {"event": "done", "data": "complete"}

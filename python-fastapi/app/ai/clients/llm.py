@@ -11,4 +11,5 @@ def get_llm():
     return ChatTongyi(
         model=settings.QWEN_MODEL,
         api_key=settings.DASHSCOPE_API_KEY,
+        streaming=True
     )

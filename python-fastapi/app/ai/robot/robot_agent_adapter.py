@@ -13,7 +13,7 @@ class RobotAgentAdapter:
         config = {"configurable": {"thread_id": session_id, "services": self.services}}
         for event in agent.stream(
             {"messages": [{"role": "user", "content": content}]},
-            stream_mode="values",
+            stream_mode="messages",
             config=config,
         ):
             yield event
