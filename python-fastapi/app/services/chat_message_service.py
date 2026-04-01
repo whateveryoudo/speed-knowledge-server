@@ -3,9 +3,10 @@ from app.schemas.chat_message import ChatMessageCreate, ChatMessageQuery, ChatMe
 from app.services.base_service import BaseService
 from app.common.pagination import paginate_query, paginate_response
 from app.schemas.response import PaginationQuery, PaginationResponse
+from app.common.sorting import parse_sort_string, apply_sort_by
 from sqlalchemy.orm import Session
 
-
+ALLOWED_SORT_FIELDS = {"created_at", "updated_at"}
 class ChatMessageService(BaseService[ChatMessage]):
     def __init__(self, db: Session):
         super().__init__(db, ChatMessage)
@@ -31,7 +32,10 @@ class ChatMessageService(BaseService[ChatMessage]):
         if query_in.session_id:
             query = query.filter(ChatMessage.session_id == query_in.session_id)
 
-        items, total = paginate_query(
+        spec = parse_sort_string(query_in.sort, default="updated_at:desc")
+        query = apply_sort_by(query, ChatMessage, sort_spec=spec, allowed_fields=ALLOWED_SORT_FIELDS, default_order = None)    
+
+        items, total, has_more = paginate_query(
             query,
             PaginationQuery(
                 page=query_in.page,
@@ -39,4 +43,4 @@ class ChatMessageService(BaseService[ChatMessage]):
             ),
         )
 
-        return paginate_response(items, total, query_in)
+        return paginate_response(items, total, has_more, query_in)

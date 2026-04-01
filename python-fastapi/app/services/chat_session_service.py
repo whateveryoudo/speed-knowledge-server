@@ -8,9 +8,10 @@ from app.schemas.chat_session import (
 from app.services.base_service import BaseService
 from app.common.pagination import paginate_query, paginate_response
 from app.schemas.response import PaginationQuery, PaginationResponse
+from app.common.sorting import parse_sort_string, apply_sort_by, SortDirection
 from sqlalchemy.orm import Session
 
-
+ALLOWED_SORT_FIELDS = {"created_at", "updated_at", "title"}
 class ChatSessionService(BaseService[ChatSession]):
     """聊天会话服务"""
 
@@ -45,7 +46,12 @@ class ChatSessionService(BaseService[ChatSession]):
             query = query.filter(ChatSession.title.like(f"%{query_in.title}%"))
         if query_in.status:
             query = query.filter(ChatSession.status == query_in.status.value)
-        items, total = paginate_query(
+        
+        spec = parse_sort_string(query_in.sort, default="updated_at:desc")
+
+        query = apply_sort_by(query, ChatSession, sort_spec=spec, allowed_fields=ALLOWED_SORT_FIELDS, default_order = None)    
+        
+        items, total, has_more = paginate_query(
             query,
             PaginationQuery(
                 page=query_in.page,
@@ -53,7 +59,7 @@ class ChatSessionService(BaseService[ChatSession]):
             ),
         )
 
-        return paginate_response(items, total, query_in)
+        return paginate_response(items, total, has_more, query_in)
 
     def update(self, session_id: str, update_in: ChatSessionUpdate):
         """更新会话(支持多属性更新)"""

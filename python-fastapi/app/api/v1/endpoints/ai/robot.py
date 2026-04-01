@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -76,9 +76,11 @@ async def chat_stream(
     )
 
 
-@router.post("/chat/history")
+@router.get("/chat/history")
 async def chat_history(
-    request: ChatSessionQuery,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+    sort: str = Query(default="updated_at:desc"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaginationResponse[ChatSessionResponse]:
@@ -89,19 +91,21 @@ async def chat_history(
     # 追加一些其他参数
     return chat_session_service.get_list(
         ChatSessionFullQuery(
-            **{
-                **request.model_dump(),
-                "user_id": current_user.id,
-                "status": request.status or ChatSessionStatus.ACTIVE,
-            }
+            page = page,
+            page_size = page_size,
+            user_id = current_user.id,
+            sort = sort,
+            status = ChatSessionStatus.ACTIVE,
         )
     )
 
 
-@router.post("/chat/message/{session_id}")
+@router.get("/chat/message/{session_id}")
 async def chat_message(
     session_id: str,
-    request: ChatMessageQuery,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+    sort: str = Query(default="updated_at:desc"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaginationResponse[ChatMessageResponse]:
@@ -111,5 +115,10 @@ async def chat_message(
     chat_message_service = ChatMessageService(db)
     # 参数拼接
     return chat_message_service.get_list(
-        request.model_copy(update={"session_id": session_id})
+        ChatMessageQuery(
+            page = page,
+            page_size = page_size,
+            sort = sort,
+            session_id = session_id,
+        )
     )

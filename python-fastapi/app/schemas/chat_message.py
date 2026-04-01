@@ -24,8 +24,9 @@ class ChatMessageCreate(BaseModel):
 class ChatMessageQuery(BaseModel):
     """聊天消息查询结构"""
     session_id: Optional[str] = Field(None, description="会话ID")
-    page: int = Field(1, description="页码")
-    page_size: int = Field(10, description="每页条数")
+    page: int = Field(1, ge=1, description="页码")
+    page_size: int = Field(10, ge=1, description="每页条数")
+    sort: str = Field(default="updated_at:desc", description="排序")
 
 
 class ChatMessageResponse(ChatMessageBase):

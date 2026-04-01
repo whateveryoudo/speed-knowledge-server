@@ -29,6 +29,7 @@ class ChatSessionQuery(BaseModel):
     status: Optional[ChatSessionStatus] = Field(None, description="会话状态")
     page: int = Field(1, description="页码")
     page_size: int = Field(10, description="每页条数")
+    sort: str = Field(default="-updated_at", description="排序(支持多个字段，用逗号分隔 -代表降序)")
 
 class ChatSessionFullQuery(ChatSessionQuery):
     """聊天会话查询结构(包含已删除的数据)"""

@@ -80,7 +80,7 @@ class DocumentHistoryService:
             query = query.filter(*filter_conditions)
 
         # 进行分页查询
-        items, total = paginate_query(
+        items, total, has_more = paginate_query(
             query, PaginationQuery(page=query_in.page, page_size=query_in.page_size)
         )  # 返回数据和总条数
         # 内容组合
@@ -122,5 +122,5 @@ class DocumentHistoryService:
                 updated_at=item.updated_at,
             )
             response_items.append(response_item)
-        return paginate_response(response_items, total, query_in)
+        return paginate_response(response_items, total, has_more, query_in)
                 

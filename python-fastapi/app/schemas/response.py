@@ -55,11 +55,12 @@ class PaginationResponse(BaseModel, Generic[T]):
     page: int = Field(..., description="页码")
     page_size: int = Field(..., description="每页条数")
     total: int = Field(..., description="总条数")
+    has_more: bool = Field(..., description="是否有更多数据")
     items: List[T] = Field(..., description="数据列表")
 
     @classmethod
     def create(
-        cls, items: List[T], total: int, page: int, page_size: int
+        cls, items: List[T], total: int, has_more: bool, page: int, page_size: int
     ) -> "PaginationResponse[T]":
         """创建分页响应结构"""
-        return cls(page=page, page_size=page_size, total=total, items=items)
+        return cls(page=page, page_size=page_size, total=total, has_more=has_more, items=items)
