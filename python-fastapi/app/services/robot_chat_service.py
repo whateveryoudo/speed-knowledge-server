@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Iterator, Dict, Any
+from typing import Iterator, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.ai.robot.robot_agent_adapter import RobotAgentAdapter
 from app.ai.citation.context import get_citations
 from app.ai.citation.replace import replace_citation_brackets
 from app.services.chat_session_service import ChatSessionService
 from app.services.chat_message_service import ChatMessageService
-from app.schemas.chat_message import ChatMessageCreate
+from app.schemas.chat_message import ChatMessageCreate, ChatMessageUpdate
 from app.schemas.chat_session import ChatSessionUpdate
 from app.common.enums import ChatMessageRole, ChatMessageType
 from app.common.utils import get_field
@@ -25,15 +25,19 @@ class RobotChatService:
         self.chat_session_service = ChatSessionService(db)
         self.chat_message_service = ChatMessageService(db)
 
-    def stream_events(self, input: str, session_id: str) -> Iterator[Dict[str, Any]]:
-        self.chat_message_service.create(
-            ChatMessageCreate(
-                session_id=session_id,
-                content=input,
-                role=ChatMessageRole.USER,
-                type=ChatMessageType.TEXT,
+    def stream_events(
+        self, input: str, session_id: str, message_id: Optional[str] = None
+    ) -> Iterator[Dict[str, Any]]:
+        if message_id is None or message_id == "":
+            # 非重新生成消息，则初始化消息
+            self.chat_message_service.create(
+                ChatMessageCreate(
+                    session_id=session_id,
+                    content=input,
+                    role=ChatMessageRole.USER,
+                    type=ChatMessageType.TEXT,
+                )
             )
-        )
 
         full_text_parts: list[str]() = []
         # 提供给前端会话id,本次会话设计到的链接映射（这里都放到context类型中）
@@ -57,14 +61,23 @@ class RobotChatService:
             yield {"event": "message", "data": token}
         full_text = "".join(full_text_parts)
         # ai消息更新
-        self.chat_message_service.create(
-            ChatMessageCreate(
-                session_id=session_id,
-                content=replace_citation_brackets(full_text),
-                role=ChatMessageRole.ASSISTANT,
-                type=ChatMessageType.TEXT,
+        if message_id:
+            self.chat_message_service.update(
+                ChatMessageUpdate(
+                    id=message_id,
+                    content=replace_citation_brackets(full_text),
+                )
             )
-        )
+        else:
+            self.chat_message_service.create(
+                ChatMessageCreate(
+                    session_id=session_id,
+                    content=replace_citation_brackets(full_text),
+                    role=ChatMessageRole.ASSISTANT,
+                    type=ChatMessageType.TEXT,
+                    link_question=input,
+                )
+            )
         # 会话的摘要更新
         self.chat_session_service.update(
             session_id, ChatSessionUpdate(last_message_preview=full_text[:50])

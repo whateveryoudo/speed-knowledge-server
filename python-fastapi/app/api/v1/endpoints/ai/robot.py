@@ -59,6 +59,7 @@ async def chat_stream(
             for event in robot_chat_service.stream_events(
                 request.content,
                 session_id,
+                request.message_id,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except HTTPException as e:

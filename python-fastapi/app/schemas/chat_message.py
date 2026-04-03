@@ -1,3 +1,4 @@
+from token import OP
 from pydantic import BaseModel, Field
 from datetime import datetime
 from app.common.enums import ChatMessageRole, ChatMessageType
@@ -9,6 +10,7 @@ class ChatMessageBase(BaseModel):
     content: str = Field(..., description="消息内容")
     role: ChatMessageRole = Field(..., description="消息角色")
     type: ChatMessageType = Field(..., description="消息类型")
+    link_question: Optional[str] = Field(None, description="关联问题(用于重新生成答案)")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
@@ -19,7 +21,12 @@ class ChatMessageCreate(BaseModel):
     content: str = Field(..., description="消息内容")
     role: ChatMessageRole = Field(..., description="消息角色")
     type: ChatMessageType = Field(..., description="消息类型")
+    link_question: Optional[str] = Field(None, description="关联问题(用于重新生成答案)")
 
+class ChatMessageUpdate(BaseModel):
+    """更新聊天消息结构"""
+    content: Optional[str] = Field(None, description="消息内容")
+    id: str = Field(..., description="消息ID")
 
 class ChatMessageQuery(BaseModel):
     """聊天消息查询结构"""

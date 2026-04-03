@@ -21,6 +21,7 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False, comment="消息内容")
     role = Column[ChatMessageRole](String(20), nullable=False, comment="消息角色")
     type = Column[ChatMessageType](String(20), nullable=False, comment="消息类型")
+    link_question = Column(String(255), nullable=True, comment="关联问题(用于重新生成答案)")
    
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     updated_at = Column(

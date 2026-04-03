@@ -4,7 +4,7 @@ services:
     container_name: speed-knowledge-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-onemoretime123.}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-speed-knowledge}
     ports:
       - "${MYSQL_PORT:-3306}:3306"
@@ -101,9 +101,23 @@ services:
     environment:
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-speed-knowledge}
 
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: speed-knowledge-onlyoffice
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      JWT_ENABLED: "true"
+      # 与后端 `ONLYOFFICE_JWT_SECRET` 保持一致
+      JWT_SECRET: "e39e75885d7f3688205de19c9ac041183c96624d8969dbf94d83e9da4f30feb1"
+    volumes:
+      - onlyoffice-data:/var/lib/onlyoffice
+
 volumes:
   mysql-data:
     external: true
   redis-data:
   rabbitmq-data:
   qdrant-data:
+  onlyoffice-data:

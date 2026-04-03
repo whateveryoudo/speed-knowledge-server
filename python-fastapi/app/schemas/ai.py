@@ -10,3 +10,4 @@ class DoubaoQuery(BaseModel):
 class RobotQuery(BaseModel):
     content: str = Field(default="")
     session_id: str = Field(default="")
+    message_id: Optional[str] = Field(default=None)
