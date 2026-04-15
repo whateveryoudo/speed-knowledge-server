@@ -109,6 +109,9 @@ export class CollaborationService implements OnModuleInit {
             if (syncVectorKnowledgeId === context.knowledgeId) {
               await vectorSyncService.touch(context.knowledgeId, documentName);
             }
+
+            // 查找提及用户，增加通知
+            
           },
         }),
       ],

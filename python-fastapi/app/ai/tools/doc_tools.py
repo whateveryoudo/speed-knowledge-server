@@ -6,7 +6,7 @@ from app.ai.config import settings
 from app.ai.retrieval.public_retriever import get_public_retriever
 from langchain_core.runnables import RunnableConfig
 from app.ai.retrieval.public_retriever import search_public
-from app.ai.citation.context import append_citation, next_ref_index
+# from app.ai.citation.context import append_citation, next_ref_index
 
 
 @tool
@@ -33,7 +33,7 @@ def doc_search(query: str, config: RunnableConfig) -> str:
         # 调用文档服务获取文档相关链接
         document_ids = [doc.get("metadata", {}).get("document_id") for doc in docs]
         doc_rel_link_dict = document_service.resolve_document_links_batch(document_ids)
-    ref = next_ref_index()
+    ref = 0
     for doc in docs:
         meta = doc.get("metadata") or {}
         document_id = meta.get("document_id")
@@ -44,23 +44,23 @@ def doc_search(query: str, config: RunnableConfig) -> str:
             continue
         seen.add(key)
 
-        append_citation(
-            {
-                "ref": ref,
-                "single_ref": f"[[citation:{ref}]]",
-                # 提取文档相关链接
-                "document_link": doc_rel_link_dict.get(document_id, ""),
-            }
-        )
+        # append_citation(
+        #     {
+        #         "ref": ref,
+        #         "single_ref": f"[[citation:{ref}]]",
+        #         # 提取文档相关链接
+        #         "document_link": doc_rel_link_dict.get(document_id, ""),
+        #     }
+        # )
         body = doc.get("text") or "".strip()
-        lines.append(f"编号:[[citation:{ref}]]\n" f"片段:\n{body}\n")
+        lines.append(f"相关链接:{doc_rel_link_dict.get(document_id, "")}\n" f"片段:\n{body}\n")
         ref += 1
     if not lines:
         return "未在知识库找到相关文档。"
 
     header = (
-        "以下为检索到的资料，请仅基于这些内容回答（编号代表链接说明,可选择性带出, 生成时符合语义，如在编号前面追加'参考'，'查看'之类的修饰词）；引用处使用 [[citation:1]]、[[citation:2]] 等形式，"
-        "编号与下方 编号: 一致。不要自行编写 http 链接或文档 id。不要自行插入不存在的编号项。\n\n"
+        "以下为检索到的资料，请仅基于这些内容回答（相关链接尽量带上, 请符合markdown链接形式）"
+        "不要自行编写 http 链接或文档 id。\n\n"
     )
     print(header + "\n---\n".join(lines))
     return header + "\n---\n".join(lines)

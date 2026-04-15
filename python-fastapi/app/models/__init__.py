@@ -22,6 +22,7 @@ from .permission_ability import PermissionAbility
 from .vector_sync import VectorSync
 from .chat_session import ChatSession
 from .chat_message import ChatMessage
+from .notification import Notification
 
 __all__ = [
     "User",
@@ -47,4 +48,5 @@ __all__ = [
     "VectorSync",
     "ChatSession",
     "ChatMessage",
+    "Notification",
 ]

@@ -12,6 +12,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { redisStore } from 'cache-manager-ioredis-yet';
+import { NotificationModule } from './modules/notification/notification.module';
 console.log(process.env);
 @Module({
   imports: [
@@ -54,6 +55,7 @@ console.log(process.env);
     CollaborationModule,
     DocumentContentModule,
     VectorSyncModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

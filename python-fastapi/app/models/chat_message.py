@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, JSON
 from app.db.base import Base
 import uuid
 from datetime import datetime
@@ -22,7 +22,7 @@ class ChatMessage(Base):
     role = Column[ChatMessageRole](String(20), nullable=False, comment="消息角色")
     type = Column[ChatMessageType](String(20), nullable=False, comment="消息类型")
     link_question = Column(String(255), nullable=True, comment="关联问题(用于重新生成答案)")
-   
+    suggestions = Column(JSON, nullable=True, comment="建议列表")
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     updated_at = Column(
         DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间"

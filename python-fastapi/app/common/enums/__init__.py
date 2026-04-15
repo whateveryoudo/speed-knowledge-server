@@ -25,6 +25,7 @@ from .collaborator import (
     CollaborateResourceType,
 )
 from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
+from .notification import NotificationBizType
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -53,4 +54,5 @@ __all__ = [
     "ChatMessageRole",
     "ChatMessageType",
     "ChatSessionStatus",
+    "NotificationBizType",
 ]

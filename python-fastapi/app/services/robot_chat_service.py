@@ -2,8 +2,6 @@ from __future__ import annotations
 from typing import Iterator, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.ai.robot.robot_agent_adapter import RobotAgentAdapter
-from app.ai.citation.context import get_citations
-from app.ai.citation.replace import replace_citation_brackets
 from app.services.chat_session_service import ChatSessionService
 from app.services.chat_message_service import ChatMessageService
 from app.schemas.chat_message import ChatMessageCreate, ChatMessageUpdate
@@ -40,11 +38,9 @@ class RobotChatService:
             )
 
         full_text_parts: list[str]() = []
-        # 提供给前端会话id,本次会话设计到的链接映射（这里都放到context类型中）
-        citations = get_citations()
         yield {
             "event": "context",
-            "data": {"session_id": session_id, "citations": citations},
+            "data": {"session_id": session_id},
         }
         for chunk, meta in self.adapter.stream_events(
             input,
@@ -60,26 +56,32 @@ class RobotChatService:
             full_text_parts.append(token)
             yield {"event": "message", "data": token}
         full_text = "".join(full_text_parts)
+        # 会话的摘要更新
+        self.chat_session_service.update(
+            session_id, ChatSessionUpdate(last_message_preview=full_text[:50])
+        )
+        # 增加建议生成
+        suggestions = self.adapter.generate_suggestions(input, full_text)
+        yield {"event": "suggestions", "data": suggestions}
         # ai消息更新
         if message_id:
             self.chat_message_service.update(
                 ChatMessageUpdate(
                     id=message_id,
-                    content=replace_citation_brackets(full_text),
+                    content=full_text,
+                    suggestions=suggestions,
                 )
             )
         else:
             self.chat_message_service.create(
                 ChatMessageCreate(
                     session_id=session_id,
-                    content=replace_citation_brackets(full_text),
+                    content=full_text,
                     role=ChatMessageRole.ASSISTANT,
                     type=ChatMessageType.TEXT,
                     link_question=input,
+                    suggestions=suggestions,
                 )
             )
-        # 会话的摘要更新
-        self.chat_session_service.update(
-            session_id, ChatSessionUpdate(last_message_preview=full_text[:50])
-        )
+        
         yield {"event": "done", "data": "complete"}

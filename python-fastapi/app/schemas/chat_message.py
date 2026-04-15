@@ -22,11 +22,12 @@ class ChatMessageCreate(BaseModel):
     role: ChatMessageRole = Field(..., description="消息角色")
     type: ChatMessageType = Field(..., description="消息类型")
     link_question: Optional[str] = Field(None, description="关联问题(用于重新生成答案)")
-
+    suggestions: Optional[list[dict[str, str]]] = Field(None, description="建议列表")
 class ChatMessageUpdate(BaseModel):
     """更新聊天消息结构"""
     content: Optional[str] = Field(None, description="消息内容")
     id: str = Field(..., description="消息ID")
+    suggestions: Optional[list[dict[str, str]]] = Field(None, description="建议列表")
 
 class ChatMessageQuery(BaseModel):
     """聊天消息查询结构"""

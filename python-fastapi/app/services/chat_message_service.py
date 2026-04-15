@@ -27,6 +27,7 @@ class ChatMessageService(BaseService[ChatMessage]):
             type=chat_message_in.type,
             link_question=chat_message_in.link_question,
             session_id=chat_message_in.session_id,
+            suggestions=chat_message_in.suggestions,
         )
         self.db.add(chat_message)
         self.db.commit()
@@ -43,6 +44,7 @@ class ChatMessageService(BaseService[ChatMessage]):
         if not chat_message:
             raise HTTPException(status_code=404, detail="消息不存在")
         chat_message.content = chat_message_in.content
+        chat_message.suggestions = chat_message_in.suggestions
         self.db.commit()
         self.db.refresh(chat_message)
         return chat_message

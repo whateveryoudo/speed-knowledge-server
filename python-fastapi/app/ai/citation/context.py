@@ -1,7 +1,7 @@
 from __future__ import annotations
 import contextvars
 from typing import TypedDict
-
+# 暂时废弃，直接丢给了大模型返回
 class CitationRef(TypedDict, total=False):
     ref: int
     single_ref: str
