@@ -6,8 +6,8 @@ from app.ai.config import settings
 from app.ai.retrieval.public_retriever import get_public_retriever
 from langchain_core.runnables import RunnableConfig
 from app.ai.retrieval.public_retriever import search_public
-from app.ai.citation.context import append_citation, next_ref_index, get_citations
-import json
+from app.ai.citation.context import append_citation, next_ref_index
+
 
 @tool
 def doc_search(query: str, config: RunnableConfig) -> str:
@@ -62,9 +62,5 @@ def doc_search(query: str, config: RunnableConfig) -> str:
         "以下为检索到的资料，请仅基于这些内容回答（编号代表链接说明,可选择性带出, 生成时符合语义，如在编号前面追加'参考'，'查看'之类的修饰词）；引用处使用 [[citation:1]]、[[citation:2]] 等形式，"
         "编号与下方 编号: 一致。不要自行编写 http 链接或文档 id。不要自行插入不存在的编号项。\n\n"
     )
-    print(get_citations())
-    return json.dumps({
-        # 返回引用信息
-        "citations": get_citations(), 
-        "content": header + "\n---\n".join(lines)
-    }, ensure_ascii=False)
+    print(header + "\n---\n".join(lines))
+    return header + "\n---\n".join(lines)

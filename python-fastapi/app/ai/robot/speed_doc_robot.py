@@ -8,7 +8,6 @@ from app.ai.tools.doc_tools import doc_search
 from app.ai.tools.web_tools import web_search
 from langgraph.checkpoint.memory import InMemorySaver
 import operator
-import json
 
 SYSTEM_PROMPT = """你是一个帮助用户解答问题的智能助手。
 【非常重要】文档相关问题，需要在已有的知识库中搜寻答案
@@ -45,29 +44,12 @@ def tool_node(state: State) -> State:
     工具调用节点
     """
     results = []
-    merged_citations = list(state.get("citations", []))
     for tool_call in state["messages"][-1].tool_calls:
         print(tool_call)
         tool = tools_by_name[tool_call["name"]]
         observation = tool.invoke(tool_call["args"])
-        try:
-            data = json.loads(observation)
-            tool_text = data.get("answer_context", observation)
-            merged_citations.extend(data.get("citations", []))
-        except Exception as e:
-            pass
-        results.append(ToolMessage(content=tool_text, tool_call_id=tool_call["id"]))
-
-    dedup = []
-    seen = set()
-    for c in merged_citations:
-        key = (c.get("ref"), c.get("single_ref"), c.get("document_link"))
-        if key in seen:
-            continue
-        seen.add(key)
-        dedup.append(c)
-
-    return {"messages": results, "citations": merged_citations}
+        results.append(ToolMessage(content=observation, tool_call_id=tool_call["id"]))
+    return {"messages": results}
 
 
 def should_continue(state: State) -> bool:

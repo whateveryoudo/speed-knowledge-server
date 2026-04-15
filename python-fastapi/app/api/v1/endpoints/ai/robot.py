@@ -23,7 +23,7 @@ import uuid
 router = APIRouter()
 
 
-@router.post("/chat/stream", response_class=StreamingResponse)
+@router.post("/chat/stream")
 async def chat_stream(
     request: RobotQuery,
     current_user: User = Depends(get_current_user),
@@ -59,7 +59,7 @@ async def chat_stream(
             for event in robot_chat_service.stream_events(
                 request.content,
                 session_id,
-                request.answer_group_id,
+                request.message_id,
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except HTTPException as e:
@@ -77,7 +77,7 @@ async def chat_stream(
     )
 
 
-@router.get("/chat/history", response_model=PaginationResponse[ChatSessionResponse])
+@router.get("/chat/history")
 async def chat_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1),
@@ -101,7 +101,7 @@ async def chat_history(
     )
 
 
-@router.get("/chat/message/{session_id}", response_model=PaginationResponse[ChatMessageResponse])
+@router.get("/chat/message/{session_id}")
 async def chat_message(
     session_id: str,
     page: int = Query(1, ge=1),

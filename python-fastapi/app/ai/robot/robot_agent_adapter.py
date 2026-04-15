@@ -12,13 +12,8 @@ class RobotAgentAdapter:
         # 注入服务到配置中
         config = {"configurable": {"thread_id": session_id, "services": self.services}}
         for event in agent.stream(
-            {"messages": [{"role": "user", "content": content}], "citations": []},
+            {"messages": [{"role": "user", "content": content}]},
             stream_mode="messages",
             config=config,
         ):
             yield event
-
-        snapshot = agent.get_state(config)
-        values = getattr(snapshot, "values", {}) or {}
-        yield {"event": "citations", "data": values.get("citations", [])}
-
