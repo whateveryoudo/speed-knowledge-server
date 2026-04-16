@@ -60,4 +60,12 @@ export class DocumentContentService {
     }
     return documentContent.content;
   }
+  // 获取文档内容json
+  async getDocumentContentJson(document_id: string) {
+    const documentContent = await this.getDocumentContent(document_id);
+    if (!documentContent) {
+      return null;
+    }
+    return JSON.parse(documentContent.node_json);
+  }
 }

@@ -11,20 +11,28 @@ import { DocumentService } from "../document/document.service";
 import { VectorSyncService } from "../vector-sync/vector-sync.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
+import { debounce } from "lodash-es";
 import * as Y from "yjs";
+import { NotificationService } from "../notification/notification.service";
+export type MentionItem = {
+  mention_id: number;
+  payload: Record<string, any>;
+};
 @Injectable()
 export class CollaborationService implements OnModuleInit {
   private hocuspocusServer: Hocuspocus;
   private readonly VIEW_COUNT_TTL = 3600 * 24;
-  private readonly SYNC_VECTOR_KNOWLEDGE_ID = process.env.SYNC_VECTOR_KNOWLEDGE_ID;
+  private readonly SYNC_VECTOR_KNOWLEDGE_ID =
+    process.env.SYNC_VECTOR_KNOWLEDGE_ID;
   constructor(
     private documentContentService: DocumentContentService,
     private documentEditHistoryService: DocumentEditHistoryService,
+    private notificationService: NotificationService,
     private authService: AuthService,
     private documentService: DocumentService,
     private vectorSyncService: VectorSyncService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache
-  ) { }
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
   private async syncViewCount(documentId: string, userId: number) {
     const cacheKey = `document_view_count:${documentId}:${userId}`;
     const cacheValue = await this.cacheManager.get(cacheKey);
@@ -50,7 +58,42 @@ export class CollaborationService implements OnModuleInit {
     const pmJson = TiptapTransformer.fromYdoc(ydoc as any);
     return pmJson;
   }
-
+  // 处理tiptap的mention节点，提取出所有attr内容（这里没有定死内容）
+  private extractMentionIds(node: any, result: MentionItem[] = []) {
+    if (node.type === "mention" && node.attrs.id) {
+      result.push({ mention_id: node.attrs.id, payload: node.attrs });
+    }
+    if (node.content && Array.isArray(node.content)) {
+      for (const child of node.content) {
+        this.extractMentionIds(child, result);
+      }
+    }
+    return result;
+  }
+  // 处理mention节点，触发mention用户通知
+  private async debounceHandleMention(
+    documentContentService: DocumentContentService,
+    documentName: string,
+    nodeJson: any,
+    actorUserId: number,
+  ) {
+    return debounce(async () => {
+      const oldContentJson =
+        await documentContentService.getDocumentContentJson(documentName);
+      const oldMentionRows = this.extractMentionIds(oldContentJson);
+      const newMentionRows = this.extractMentionIds(nodeJson);
+      const addedMentionRows = [...newMentionRows].filter(
+        (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
+      );
+      if (addedMentionRows.length > 0) {
+        this.notificationService.createMentionNotifications({
+          document_id: documentName,
+          actorUserId,
+          addedMentionRows,
+        });
+      }
+    }, 1000);
+  }
   onModuleInit() {
     const documentContentService = this.documentContentService;
     const documentService = this.documentService;
@@ -58,6 +101,7 @@ export class CollaborationService implements OnModuleInit {
     const vectorSyncService = this.vectorSyncService;
     const yStateToPmJson = this.yStateToPmJson;
     const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
+    const debounceHandleMention = this.debounceHandleMention;
     // 配置Hocuspocus服务器
     this.hocuspocusServer = new Hocuspocus({
       name: "Speed Editor Collaboration Server",
@@ -92,7 +136,7 @@ export class CollaborationService implements OnModuleInit {
             await documentContentService.updateContent(
               documentName,
               Buffer.from(state),
-              JSON.stringify(node)
+              JSON.stringify(node),
             );
             // 更新文档最后更新时间
             await documentService.updateDocument(documentName, {
@@ -104,21 +148,29 @@ export class CollaborationService implements OnModuleInit {
               document_id: documentName,
               edited_datetime: new Date(),
             });
-            
+
             // 增加向量同步任务(注意：这里需要传入知识库id)
             if (syncVectorKnowledgeId === context.knowledgeId) {
               await vectorSyncService.touch(context.knowledgeId, documentName);
             }
-
             // 查找提及用户，增加通知
-            
+            await debounceHandleMention(
+              documentContentService,
+              documentName,
+              JSON.stringify(node),
+              context.user.id,
+            );
           },
         }),
       ],
     });
   }
   // 增加额外自定义参数
-  handleConnection(ws: WebSocket, request: any, context: { knowledgeId: string }) {
+  handleConnection(
+    ws: WebSocket,
+    request: any,
+    context: { knowledgeId: string },
+  ) {
     this.hocuspocusServer.handleConnection(ws, request, context);
   }
 }

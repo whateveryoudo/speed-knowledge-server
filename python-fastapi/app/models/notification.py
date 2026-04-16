@@ -17,7 +17,7 @@ class Notification(Base):
     )
 
     id: Column[String(36)] = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid7()), comment="通知id")
-    user_id: Column[int] = Column(Integer, ForeignKey("user.id"), index=True, comment="用户id")
+    mentioned_user_id: Column[int] = Column(Integer, ForeignKey("user.id"), index=True, comment="被提及用户id")
     biz_type: Column[NotificationBizType] = Column(String(20), nullable=False, comment="业务类型")
     biz_id: Column[String(36)] = Column(String(36), index=True, comment="业务id(用于幂等性)")
     title: Column[String(255)] = Column(String(255), nullable=False, comment="标题")

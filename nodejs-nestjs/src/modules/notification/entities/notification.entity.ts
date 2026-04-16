@@ -6,8 +6,8 @@ export class Notification {
     @PrimaryColumn("varchar", { length: 36 })
     id: string;
 
-    @Column("int")
-    user_id: number;
+    @Column("int", { nullable: false, comment: "被提及用户id" })
+    mentioned_user_id: number;
 
     @Column("varchar", { length: 20 })
     biz_type: NotificationBizType;
