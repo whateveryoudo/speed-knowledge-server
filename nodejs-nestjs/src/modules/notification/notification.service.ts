@@ -4,44 +4,64 @@ import { Repository } from "typeorm";
 import { Notification } from "./entities/notification.entity";
 import { type MentionItem } from "../collaboration/collaboration.service";
 import { UserService } from "../user/user.service";
-import { randomUUID } from "crypto";
 import { NotificationBizType } from "@/enums/notification";
+import { NotificationGateway } from "./notification.getway";
+import * as dayjs from "dayjs";
+import { v7 as uuidv7 } from 'uuid';
 @Injectable()
 export class NotificationService {
   constructor(
     @InjectRepository(Notification)
     private notificationRepository: Repository<Notification>,
     private userService: UserService,
+    private notificationGateway: NotificationGateway,
   ) {}
   // 创建mention通知
-  private async createMentionNotifications({
-    document_id,
+  async createMentionNotifications({
+    documentName,
     actorUserId,
     addedMentionRows,
+    notificationEventId,
   }: {
-    document_id: string;
+    documentName: string;
     actorUserId: number;
     addedMentionRows: MentionItem[];
+    notificationEventId: string;
   }) {
     for (const mentionRow of addedMentionRows) {
       try {
-        const bizId = `${document_id}:${mentionRow.mention_id}:${randomUUID()}`;
+        // 这里直接用传入的事件id,不要每次都生成新的，TODO:mq接入
+        const bizId = `${documentName}:${mentionRow.mention_id}:${notificationEventId}`;
         const actorUser = await this.userService.findOne(actorUserId);
         const notification = this.notificationRepository.create({
+          id: uuidv7(),
           mentioned_user_id: mentionRow.payload.user_id,
           biz_type: NotificationBizType.MENTION,
           biz_id: bizId,
           title: "你被提及了",
           content: `用户${actorUser.username}在文档中@了你`,
-          //  这里我可能需要联表查询文档所属的团队，知识库，空间（或者给前端，python端给个接口？）
+          //  这里仅给出通知id,后端进行逻辑判断跳转
           payload: {
-            document_id,
             mention_id: mentionRow.mention_id,
             ...mentionRow.payload,
           } as Record<string, any>,
         });
-        await this.notificationRepository.insert(notification);
-        // TODO:WS推送
+        try {
+          await this.notificationRepository.insert(notification);
+          console.log('notification', notification);
+          this.notificationGateway.emitToUser(notification.mentioned_user_id, "notification", {
+            id: notification.id,
+            title: notification.title,
+            content: notification.content,
+            payload: notification.payload,
+            created_at: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+          });
+        } catch (error) {
+          if (error?.code === 'ER_DUP_ENTRY') {
+            return;
+          }
+          throw error;
+        }
       } catch (error) {
         throw error;
       }

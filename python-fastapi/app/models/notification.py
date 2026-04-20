@@ -11,15 +11,16 @@ class Notification(Base):
     __tablename__ = "notification"
 
     __table_args__ = (
-        UniqueConstraint("user_id", "biz_type", "biz_id", name="uix_user_id_biz_type_biz_id"),
-        Index("idx_user_id_created_at", "user_id", "created_at"),
-        Index("idx_user_id_read_at", "user_id", "read_at"),
+        UniqueConstraint("mentioned_user_id", "biz_type", "biz_id", name="uix_mentioned_user_id_biz_type_biz_id"),
+        Index("idx_mentioned_user_id_created_at", "mentioned_user_id", "created_at"),
+        Index("idx_mentioned_user_id_read_at", "mentioned_user_id", "read_at"),
     )
 
     id: Column[String(36)] = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid7()), comment="通知id")
+    actor_user_id: Column[int] = Column(Integer, ForeignKey("user.id"), index=True, comment="发起者用户id")
     mentioned_user_id: Column[int] = Column(Integer, ForeignKey("user.id"), index=True, comment="被提及用户id")
     biz_type: Column[NotificationBizType] = Column(String(20), nullable=False, comment="业务类型")
-    biz_id: Column[String(36)] = Column(String(36), index=True, comment="业务id(用于幂等性)")
+    biz_id: Column[String(36)] = Column(String(128), index=True, comment="业务id(用于幂等性)")
     title: Column[String(255)] = Column(String(255), nullable=False, comment="标题")
     content: Column[Text] = Column(Text, nullable=True, comment="内容")
     read_at: Column[DateTime] = Column(DateTime, nullable=True, comment="已读时间")

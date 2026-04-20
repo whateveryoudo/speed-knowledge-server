@@ -7,6 +7,7 @@ import { DocumentContentModule } from "../document-content/document-content.modu
 import { AuthModule } from "../auth/auth.module";
 import { DocumentModule } from "../document/document.module";
 import { VectorSyncModule } from "../vector-sync/vector-sync.module";
+import { NotificationModule } from "../notification/notification.module";
 import { DocumentEditHistoryModule } from "../document-edit-history/document-edit-history.module";
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DocumentEditHistoryModule } from "../document-edit-history/document-edi
     DocumentModule,
     DocumentEditHistoryModule,
     VectorSyncModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [CollaborationService,  CollaborationGateway],

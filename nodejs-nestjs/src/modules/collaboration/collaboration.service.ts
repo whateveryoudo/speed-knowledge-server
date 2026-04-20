@@ -11,11 +11,12 @@ import { DocumentService } from "../document/document.service";
 import { VectorSyncService } from "../vector-sync/vector-sync.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
-import { debounce } from "lodash-es";
+import { debounce } from "lodash";
 import * as Y from "yjs";
 import { NotificationService } from "../notification/notification.service";
+import { randomUUID } from "crypto";
 export type MentionItem = {
-  mention_id: number;
+  mention_id: string;
   payload: Record<string, any>;
 };
 @Injectable()
@@ -24,6 +25,8 @@ export class CollaborationService implements OnModuleInit {
   private readonly VIEW_COUNT_TTL = 3600 * 24;
   private readonly SYNC_VECTOR_KNOWLEDGE_ID =
     process.env.SYNC_VECTOR_KNOWLEDGE_ID;
+
+  private debounceHandleMention = debounce(this.handleMention, 1000);
   constructor(
     private documentContentService: DocumentContentService,
     private documentEditHistoryService: DocumentEditHistoryService,
@@ -71,28 +74,38 @@ export class CollaborationService implements OnModuleInit {
     return result;
   }
   // 处理mention节点，触发mention用户通知
-  private async debounceHandleMention(
+  private async handleMention(
     documentContentService: DocumentContentService,
     documentName: string,
     nodeJson: any,
     actorUserId: number,
+    notificationEventId: string,
   ) {
-    return debounce(async () => {
-      const oldContentJson =
-        await documentContentService.getDocumentContentJson(documentName);
-      const oldMentionRows = this.extractMentionIds(oldContentJson);
-      const newMentionRows = this.extractMentionIds(nodeJson);
-      const addedMentionRows = [...newMentionRows].filter(
-        (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
-      );
-      if (addedMentionRows.length > 0) {
-        this.notificationService.createMentionNotifications({
-          document_id: documentName,
-          actorUserId,
-          addedMentionRows,
-        });
-      }
-    }, 1000);
+    const oldContentJson =
+      await documentContentService.getDocumentContentJson(documentName);
+    const oldMentionRows = this.extractMentionIds(oldContentJson);
+    const newMentionRows = this.extractMentionIds(nodeJson);
+    // const addedMentionRows = [...newMentionRows].filter(
+    //   (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
+    // );
+    // test
+    const addedMentionRows = [
+      {
+        mention_id: 'ykxtest-mention-1',
+        payload: {
+          name: "ykxtest",
+          user_id: 2
+        },
+      },
+    ];
+    if (addedMentionRows.length > 0) {
+      await this.notificationService.createMentionNotifications({
+        documentName,
+        actorUserId,
+        addedMentionRows,
+        notificationEventId,
+      });
+    }
   }
   onModuleInit() {
     const documentContentService = this.documentContentService;
@@ -101,7 +114,7 @@ export class CollaborationService implements OnModuleInit {
     const vectorSyncService = this.vectorSyncService;
     const yStateToPmJson = this.yStateToPmJson;
     const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
-    const debounceHandleMention = this.debounceHandleMention;
+    const debounceHandleMention = this.debounceHandleMention.bind(this);
     // 配置Hocuspocus服务器
     this.hocuspocusServer = new Hocuspocus({
       name: "Speed Editor Collaboration Server",
@@ -153,12 +166,14 @@ export class CollaborationService implements OnModuleInit {
             if (syncVectorKnowledgeId === context.knowledgeId) {
               await vectorSyncService.touch(context.knowledgeId, documentName);
             }
+            const notificationEventId = randomUUID();
             // 查找提及用户，增加通知
             await debounceHandleMention(
               documentContentService,
               documentName,
-              JSON.stringify(node),
+              node,
               context.user.id,
+              notificationEventId,
             );
           },
         }),

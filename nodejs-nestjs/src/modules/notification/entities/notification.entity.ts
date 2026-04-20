@@ -9,10 +9,13 @@ export class Notification {
     @Column("int", { nullable: false, comment: "被提及用户id" })
     mentioned_user_id: number;
 
+    @Column("int", { nullable: false, comment: "发起者用户id" })
+    actor_user_id: number;
+
     @Column("varchar", { length: 20 })
     biz_type: NotificationBizType;
 
-    @Column("varchar", { length: 64 })
+    @Column("varchar", { length: 128 })
     biz_id: string;
 
     @Column("varchar", { length: 255 })
