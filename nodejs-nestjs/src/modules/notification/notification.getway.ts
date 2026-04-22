@@ -1,4 +1,9 @@
-import { OnGatewayConnection, WebSocketGateway, OnGatewayDisconnect, WebSocketServer } from "@nestjs/websockets";
+import {
+  OnGatewayConnection,
+  WebSocketGateway,
+  OnGatewayDisconnect,
+  WebSocketServer,
+} from "@nestjs/websockets";
 import { AuthService } from "../auth/auth.service";
 import { Socket } from "socket.io";
 import { Logger } from "@nestjs/common";
@@ -24,10 +29,7 @@ export class NotificationGateway
     try {
       const token =
         (client.handshake.auth.token as string) ||
-        (client.handshake.headers.authorization?.replace(
-          "Bearer ",
-          "",
-        ) as string);
+        client.handshake.headers.authorization;
       if (!token) {
         throw new Error("Token is required");
       }
@@ -54,7 +56,6 @@ export class NotificationGateway
     this.logger.log(`客户端断开: ${client.id}`);
   }
   emitToUser(userId: number, event: string, payload: any) {
-    console.log('emitToUser', userId, event, payload);
     this.server.to(this.userRoom(userId)).emit(event, payload);
   }
 }

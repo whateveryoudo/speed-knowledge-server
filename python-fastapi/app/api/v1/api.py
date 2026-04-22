@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     document,
     collect,
     dashboard,
+    notification,
 )
 from app.api.v1.endpoints.ai import doubao, robot
 
@@ -31,3 +32,4 @@ api_router.include_router(collect.router, prefix="/collect")
 api_router.include_router(collaborator.router, prefix="/collaborator")
 api_router.include_router(doubao.router, prefix="/ai/doubao")
 api_router.include_router(robot.router, prefix="/ai/robot")
+api_router.include_router(notification.router, prefix="/notification")

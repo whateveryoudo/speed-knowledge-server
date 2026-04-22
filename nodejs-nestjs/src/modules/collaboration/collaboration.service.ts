@@ -85,19 +85,19 @@ export class CollaborationService implements OnModuleInit {
       await documentContentService.getDocumentContentJson(documentName);
     const oldMentionRows = this.extractMentionIds(oldContentJson);
     const newMentionRows = this.extractMentionIds(nodeJson);
-    // const addedMentionRows = [...newMentionRows].filter(
-    //   (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
-    // );
+    const addedMentionRows = [...newMentionRows].filter(
+      (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
+    );
     // test
-    const addedMentionRows = [
-      {
-        mention_id: 'ykxtest-mention-1',
-        payload: {
-          name: "ykxtest",
-          user_id: 2
-        },
-      },
-    ];
+    // const addedMentionRows = [
+    //   {
+    //     mention_id: 'ykxtest-mention-1',
+    //     payload: {
+    //       name: "ykxtest",
+    //       user_id: 2
+    //     },
+    //   },
+    // ];
     if (addedMentionRows.length > 0) {
       await this.notificationService.createMentionNotifications({
         documentName,
