@@ -8,9 +8,8 @@ from app.common.enums import NotificationListType
 from app.schemas.response import (
     PaginationResponse,
     PaginationQuery,
-    paginate_query,
-    paginate_response,
 )
+from app.common.pagination import paginate_query, paginate_response
 from app.models.notification import Notification
 from fastapi import HTTPException, status
 from app.schemas.notification import NotificationResponse, NotificationSearch
@@ -31,10 +30,7 @@ class NotificationService:
 
         query = (
             self.db.query(Notification)
-            .join(
-                [User, Notification.actor_user_id == User.id],
-                [User, Notification.mentioned_user_id == User.id],
-            )
+            .filter(Notification.mentioned_user_id == query_in.user_id)
             .options(
                 joinedload(Notification.actor_user),
                 joinedload(Notification.mentioned_user),
@@ -63,7 +59,7 @@ class NotificationService:
         # 内容组合
         response_items = []
         for item in items:
-            response_item = NotificationResponse(**item.model_dump())
+            response_item = NotificationResponse.model_validate(item)
             response_items.append(response_item)
         return paginate_response(response_items, total, has_more, query_in)
 

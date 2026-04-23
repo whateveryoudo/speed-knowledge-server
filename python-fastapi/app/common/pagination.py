@@ -10,7 +10,7 @@ T = TypeVar("T")
 
 def paginate_query(
     query: Query, pagination_query: PaginationQuery
-) -> Tuple[List[T], int]:
+) -> Tuple[List[T], int, bool]:
     """分页查询，返回数据列表和总条数"""
     total = query.count()
     items = query.offset(pagination_query.skip).limit(pagination_query.limit).all()

@@ -12,12 +12,12 @@ router = APIRouter()
 
 
 @router.get(
-    "/",
+    "/list",
     response_model=PaginationResponse[NotificationResponse],
     status_code=status.HTTP_200_OK,
 )
 def get_notifications(
-    query_in: NotificationSearch,
+    query_in: NotificationSearch = Depends(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaginationResponse[NotificationResponse]:
@@ -40,11 +40,11 @@ def change_read_status(
 
 
 @router.get(
-    "/all-count",
+    "/all-unread-count",
     response_model=dict[NotificationListType, int],
     status_code=status.HTTP_200_OK,
 )
-def get_all_count(
+def get_all_unread_count(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[NotificationListType, int]:
@@ -55,8 +55,8 @@ def get_all_count(
     )
 
 
-@router.get("/{list_type}/count", response_model=int, status_code=status.HTTP_200_OK)
-def get_unread_count(
+@router.get("/{list_type}/unread-count", response_model=int, status_code=status.HTTP_200_OK)
+def get_unread_count_by_list_type(
     list_type: NotificationListType,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

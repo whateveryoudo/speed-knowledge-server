@@ -23,6 +23,7 @@ import json
 # 注册信号：收到 SIGUSR1 时自动打印当前所有线程的 Python 堆栈
 faulthandler.register(signal.SIGUSR1, file=sys.stderr)
 
+scheduler = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,15 +58,6 @@ app = FastAPI(
         "persistAuthorization": True,
     },
 )
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭时执行"""
-    global scheduler
-    if scheduler:
-        scheduler.shutdown()
-    print("定时任务已关闭")
 
 
 # ========== Swagger验证 ==========
