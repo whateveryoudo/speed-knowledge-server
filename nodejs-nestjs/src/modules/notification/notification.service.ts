@@ -39,8 +39,9 @@ export class NotificationService {
           biz_type: NotificationBizType.MENTION,
           biz_id: bizId,
           actor_user_id: actorUserId,
-          //  这里仅给出通知id,后端进行逻辑判断跳转
+          //  存入一些额外信息
           payload: {
+            document_id: documentName,
             mention_id: mentionRow.mention_id,
             ...mentionRow.payload,
           } as Record<string, any>,

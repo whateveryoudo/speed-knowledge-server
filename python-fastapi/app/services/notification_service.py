@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
 from typing import Optional
+from app.models.document import Document
 from app.common.enums import NotificationListType
 from app.schemas.response import (
     PaginationResponse,
@@ -13,8 +14,10 @@ from app.common.pagination import paginate_query, paginate_response
 from app.models.notification import Notification
 from fastapi import HTTPException, status
 from app.schemas.notification import NotificationResponse, NotificationSearch
-from app.models.user import User
+from app.services.document_service import DocumentService
 from datetime import datetime
+from app.common.enums import NotificationBizType
+from app.models.knowledge import Knowledge
 
 
 class NotificationService:
@@ -22,6 +25,7 @@ class NotificationService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.document_service = DocumentService(db)
 
     def get_notification_list(
         self, query_in: NotificationSearch
@@ -58,8 +62,33 @@ class NotificationService:
         )  # 返回数据和总条数
         # 内容组合
         response_items = []
+        # 先批量拿回文档路由上下文
+        document_ids = list(
+            {
+                item.payload.get("document_id")
+                for item in items
+                if item.payload and item.payload.get("document_id")
+            }
+        )
+        document_route_contexts = (
+            self.document_service.get_document_route_context_multiple(document_ids)
+        )
+
         for item in items:
-            response_item = NotificationResponse.model_validate(item)
+            base_payload = item.payload or {}
+            merged_payload = dict(base_payload)
+            # 区分不同业务类型，设置不同的负载
+            if item.biz_type == NotificationBizType.MENTION:
+                # 查询文档相关信息
+                doc_id = item.payload.get("document_id")
+                if doc_id:
+                    route_context = document_route_contexts.get(doc_id)
+                    if route_context:
+                        merged_payload["document_route"] = route_context.model_dump()
+
+            response_item = NotificationResponse.model_validate(item).model_copy(
+                update={"payload": merged_payload}
+            )
             response_items.append(response_item)
         return paginate_response(response_items, total, has_more, query_in)
 

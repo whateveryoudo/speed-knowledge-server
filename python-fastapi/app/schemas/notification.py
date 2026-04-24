@@ -43,5 +43,6 @@ class NotificationResponse(NotificationBase):
     actor_user: UserResponse = Field(..., description="发起人")
     mentioned_user: Optional[UserResponse] = Field(default=None, description="被提及人")
 
+    payload: dict = Field(default={}, description="负载")
     class Config:
         from_attributes = True

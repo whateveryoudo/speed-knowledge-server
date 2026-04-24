@@ -8,9 +8,10 @@ from app.schemas.document import (
     DocumentUpdate,
     DocumentResponse,
     DragDocumentNodeParams,
+    DocumentRouteContext,
 )
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
 from app.services.collaborator_service import CollaboratorService
 from app.schemas.collaborator import CollaboratorCreate
@@ -215,7 +216,7 @@ class DocumentService(BaseService[Document]):
 
     def resolve_document_links_batch(self, document_ids: list[str]) -> dict[str, str]:
         """批量获取文档相关链接(一次join)"""
-        print('document_ids', document_ids)
+        print("document_ids", document_ids)
         rows = (
             self.db.query(
                 Document.id.label("document_id"),
@@ -236,5 +237,69 @@ class DocumentService(BaseService[Document]):
             # 构建文档相关链接(个人空间不存在domin)
             result[r.document_id] = (
                 f"http://{r.space_domain or settings.DOMAIN}/{r.team_slug or ''}/knowledge/{r.knowledge_slug or ''}/document/{r.document_slug or ''}"
+            )
+        return result
+
+    def get_document_route_context(self, document_id: str) -> DocumentRouteContext:
+        """获取文档路由上下文(主要是和当前文档访问相关)"""
+        document_full_info = (
+            self.get_active_query()
+            .filter(Document.id == document_id)
+            .options(joinedload(Document.knowledge).joinedload(Knowledge.team))
+            .first()
+        )
+        if not document_full_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+            )
+        knowledge = document_full_info.knowledge
+        team = knowledge.team if knowledge else None
+        if not knowledge or not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库或团队不存在"
+            )
+        return DocumentRouteContext(
+            doc_id=document_full_info.id,
+            doc_name=document_full_info.name,
+            doc_slug=document_full_info.slug,
+            knowledge_id=document_full_info.knowledge_id,
+            knowledge_name=document_full_info.knowledge.name,
+            knowledge_slug=document_full_info.knowledge.slug,
+            team_id=document_full_info.knowledge.team_id,
+            team_name=document_full_info.knowledge.team.name,
+            team_slug=document_full_info.knowledge.team.slug,
+            space_id=document_full_info.knowledge.space_id,
+        )
+
+    def get_document_route_context_multiple(
+        self, document_ids: list[str]
+    ) -> dict[str, DocumentRouteContext]:
+        """批量获取文档路由上下文"""
+        if not document_ids:
+            return {}
+        document_full_infos = (
+            self.get_active_query()
+            .filter(Document.id.in_(document_ids))
+            .options(joinedload(Document.knowledge).joinedload(Knowledge.team))
+            .all()
+        )
+        result: dict[str, DocumentRouteContext] = {}
+        for info in document_full_infos:
+            knowledge = info.knowledge
+            team = knowledge.team if knowledge else None
+
+            if not knowledge or not team:
+                continue
+            result[info.id] = DocumentRouteContext(
+                doc_id=info.id,
+                doc_name=info.name,
+                doc_slug=info.slug,
+                knowledge_id=info.knowledge_id,
+                knowledge_name=info.knowledge.name,
+                knowledge_slug=info.knowledge.slug,
+                team_id=info.knowledge.team_id,
+                team_name=info.knowledge.team.name,
+                team_slug=info.knowledge.team.slug,
+                space_id=info.knowledge.space_id,
             )
         return result

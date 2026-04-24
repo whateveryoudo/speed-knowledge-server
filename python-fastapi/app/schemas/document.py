@@ -31,6 +31,18 @@ class DocumentResponse(DocumentBase):
     class Config:
         from_attributes = True
 
+class DocumentRouteContext(BaseModel):
+    """文档路由上下文"""
+    doc_id: str = Field(..., description="文档ID")
+    doc_name: str = Field(..., description="文档名称")
+    doc_slug: str = Field(..., description="文档短链")
+    knowledge_id: str = Field(..., description="所属知识库ID")
+    knowledge_name: str = Field(..., description="知识库名称")
+    knowledge_slug: str = Field(..., description="知识库短链")
+    team_id: str = Field(..., description="所属团队ID")
+    team_name: str = Field(..., description="团队名称")
+    team_slug: str = Field(..., description="团队短链")
+    space_id: str = Field(..., description="所属空间ID")
 
 # 这里不继承基础类，需要传入的参数很少
 class DocumentCreate(BaseModel):
