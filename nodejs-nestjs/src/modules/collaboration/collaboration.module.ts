@@ -8,6 +8,7 @@ import { AuthModule } from "../auth/auth.module";
 import { DocumentModule } from "../document/document.module";
 import { VectorSyncModule } from "../vector-sync/vector-sync.module";
 import { NotificationModule } from "../notification/notification.module";
+import { HttpModule } from "@nestjs/axios";
 import { DocumentEditHistoryModule } from "../document-edit-history/document-edit-history.module";
 @Module({
   imports: [
@@ -18,9 +19,13 @@ import { DocumentEditHistoryModule } from "../document-edit-history/document-edi
     DocumentEditHistoryModule,
     VectorSyncModule,
     NotificationModule,
+    HttpModule.register({
+      timeout: 5000,
+      maxRedirects: 5,
+    }),
   ],
   controllers: [],
-  providers: [CollaborationService,  CollaborationGateway],
+  providers: [CollaborationService, CollaborationGateway],
   exports: [CollaborationService],
 })
 export class CollaborationModule {}

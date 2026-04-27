@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, Inject } from "@nestjs/common";
+import {
+  Injectable,
+  OnModuleInit,
+  Inject,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Hocuspocus } from "@hocuspocus/server";
 import { ConfigService } from "@nestjs/config";
 import { type WebSocket } from "ws";
@@ -11,10 +16,12 @@ import { DocumentService } from "../document/document.service";
 import { VectorSyncService } from "../vector-sync/vector-sync.service";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
+import { firstValueFrom } from "rxjs";
 import { debounce } from "lodash";
 import * as Y from "yjs";
 import { NotificationService } from "../notification/notification.service";
 import { randomUUID } from "crypto";
+import { HttpService } from "@nestjs/axios";
 export type MentionItem = {
   mention_id: string;
   payload: Record<string, any>;
@@ -34,6 +41,7 @@ export class CollaborationService implements OnModuleInit {
     private authService: AuthService,
     private documentService: DocumentService,
     private vectorSyncService: VectorSyncService,
+    private httpService: HttpService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
   private async syncViewCount(documentId: string, userId: number) {
@@ -86,7 +94,8 @@ export class CollaborationService implements OnModuleInit {
     const oldMentionRows = this.extractMentionIds(oldContentJson);
     const newMentionRows = this.extractMentionIds(nodeJson);
     const addedMentionRows = [...newMentionRows].filter(
-      (row) => !oldMentionRows.some(oldRow => oldRow.mention_id === row.mention_id),
+      (row) =>
+        !oldMentionRows.some((oldRow) => oldRow.mention_id === row.mention_id),
     );
     // test
     // const addedMentionRows = [
@@ -107,6 +116,22 @@ export class CollaborationService implements OnModuleInit {
       });
     }
   }
+  private async verifyUserPermission(token: string, documentName: string) {
+    // 调用python服务,校验用户是否有编辑权限
+    const response = await firstValueFrom(
+      this.httpService.get<boolean>(
+        `${process.env.PYTHON_SERVER_URL}/api/v1/internal/${documentName}/valid`,
+        {
+          headers: {
+            "X-Internal-Token": process.env.INTERNAL_SERVICE_TOKEN,
+            "X-Request-Id": randomUUID(),
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      ),
+    );
+    return response.data;
+  }
   onModuleInit() {
     const documentContentService = this.documentContentService;
     const documentService = this.documentService;
@@ -115,6 +140,7 @@ export class CollaborationService implements OnModuleInit {
     const yStateToPmJson = this.yStateToPmJson;
     const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
     const debounceHandleMention = this.debounceHandleMention.bind(this);
+    const verifyUserPermission = this.verifyUserPermission.bind(this);
     // 配置Hocuspocus服务器
     this.hocuspocusServer = new Hocuspocus({
       name: "Speed Editor Collaboration Server",
@@ -128,6 +154,17 @@ export class CollaborationService implements OnModuleInit {
         if (!decoded) {
           throw new Error("Unauthorized: Invalid token");
         }
+        // 这里调用python端接口获取当前用户权限（是否能够编辑当前文档）
+        const canIEdit = await verifyUserPermission(
+          token,
+          context.documentName,
+        );
+        if (!canIEdit) {
+          throw new UnauthorizedException(
+            "Unauthorized: User does not have edit permission",
+          );
+        }
+
         // 存入访问次数，增加到document_base表中
         this.syncViewCount(context.documentName, decoded.id);
         return {

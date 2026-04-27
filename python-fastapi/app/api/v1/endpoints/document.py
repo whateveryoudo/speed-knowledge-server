@@ -1,6 +1,6 @@
 """文档端点"""
 
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Depends, HTTPException, Query
 from sqlalchemy.orm.session import Session
 from typing import List
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
@@ -15,6 +15,7 @@ from app.schemas.document import DragDocumentNodeParams
 from datetime import datetime
 from app.services.collect_service import CollectService
 from app.common.enums import CollectResourceType
+from app.schemas.user import UserResponse
 
 router = APIRouter()
 node_router = APIRouter()
@@ -133,3 +134,14 @@ async def delete_document(
     """删除文档"""
     document_service = DocumentService(db)
     return document_service.delete_by_id_or_slug(identifier)
+
+
+@router.get("/{document_id}/context-users", response_model=List[UserResponse])
+async def get_context_users(
+    document_id: str,
+    keyword: str = Query(None),
+    db: Session = Depends(get_db),
+) -> List[UserResponse]:
+    """获取文档上下文用户列表"""
+    document_service = DocumentService(db)
+    return document_service.get_context_users(document_id, keyword)

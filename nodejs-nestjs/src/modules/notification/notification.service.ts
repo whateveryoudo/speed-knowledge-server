@@ -35,7 +35,7 @@ export class NotificationService {
         // const actorUser = await this.userService.findOne(actorUserId);
         const notification = this.notificationRepository.create({
           id: uuidv7(),
-          mentioned_user_id: mentionRow.payload.user_id,
+          mentioned_user_id: mentionRow.payload.userId,
           biz_type: NotificationBizType.MENTION,
           biz_id: bizId,
           actor_user_id: actorUserId,

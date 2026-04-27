@@ -15,21 +15,24 @@ from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
 from app.services.collaborator_service import CollaboratorService
 from app.schemas.collaborator import CollaboratorCreate
+from app.models.user import User
+from app.models.collaborator import Collaborator
 from app.core.config import settings
 import secrets
 import string
 import httpx
 import logging
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from app.services.base_service import BaseService
 from app.common.enums import CollaborateResourceType
-from app.common.enums import CollaboratorRole
+from app.common.enums import CollaboratorRole, CollaboratorStatus
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.common.enums import collaborator_role_name
 from app.models.knowledge import Knowledge
 from app.models.space import Space
 from app.models.team import Team
+import uuid
 
 alphabet = string.ascii_letters + string.digits
 
@@ -49,13 +52,20 @@ class DocumentService(BaseService[Document]):
     def create_default_content(self, document_id: str):
         """构建文档内容(这里调用nodejs服务构建一个默认的空的流和json)"""
         try:
+            # 获取服务调用token
+
             nodejs_service_url = settings.NODEJS_SERVICE_URL
             url = f"{nodejs_service_url}/document-content/create-default"
             payload = {
                 "documentId": document_id,
             }
+            headers = {
+                "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+                "Idempotency-Key": f"create-default:{document_id}",
+                "X-Request-Id": str(uuid.uuid4()),
+            }
             with httpx.Client(timeout=10.0) as client:
-                response = client.post(url, json=payload)
+                response = client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 logger.info(
                     f"Create default content by nodejs success:documentId={document_id}"
@@ -139,16 +149,20 @@ class DocumentService(BaseService[Document]):
         )
 
     def _sync_title_by_nodejs(self, document_id: str, new_title: str):
-        """通过nodejs服务同步标题信息（目前未加鉴权）"""
+        """通过nodejs服务同步标题信息（标题同步不做幂等）"""
         try:
             nodejs_service_url = settings.NODEJS_SERVICE_URL
             url = f"{nodejs_service_url}/document-content/sync-title"
+            headers = {
+                "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+                "X-Request-Id": str(uuid.uuid4()),
+            }
             payload = {
                 "documentId": document_id,
                 "newTitle": new_title,
             }
             with httpx.Client(timeout=10.0) as client:
-                response = client.post(url, json=payload)
+                response = client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 logger.info(f"Sync title by nodejs success:title={new_title}")
         except httpx.HTTPStatusError as e:
@@ -303,3 +317,38 @@ class DocumentService(BaseService[Document]):
                 space_id=info.knowledge.space_id,
             )
         return result
+
+    def get_context_users(
+        self, document_id: str, keyword: str | None = None
+    ) -> List[User]:
+        """查询当前文档下可访问的用户列表"""
+        document = self.get_by_id_or_slug(document_id)
+        rows = (
+            self.db.query(User)
+            .join(Collaborator, User.id == Collaborator.user_id)
+            .filter(
+                User.deleted_at.is_(None),
+                Collaborator.deleted_at.is_(None),
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                or_(
+                    and_(
+                        Collaborator.document_id == document.id,
+                        Collaborator.target_type == CollaborateResourceType.DOCUMENT,
+                    ),
+                    and_(
+                        Collaborator.knowledge_id == document.knowledge_id,
+                        Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                    ),
+                ),
+            )
+            .distinct(User.id)
+        )
+
+        if keyword:
+            rows = rows.filter(
+                or_(
+                    User.username.ilike(f"%{keyword}%"),
+                    User.nickname.ilike(f"%{keyword}%"),
+                )
+            )
+        return rows.all()

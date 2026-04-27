@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     # nodejs服务地址
     NODEJS_SERVICE_URL: str
+    # 内部服务调用token
+    INTERNAL_SERVICE_TOKEN: str
 
     # mq队列
 

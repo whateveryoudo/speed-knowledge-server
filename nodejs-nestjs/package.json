@@ -23,6 +23,7 @@
     "@hocuspocus/extension-database": "^3.4.1",
     "@hocuspocus/server": "^3.4.1",
     "@hocuspocus/transformer": "^3.4.3",
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/cache-manager": "^2.1.1",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.1.1",

@@ -16,9 +16,16 @@ from app.services.permission_service import PermissionService
 from app.services.space_service import SpaceService
 from app.models.space import Space
 from app.services.team_service import TeamService
+from app.core.redis_client import get_redis
+import redis
 from app.models.team import Team
-from app.common.enums import CollaborateResourceType, SpaceType
-from app.common.enums import KnowledgeAbility, DocumentAbility
+from app.common.enums import (
+    CollaborateResourceType,
+    SpaceType,
+    KnowledgeAbility,
+    DocumentAbility,
+)
+from app.core.config import settings
 
 
 def get_db() -> Generator:
@@ -137,8 +144,10 @@ def get_document_or_403(
 
 class VertifyKnowledgePermission:
     """验证知识库权限"""
+
     def __init__(self, ability_key: KnowledgeAbility):
         self.ability_key = ability_key
+
     def __call__(
         self,
         identifier: str,
@@ -163,6 +172,7 @@ class VertifyKnowledgePermission:
                 detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}此资源",
             )
         return target_knowledge
+
 
 # def vertify_knowledge_manage_permission(
 #     identifier: str,
@@ -229,3 +239,39 @@ def get_current_team(
     if not team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在")
     return team
+
+
+def verify_internal_token(
+    token: str,
+) -> None:
+    """验证服务间调用token"""
+    if token != settings.INTERNAL_SERVICE_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的服务间调用token"
+        )
+    return True
+
+
+def idempency_interceptor_key(
+    request: Request,
+    redis_client: redis.Redis = Depends(get_redis),
+) -> str:
+    """获取幂等性拦截器key"""
+    idempency_key = request.headers.get("idempotency-key", "")
+    if not idempency_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Idempotency-Key"
+        )
+    router_key = f"idem:{request.method}:{request.path}:{idempency_key}"
+    if redis_client.get(router_key):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Idempotency-Key already processed",
+        )
+    redis_client.set(router_key, "processing", nx=True, ex=60 * 1000)
+    try:
+        yield router_key
+        redis_client.set(router_key, "success", ex=5 * 60 * 1000)
+    except Exception as e:
+        redis_client.delete(router_key)
+        raise e

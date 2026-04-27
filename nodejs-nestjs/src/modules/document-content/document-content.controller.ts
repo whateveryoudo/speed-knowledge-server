@@ -5,10 +5,14 @@ import {
   Post,
   HttpException,
   HttpStatus,
+  UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import { TiptapTransformer } from "@hocuspocus/transformer";
 import * as Y from "yjs";
 import extensions from "../../tiptap-extends/kit";
+import { InternalTokenGuard } from "../common/guards/internal-token.guard";
+import { IdempotencyInterceptor } from "../common/interceptors/idempotency.interceptor";
 
 @Controller("document-content")
 export class DocumentContentController {
@@ -42,6 +46,7 @@ export class DocumentContentController {
     };
   }
 
+  @UseGuards(InternalTokenGuard)
   @Post("sync-title")
   async syncTitle(@Body() body: { documentId: string; newTitle: string }) {
     const { documentId, newTitle } = body;
@@ -115,6 +120,8 @@ export class DocumentContentController {
     };
   }
 
+  @UseGuards(InternalTokenGuard)
+  @UseInterceptors(IdempotencyInterceptor)
   @Post("create-default")
   async createDefault(@Body() body: { documentId: string }) {
     const { documentId } = body;
