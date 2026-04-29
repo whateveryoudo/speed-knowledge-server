@@ -17,7 +17,8 @@ export enum NotificationBizType {
   MENTION = "mention",
   COMMENT = "comment",
   LIKE = "like",
-  INVITE = "invite",
+  JOIN_COLLABORATOR = "join_collaborator",
+  APPLY_COLLABORATOR = "apply_collaborator",
   FOLLOW = "follow",
 }
 
@@ -29,16 +30,16 @@ export const listType2BizTypeMap = {
   ],
   [NotificationListType.LIKE]: [NotificationBizType.LIKE],
   [NotificationListType.FOLLOW]: [NotificationBizType.FOLLOW],
-  [NotificationListType.TODO]: [],
-  [NotificationListType.SYSTEM]: [NotificationBizType.INVITE],
+  [NotificationListType.TODO]: [NotificationBizType.APPLY_COLLABORATOR],
+  [NotificationListType.SYSTEM]: [],
+  [NotificationListType.OTHER]: [NotificationBizType.JOIN_COLLABORATOR],
 };
 // 业务类型到列表类型映射(用于实际使用时候取到listType)
-export const bizType2ListTypeMap = Object.entries(listType2BizTypeMap).reduce(
-  (acc, [listType, bizTypes]) => {
-    bizTypes.forEach((bizType) => {
-      acc[bizType] = listType as NotificationListType;
-    });
-    return acc;
-  },
-  {} as Record<NotificationBizType, NotificationListType>,
-);
+export const bizType2ListTypeMap = Object.entries(listType2BizTypeMap).reduce<
+  Partial<Record<NotificationBizType, NotificationListType>>
+>((acc, [listType, bizTypes]) => {
+  bizTypes.forEach((bizType) => {
+    acc[bizType] = listType as unknown as NotificationListType;
+  });
+  return acc;
+}, {}) as Record<NotificationBizType, NotificationListType>;

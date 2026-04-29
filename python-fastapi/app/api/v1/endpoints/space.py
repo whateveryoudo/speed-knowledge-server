@@ -27,12 +27,15 @@ def get_space(
     """根据域名获取空间(这里不会走权限检查)"""
     return SpaceService(db).get_space_by_domin(space_domin)
 
-@router.get("/", response_model=SpaceResponse)
+@router.get("/", response_model=SpaceResponse | None)
 def get_space_(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return SpaceService(db).get_space_by_user_id(user.id)
+    space = SpaceService(db).get_space_by_user_id(user.id)
+    if space is None:
+        return None
+    return space
 
 
 

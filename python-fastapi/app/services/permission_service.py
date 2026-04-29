@@ -99,6 +99,7 @@ class PermissionService:
         self, user_id: int, target_type: CollaborateResourceType, target_id: str
     ) -> Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]]:
         """通过资源类型和资源id,用户id查找对应的权限能力"""
+        print(f"get_permission_ability_by_resource: user_id={user_id}, target_type={target_type}, target_id={target_id}")
         target_collaborator = self.collaborator_service.get_collaborator_by_resource(
             QueryPermissionGroupParams(
                 user_id=user_id, target_type=target_type, target_id=target_id

@@ -70,7 +70,9 @@ export class CollaborationService implements OnModuleInit {
     return pmJson;
   }
   // 处理tiptap的mention节点，提取出所有attr内容（这里没有定死内容）
-  private extractMentionIds(node: any, result: MentionItem[] = []) {
+  private extractMentionIds(outNode: any, result: MentionItem[] = []) {
+    // 注意这里从第一层开始取，
+    const node = outNode.default || outNode;
     if (node.type === "mention" && node.attrs.id) {
       result.push({ mention_id: node.attrs.id, payload: node.attrs });
     }
@@ -83,16 +85,15 @@ export class CollaborationService implements OnModuleInit {
   }
   // 处理mention节点，触发mention用户通知
   private async handleMention(
-    documentContentService: DocumentContentService,
     documentName: string,
+    oldContentJson: any,
     nodeJson: any,
     actorUserId: number,
     notificationEventId: string,
   ) {
-    const oldContentJson =
-      await documentContentService.getDocumentContentJson(documentName);
     const oldMentionRows = this.extractMentionIds(oldContentJson);
     const newMentionRows = this.extractMentionIds(nodeJson);
+    console.log(oldMentionRows, newMentionRows);
     const addedMentionRows = [...newMentionRows].filter(
       (row) =>
         !oldMentionRows.some((oldRow) => oldRow.mention_id === row.mention_id),
@@ -107,6 +108,7 @@ export class CollaborationService implements OnModuleInit {
     //     },
     //   },
     // ];
+    console.log(addedMentionRows);
     if (addedMentionRows.length > 0) {
       await this.notificationService.createMentionNotifications({
         documentName,
@@ -120,11 +122,10 @@ export class CollaborationService implements OnModuleInit {
     // 调用python服务,校验用户是否有编辑权限
     const response = await firstValueFrom(
       this.httpService.get<boolean>(
-        `${process.env.PYTHON_SERVER_URL}/api/v1/internal/${documentName}/valid`,
+        `${process.env.PYTHON_SERVER_URL}/api/v1/internal/document/${documentName}/valid`,
         {
           headers: {
             "X-Internal-Token": process.env.INTERNAL_SERVICE_TOKEN,
-            "X-Request-Id": randomUUID(),
             Authorization: `Bearer ${token}`,
           },
         },
@@ -154,7 +155,7 @@ export class CollaborationService implements OnModuleInit {
         if (!decoded) {
           throw new Error("Unauthorized: Invalid token");
         }
-        // 这里调用python端接口获取当前用户权限（是否能够编辑当前文档）
+        // 这里调用python端接口获取当前用户权限（是否能够编辑当前文档）,TODO:感觉是不是前端调用传入进来好点？
         const canIEdit = await verifyUserPermission(
           token,
           context.documentName,
@@ -183,6 +184,9 @@ export class CollaborationService implements OnModuleInit {
           },
           async store({ documentName, state, context }) {
             const node = await yStateToPmJson(state);
+            // 先那一遍旧的内容，用于对比
+            const oldContentJson =
+              await documentContentService.getDocumentContentJson(documentName);
             await documentContentService.updateContent(
               documentName,
               Buffer.from(state),
@@ -206,8 +210,8 @@ export class CollaborationService implements OnModuleInit {
             const notificationEventId = randomUUID();
             // 查找提及用户，增加通知
             await debounceHandleMention(
-              documentContentService,
               documentName,
+              oldContentJson,
               node,
               context.user.id,
               notificationEventId,

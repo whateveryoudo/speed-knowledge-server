@@ -10,17 +10,25 @@ from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.models.collaborator import Collaborator
 from app.models.permission_group import PermissionGroup
+from app.core.config import settings
 from app.schemas.collaborator import (
     CollaboratorResponse,
     CollaboratorCreate,
     CollaboratorAudit,
 )
+from app.schemas.notification import NotificationSendRequest
 from app.common.enums import (
     CollaboratorSource,
     CollaboratorStatus,
     CollaboratorRole,
     CollaborateResourceType,
+    NotificationBizType,
 )
+import uuid
+import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CollaboratorService:
@@ -28,6 +36,10 @@ class CollaboratorService:
 
     def __init__(self, db: Session):
         self.db = db
+        
+    def get_by_id(self, collaborator_id: str) -> Optional[Collaborator]:
+        """通过id获取协作者记录"""
+        return self.db.query(Collaborator).filter(Collaborator.id == collaborator_id).first()
 
     def get_resource_by_slug(
         self, resource_type: CollaborateResourceType, resource_identifier: str
@@ -125,7 +137,53 @@ class CollaboratorService:
 
         return collaborator
 
-    def join_collaborator(self, collaborator_in: Collaborator) -> CollaboratorResponse:
+    def send_notification_to_user(
+        self, notification_send_request: NotificationSendRequest
+    ):
+        """发送站内信通知给用户(这里调用nodejs服务发送站内信通知)"""
+        try:
+            # 获取服务调用token
+            nodejs_service_url = settings.NODEJS_SERVICE_URL
+            url = f"{nodejs_service_url}/notification/send"
+            payload = {
+                "mentionedUserId": notification_send_request.mentioned_user_id,
+                "bizType": notification_send_request.biz_type.value,
+                "bizId": notification_send_request.biz_id,
+                "actorUserId": notification_send_request.actor_user_id,
+                "payload": {
+                    "document_id": notification_send_request.document_id,
+                    "knowledge_id": notification_send_request.knowledge_id,
+                    "collaborator_id": notification_send_request.collaborator_id,
+                },
+            }
+            headers = {
+                "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+                "Idempotency-Key": f"{notification_send_request.biz_type.value}:{notification_send_request.biz_id}",
+                "X-Request-Id": str(uuid.uuid4()),
+            }
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                logger.info(
+                    f"Send notification to user by nodejs success:biz_id={notification_send_request.biz_id}"
+                )
+        except httpx.HTTPStatusError as e:
+            logger.error(e.response.text)
+            logger.error(
+                f"Send notification to user by nodejs failed:biz_id={notification_send_request.biz_id},error={e}",
+                exc_info=True,
+            )
+        except Exception as e:
+            logger.error(
+                f"Send notification to user by nodejs failed:biz_id={notification_send_request.biz_id},error={e}"
+            )
+
+    def join_collaborator(
+        self,
+        collaborator_in: Collaborator,
+        invitate_user_id: int,
+        need_approval: bool = False,
+    ) -> CollaboratorResponse:
         """加入协作者"""
         # permission_group = self.__get_permission_group_by_resource(collaborator_in)
         # collaborator_in.permission_group_id = permission_group.id
@@ -133,7 +191,52 @@ class CollaboratorService:
         self.db.flush()
         self.db.commit()
         self.db.refresh(collaborator_in)
-        # TODO: 发送站内信通知
+        # 发送站内信通知（这里会调用node的notification服务）
+        # 这里需要区分是否开启了审批，1.如果是开启审批，则是发送一条申请加入的通知（属于待处理消息）2.如果是直接加入，则是发送一条加入成功的通知（属于其他消息）
+        if need_approval:
+            self.send_notification_to_user(
+                NotificationSendRequest(
+                    mentioned_user_id=invitate_user_id,
+                    document_id=(
+                        collaborator_in.document_id
+                        if collaborator_in.target_type
+                        == CollaborateResourceType.DOCUMENT
+                        else None
+                    ),
+                    knowledge_id=(
+                        collaborator_in.knowledge_id
+                        if collaborator_in.target_type
+                        == CollaborateResourceType.KNOWLEDGE
+                        else None
+                    ),
+                    collaborator_id=collaborator_in.id,
+                    biz_type=NotificationBizType.APPLY_COLLABORATOR,
+                    biz_id=f"apply-collaborator:{collaborator_in.id}",
+                    actor_user_id=collaborator_in.user_id,
+                )
+            )
+        else:
+            self.send_notification_to_user(
+                NotificationSendRequest(
+                    mentioned_user_id=collaborator_in.user_id,
+                    biz_type=NotificationBizType.JOIN_COLLABORATOR,
+                    biz_id=f"join-collaborator:{collaborator_in.id}",
+                    actor_user_id=invitate_user_id,
+                    document_id=(
+                        collaborator_in.document_id
+                        if collaborator_in.target_type
+                        == CollaborateResourceType.DOCUMENT
+                        else None
+                    ),
+                    knowledge_id=(
+                        collaborator_in.knowledge_id
+                        if collaborator_in.target_type
+                        == CollaborateResourceType.KNOWLEDGE
+                        else None
+                    ),
+                    collaborator_id=collaborator_in.id,
+                )
+            )
         return collaborator_in
 
     def get_collaborators(
@@ -284,10 +387,11 @@ class CollaboratorService:
             )
         if audit_in.audit_status == "agree":
             collaborator.status = CollaboratorStatus.ACCEPTED.value
+            self.db.commit()
+            self.db.refresh(collaborator)
         else:
             self.db.delete(collaborator)
-        self.db.commit()
-        self.db.refresh(collaborator)
+            self.db.commit()
         return collaborator if audit_in.audit_status == "agree" else None
 
     def get_user_role_in_knowledge(
@@ -299,7 +403,7 @@ class CollaboratorService:
             .filter(
                 Collaborator.user_id == user_id,
                 Collaborator.knowledge_id == knowledge_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                Collaborator.status == CollaboratorStatus.ACCEPTED,
             )
             .first()
         )
@@ -332,8 +436,4 @@ class CollaboratorService:
             )
             .first()
         )
-        if target_row is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="协作信息不存在"
-            )
         return target_row

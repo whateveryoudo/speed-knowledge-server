@@ -75,7 +75,7 @@ class InvitationService:
         return new_record
 
     def get_invitation_token(
-        self, resource_type: str, resource_identifier: str
+        self, resource_type: str, resource_identifier: str, invitate_user_id: int
     ) -> InvitationResponse:
         """获取邀请链接token信息(知识库/文档)"""
         if resource_type == CollaborateResourceType.KNOWLEDGE.value:
@@ -120,6 +120,7 @@ class InvitationService:
             if resource_type == CollaborateResourceType.KNOWLEDGE.value:
                 has_active_record = Invitation(
                     knowledge_id=resource_id,
+                    invitate_user_id=invitate_user_id,
                     invitate_type=resource_type,
                     token=temp_token,
                 )
@@ -127,6 +128,7 @@ class InvitationService:
                 has_active_record = Invitation(
                     document_id=resource_id,
                     knowledge_id=resource_row.knowledge_id,  # 同时存入所属知识库id
+                    invitate_user_id=invitate_user_id,
                     invitate_type=resource_type,
                     token=temp_token,
                 )

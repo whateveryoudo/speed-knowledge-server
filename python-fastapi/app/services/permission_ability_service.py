@@ -53,7 +53,7 @@ class PermissionAbilityService:
         },
     }
 
-    # 角色权限能力映射
+    # 角色权限能力映射(这里是单个文档的能力)
     __default_document_abilities_dict = {
         CollaboratorRole.ADMIN: {
             DocumentAbility.DOC_CTEATE: True,
@@ -75,7 +75,7 @@ class PermissionAbilityService:
         },
         CollaboratorRole.READ: {
             DocumentAbility.DOC_CTEATE: False,
-            DocumentAbility.DOC_READ: False,
+            DocumentAbility.DOC_READ: True,
             DocumentAbility.DOC_EDIT: False,
             DocumentAbility.DOC_DELETE: False,
             DocumentAbility.DOC_JOIN: False,
@@ -94,10 +94,11 @@ class PermissionAbilityService:
     ) -> PermissionAbility:
         """创建权限能力(通过角色)"""
         if permission_ability_in.target_type == CollaborateResourceType.KNOWLEDGE:
-            # 知识库需要合并知识库和文档的权限能力
+            # 知识库需要合并知识库和文档的权限能力（注意：知识库的只读和文档只读没区别，但是知识库的编辑其实就是文档的admin权限）
             permission_abilities = {
                 **self.__default_knowledge_abilities_dict[permission_ability_in.role],
-                **self.__default_document_abilities_dict[permission_ability_in.role],
+                # 这里作下区分，其实知识库编辑可以理解为有文档的最高权限了
+                **self.__default_document_abilities_dict[permission_ability_in.role if permission_ability_in.role == CollaboratorRole.READ else CollaboratorRole.ADMIN],
             }
         else:
             permission_abilities = self.__default_document_abilities_dict[

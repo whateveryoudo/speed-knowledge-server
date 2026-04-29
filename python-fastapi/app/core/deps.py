@@ -1,6 +1,6 @@
 """依赖注入"""
 
-from fastapi import Depends, HTTPException, status, Query, Request
+from fastapi import Depends, HTTPException, status, Query, Request, Header
 from typing import Generator, Union, Optional
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
@@ -108,15 +108,23 @@ def vertify_document_permission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
     permission_service = PermissionService(db)
     # 当前文档所属的知识库能力集
-    knowledge_ability = permission_service.get_permission_ability_by_resource(
-        current_user.id, CollaborateResourceType.KNOWLEDGE, target_document.knowledge_id
+    knowledge_ability = (
+        permission_service.get_permission_ability_by_resource(
+            current_user.id,
+            CollaborateResourceType.KNOWLEDGE,
+            target_document.knowledge_id,
+        )
+        or {}
     )
     # 当前文档能力集
-    document_ability = permission_service.get_permission_ability_by_resource(
-        current_user.id, CollaborateResourceType.DOCUMENT, target_document.id
+    document_ability = (
+        permission_service.get_permission_ability_by_resource(
+            current_user.id, CollaborateResourceType.DOCUMENT, target_document.id
+        )
+        or {}
     )
     # 合并能力集
-
+    print('knowledge_ability', knowledge_ability, ability_key)
     merged_ability = {}
     all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
     for key in all_keys:
@@ -126,7 +134,7 @@ def vertify_document_permission(
     if not merged_ability.get(ability_key):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}此文档",
+            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}",
         )
     return target_document
 
@@ -169,7 +177,7 @@ class VertifyKnowledgePermission:
         if not ability or not ability.get(self.ability_key):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}此资源",
+                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}",
             )
         return target_knowledge
 
@@ -242,10 +250,10 @@ def get_current_team(
 
 
 def verify_internal_token(
-    token: str,
+    x_internal_token: str = Header(..., description="服务间调用token"),
 ) -> None:
     """验证服务间调用token"""
-    if token != settings.INTERNAL_SERVICE_TOKEN:
+    if x_internal_token != settings.INTERNAL_SERVICE_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的服务间调用token"
         )
@@ -268,10 +276,10 @@ def idempency_interceptor_key(
             status_code=status.HTTP_409_CONFLICT,
             detail="Idempotency-Key already processed",
         )
-    redis_client.set(router_key, "processing", nx=True, ex=60 * 1000)
+    redis_client.set(router_key, "processing", nx=True, ex=60)
     try:
         yield router_key
-        redis_client.set(router_key, "success", ex=5 * 60 * 1000)
+        redis_client.set(router_key, "success", ex=5 * 60)
     except Exception as e:
         redis_client.delete(router_key)
         raise e

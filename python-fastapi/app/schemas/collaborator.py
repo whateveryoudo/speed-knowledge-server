@@ -24,6 +24,9 @@ class CollaboratorResponse(CollaboratorBase):
     updated_at: datetime = Field(..., description="更新时间")
     user: Optional[UserResponse] = Field(default=None, description="用户")
 
+    class Config:
+        from_attributes = True
+
 class CollaboratorRequest(BaseModel):
     """协作者请求结构"""
     invitation_token: str = Field(..., description="邀请token")

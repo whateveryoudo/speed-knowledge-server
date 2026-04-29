@@ -23,8 +23,10 @@ import secrets
 import string
 from datetime import datetime
 from app.services.base_service import BaseService
-from app.schemas.knowledge import KnowledgeResponse
-
+from app.schemas.knowledge import KnowledgeResponse, KnowledgeRouteContext
+from fastapi import HTTPException
+from fastapi import status
+from sqlalchemy.orm import joinedload
 
 alphabet = string.ascii_letters + string.digits
 
@@ -170,3 +172,59 @@ class KnowledgeService(BaseService[Knowledge]):
             self.db.commit()
             return True
         return False
+
+    def get_knowledge_route_context(self, knowledge_id: str) -> KnowledgeRouteContext:
+        """获取文档路由上下文(主要是和当前文档访问相关)"""
+        knowledge_full_info = (
+            self.get_active_query()
+            .filter(Knowledge.id == knowledge_id)
+            .first()
+            .options(joinedload(Knowledge.team).joinedload(Knowledge.space))
+            .first()
+        )
+        if not knowledge_full_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+            )
+        team = knowledge_full_info.team if knowledge_full_info else None
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
+            )
+        return KnowledgeRouteContext(
+            knowledge_id=knowledge_full_info.id,
+            knowledge_name=knowledge_full_info.name,
+            knowledge_slug=knowledge_full_info.slug,
+            team_id=knowledge_full_info.team_id,
+            team_name=knowledge_full_info.team.name,
+            team_slug=knowledge_full_info.team.slug,
+            space_id=knowledge_full_info.space_id,
+            space_domain=knowledge_full_info.space.domain,
+        )
+
+    def get_knowledge_route_context_multiple(
+        self, knowledge_ids: list[str]
+    ) -> dict[str, KnowledgeRouteContext]:
+        """批量获取知识库路由上下文"""
+        knowledge_full_infos = (
+            self.get_active_query()
+            .filter(Knowledge.id.in_(knowledge_ids))
+            .options(
+                joinedload(Knowledge.team),
+                joinedload(Knowledge.space),
+            )
+            .all()
+        )
+        return {
+            knowledge_full_info.id: KnowledgeRouteContext(
+                knowledge_id=knowledge_full_info.id,
+                knowledge_name=knowledge_full_info.name,
+                knowledge_slug=knowledge_full_info.slug,
+                team_id=knowledge_full_info.team_id,
+                team_name=knowledge_full_info.team.name,
+                team_slug=knowledge_full_info.team.slug,
+                space_id=knowledge_full_info.space_id,
+                space_domain=knowledge_full_info.space.domain,
+            )
+            for knowledge_full_info in knowledge_full_infos
+        }

@@ -15,10 +15,12 @@ from app.models.notification import Notification
 from fastapi import HTTPException, status
 from app.schemas.notification import NotificationResponse, NotificationSearch
 from app.services.document_service import DocumentService
+from app.services.knowledge_service import KnowledgeService
 from datetime import datetime
-from app.common.enums import NotificationBizType
+from app.common.enums import NotificationBizType, CollaborateResourceType
 from app.models.knowledge import Knowledge
-
+from app.services.collaborator_service import CollaboratorService
+from app.schemas.collaborator import CollaboratorResponse
 
 class NotificationService:
     """通知服务"""
@@ -26,6 +28,8 @@ class NotificationService:
     def __init__(self, db: Session):
         self.db = db
         self.document_service = DocumentService(db)
+        self.knowledge_service = KnowledgeService(db)
+        self.collaborator_service = CollaboratorService(db)
 
     def get_notification_list(
         self, query_in: NotificationSearch
@@ -70,8 +74,13 @@ class NotificationService:
                 if item.payload and item.payload.get("document_id")
             }
         )
-        document_route_contexts = (
-            self.document_service.get_document_route_context_multiple(document_ids)
+
+        knowledge_ids = list(
+            {
+                item.payload.get("knowledge_id")
+                for item in items
+                if item.payload and item.payload.get("knowledge_id")
+            }
         )
 
         for item in items:
@@ -80,12 +89,56 @@ class NotificationService:
             # 区分不同业务类型，设置不同的负载
             if item.biz_type == NotificationBizType.MENTION:
                 # 查询文档相关信息
+                document_route_contexts = (
+                    self.document_service.get_document_route_context_multiple(
+                        document_ids
+                    )
+                )
                 doc_id = item.payload.get("document_id")
                 if doc_id:
                     route_context = document_route_contexts.get(doc_id)
                     if route_context:
                         merged_payload["document_route"] = route_context.model_dump()
-
+            elif (
+                item.biz_type == NotificationBizType.APPLY_COLLABORATOR
+                or item.biz_type == NotificationBizType.JOIN_COLLABORATOR
+            ):
+                # 申请加入 或者 已经加入，返回协作信息，知识库信息，或者文档信息
+                collaborator_id = item.payload.get("collaborator_id")
+                if collaborator_id:
+                    collaborator = self.collaborator_service.get_by_id(collaborator_id)
+                    if collaborator:
+                        # 赋值协作记录信息
+                        merged_payload["collaborator"] = CollaboratorResponse.model_validate(collaborator).model_dump()
+                    else:
+                        merged_payload["collaborator"] = None
+                    # 区分内容
+                    if collaborator.target_type == CollaborateResourceType.DOCUMENT:
+                        document_route_contexts = (
+                            self.document_service.get_document_route_context_multiple(
+                                document_ids
+                            )
+                        )
+                        doc_id = collaborator.document_id
+                        if doc_id:
+                            route_context = document_route_contexts.get(doc_id)
+                            if route_context:
+                                merged_payload["document_route"] = (
+                                    route_context.model_dump()
+                                )
+                    elif collaborator.target_type == CollaborateResourceType.KNOWLEDGE:
+                        knowledge_route_contexts = (
+                            self.knowledge_service.get_knowledge_route_context_multiple(
+                                knowledge_ids
+                            )
+                        )
+                        knowledge_id = collaborator.knowledge_id
+                        if knowledge_id:
+                            route_context = knowledge_route_contexts.get(knowledge_id)
+                            if route_context:
+                                merged_payload["knowledge_route"] = (
+                                    route_context.model_dump()
+                                )
             response_item = NotificationResponse.model_validate(item).model_copy(
                 update={"payload": merged_payload}
             )

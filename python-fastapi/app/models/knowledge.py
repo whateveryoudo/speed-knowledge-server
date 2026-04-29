@@ -95,6 +95,7 @@ class Knowledge(SoftDeleteMixin, Base):
         comment="更新时间",
     )
 
+    space = relationship("Space", back_populates="knowledge_items")
     team = relationship("Team", back_populates="knowledge_items")
     documents = relationship("Document", back_populates="knowledge", cascade="all, delete")
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")

@@ -41,3 +41,5 @@ class Space(SoftDeleteMixin, Base):
     )
 
     space_members = relationship("SpaceMember", back_populates="space", cascade="all, delete")
+
+    knowledge_items = relationship("Knowledge", back_populates="space")

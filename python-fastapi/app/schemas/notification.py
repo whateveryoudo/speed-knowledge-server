@@ -46,3 +46,15 @@ class NotificationResponse(NotificationBase):
     payload: dict = Field(default={}, description="负载")
     class Config:
         from_attributes = True
+
+
+class NotificationSendRequest(BaseModel):
+    """发送站内信请求结构"""
+
+    mentioned_user_id: int = Field(..., description="被提及用户id")
+    biz_type: NotificationBizType = Field(..., description="业务类型")
+    biz_id: str = Field(..., description="业务id")
+    document_id: Optional[str] = Field(default=None, description="文档id")
+    knowledge_id: Optional[str] = Field(default=None, description="知识库id")
+    collaborator_id: str = Field(..., description="协作者记录id")
+    actor_user_id: int = Field(..., description="发起邀请用户id")

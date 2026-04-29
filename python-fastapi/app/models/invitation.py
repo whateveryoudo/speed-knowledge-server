@@ -33,8 +33,8 @@ class Invitation(Base):
         nullable=True,
         comment="所属文档",
     )
-    inviter_id = Column[int](
-        Integer, index=True, nullable=True, default=None, comment="被邀请用户id"
+    invitate_user_id = Column[int](
+        Integer, index=True, nullable=False, comment="邀请人（发起邀请的人）"
     )
     invitate_type = Column[CollaborateResourceType](
         String(20),

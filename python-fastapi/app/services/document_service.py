@@ -259,7 +259,10 @@ class DocumentService(BaseService[Document]):
         document_full_info = (
             self.get_active_query()
             .filter(Document.id == document_id)
-            .options(joinedload(Document.knowledge).joinedload(Knowledge.team))
+            .options(
+                joinedload(Document.knowledge).joinedload(Document.knowledge.space),
+                joinedload(Document.knowledge).joinedload(Document.knowledge.team),
+            )
             .first()
         )
         if not document_full_info:
@@ -273,9 +276,9 @@ class DocumentService(BaseService[Document]):
                 status_code=status.HTTP_404_NOT_FOUND, detail="知识库或团队不存在"
             )
         return DocumentRouteContext(
-            doc_id=document_full_info.id,
-            doc_name=document_full_info.name,
-            doc_slug=document_full_info.slug,
+            document_id=document_full_info.id,
+            document_name=document_full_info.name,
+            document_slug=document_full_info.slug,
             knowledge_id=document_full_info.knowledge_id,
             knowledge_name=document_full_info.knowledge.name,
             knowledge_slug=document_full_info.knowledge.slug,
@@ -283,6 +286,7 @@ class DocumentService(BaseService[Document]):
             team_name=document_full_info.knowledge.team.name,
             team_slug=document_full_info.knowledge.team.slug,
             space_id=document_full_info.knowledge.space_id,
+            space_domain=document_full_info.knowledge.space.domain,
         )
 
     def get_document_route_context_multiple(
@@ -294,7 +298,10 @@ class DocumentService(BaseService[Document]):
         document_full_infos = (
             self.get_active_query()
             .filter(Document.id.in_(document_ids))
-            .options(joinedload(Document.knowledge).joinedload(Knowledge.team))
+            .options(
+                joinedload(Document.knowledge).joinedload(Knowledge.space),
+                joinedload(Document.knowledge).joinedload(Knowledge.team),
+            )
             .all()
         )
         result: dict[str, DocumentRouteContext] = {}
@@ -305,9 +312,9 @@ class DocumentService(BaseService[Document]):
             if not knowledge or not team:
                 continue
             result[info.id] = DocumentRouteContext(
-                doc_id=info.id,
-                doc_name=info.name,
-                doc_slug=info.slug,
+                document_id=info.id,
+                document_name=info.name,
+                document_slug=info.slug,
                 knowledge_id=info.knowledge_id,
                 knowledge_name=info.knowledge.name,
                 knowledge_slug=info.knowledge.slug,
@@ -315,6 +322,7 @@ class DocumentService(BaseService[Document]):
                 team_name=info.knowledge.team.name,
                 team_slug=info.knowledge.team.slug,
                 space_id=info.knowledge.space_id,
+                space_domain=info.knowledge.space.domain,
             )
         return result
 
@@ -328,7 +336,6 @@ class DocumentService(BaseService[Document]):
             .join(Collaborator, User.id == Collaborator.user_id)
             .filter(
                 User.deleted_at.is_(None),
-                Collaborator.deleted_at.is_(None),
                 Collaborator.status == CollaboratorStatus.ACCEPTED.value,
                 or_(
                     and_(

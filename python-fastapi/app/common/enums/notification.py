@@ -15,6 +15,8 @@ class NotificationBizType(str, Enum):
     MENTION = "mention"
     COMMENT = "comment"
     LIKE = "like"
-    INVITE = "invite"
+    # 细化一些协作的场景
     FOLLOW = "follow"
     SYSTEM = "system"
+    JOIN_COLLABORATOR = "join_collaborator"
+    APPLY_COLLABORATOR = "apply_collaborator"

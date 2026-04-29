@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Depends, HTTPException, Query
 from sqlalchemy.orm.session import Session
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
@@ -6,7 +6,7 @@ from app.services.notification_service import NotificationService
 from app.schemas.notification import NotificationResponse, NotificationSearch
 from app.schemas.response import PaginationResponse
 from app.common.enums import NotificationListType
-
+from app.common.validator import FlexibleOptional
 
 router = APIRouter()
 
@@ -55,14 +55,20 @@ def get_all_unread_count(
     )
 
 
-@router.get("/{list_type}/unread-count", response_model=int, status_code=status.HTTP_200_OK)
+@router.get("/unread-count", response_model=int, status_code=status.HTTP_200_OK)
 def get_unread_count_by_list_type(
-    list_type: NotificationListType,
+    list_type: FlexibleOptional[NotificationListType] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> int:
     """获取指定列表类型的未读通知数量"""
     notification_service = NotificationService(db)
-    return notification_service.count_unread_notifications_with_list_type(
-        current_user.id, list_type
+    all_unread_count_dict = (
+        notification_service.count_unread_notifications_with_list_type(
+            current_user.id, list_type
+        )
     )
+    if isinstance(all_unread_count_dict, dict):
+        # 计算总数
+        return sum(all_unread_count_dict.values())
+    return all_unread_count_dict

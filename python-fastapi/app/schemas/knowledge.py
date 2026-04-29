@@ -41,6 +41,16 @@ class KnowledgeResponse(KnowledgeBase):
     class Config:
         from_attributes = True
 
+class KnowledgeRouteContext(BaseModel):
+    """知识库路由上下文"""
+    knowledge_id: str = Field(..., description="知识库ID")
+    knowledge_name: str = Field(..., description="知识库名称")
+    knowledge_slug: str = Field(..., description="知识库短链")
+    team_id: str = Field(..., description="所属团队ID")
+    team_name: str = Field(..., description="所属团队名称")
+    team_slug: str = Field(..., description="所属团队短链")
+    space_id: str = Field(..., description="所属空间ID")
+    space_domain: str = Field(..., description="所属空间域名")
 
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""

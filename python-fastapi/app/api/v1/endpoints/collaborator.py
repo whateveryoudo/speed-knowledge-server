@@ -43,7 +43,7 @@ async def get_invitation_token(
     """获取邀请链接token信息(知识库/文档)"""
     invitation_token_service = InvitationService(db)
     invitation_token_info = invitation_token_service.get_invitation_token(
-        resource_type, resource_identifier
+        resource_type, resource_identifier, current_user.id
     )
     return invitation_token_info
 
@@ -136,7 +136,9 @@ async def get_invitation_valid_info(
             role=invitation_valid_info.role.value,
         )
         collaborator_valid_info = collaborator_service.join_collaborator(
-            temp_collaborator_info
+            temp_collaborator_info,
+            invitation_valid_info.invitate_user_id,
+            invitation_valid_info.need_approval == 1,
         )
     return InvitationValidResponse(
         invitation=invitation_valid_info, collaborator=collaborator_valid_info
@@ -234,7 +236,11 @@ async def apply_invitation(
         source=CollaboratorSource.INVITATION.value,
         role=invitation_valid_info.role,
     )
-    return collaborator_service.join_collaborator(temp_collaborator_info)
+    return collaborator_service.join_collaborator(
+        temp_collaborator_info,
+        invitation_valid_info.invitate_user_id,
+        invitation_valid_info.need_approval == 1,
+    )
 
 
 @router.delete(
@@ -268,7 +274,7 @@ async def update_collaborator_info(
 
 @router.post(
     "/{collaborator_id}/audit",
-    response_model=CollaboratorResponse,
+    response_model=Optional[CollaboratorResponse],
 )
 async def audit_collaborator(
     collaborator_id: str,
@@ -279,6 +285,7 @@ async def audit_collaborator(
     """审核知识库协作者"""
     collaborator_service = CollaboratorService(db)
     return collaborator_service.audit_collaborator(collaborator_id, audit_in)
+
 
 @router.get("/{resource_type}/{resource_identifier}/to_audit_count", response_model=int)
 async def get_to_audit_count(
