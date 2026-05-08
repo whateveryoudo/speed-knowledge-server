@@ -22,6 +22,7 @@ from app.models.knowledge import Knowledge
 from app.services.collaborator_service import CollaboratorService
 from app.schemas.collaborator import CollaboratorResponse
 
+
 class NotificationService:
     """通知服务"""
 
@@ -109,7 +110,11 @@ class NotificationService:
                     collaborator = self.collaborator_service.get_by_id(collaborator_id)
                     if collaborator:
                         # 赋值协作记录信息
-                        merged_payload["collaborator"] = CollaboratorResponse.model_validate(collaborator).model_dump()
+                        merged_payload["collaborator"] = (
+                            CollaboratorResponse.model_validate(
+                                collaborator
+                            ).model_dump()
+                        )
                     else:
                         merged_payload["collaborator"] = None
                     # 区分内容
@@ -158,6 +163,27 @@ class NotificationService:
                 detail=f"通知不存在: {notification_id}",
             )
         notification.read_at = datetime.now()
+        self.db.commit()
+        return True
+
+    def change_read_status_by_list_type(
+        self, user_id: int, list_type: NotificationListType
+    ) -> bool:
+        """修改指定列表类型的为已读"""
+        self.db.query(Notification).filter(
+            Notification.mentioned_user_id == user_id,
+            Notification.list_type == list_type,
+            Notification.read_at.is_(None),
+        ).update({"read_at": datetime.now()})
+        self.db.commit()
+        return True
+
+    def mark_all_as_read(self, user_id: int) -> bool:
+        """标记所有为已读"""
+        self.db.query(Notification).filter(
+            Notification.mentioned_user_id == user_id,
+            Notification.read_at.is_(None),
+        ).update({"read_at": datetime.now()})
         self.db.commit()
         return True
 

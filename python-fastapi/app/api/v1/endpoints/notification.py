@@ -1,3 +1,4 @@
+from typing import Literal
 from fastapi import APIRouter, status, Depends, HTTPException, Query
 from sqlalchemy.orm.session import Session
 from app.core.deps import get_db, get_current_user
@@ -38,6 +39,19 @@ def change_read_status(
     notification_service = NotificationService(db)
     return notification_service.change_read_status(notification_id)
 
+
+@router.put("/{list_type}/read-by-list-type", status_code=status.HTTP_200_OK)
+def change_read_status_by_list_type(
+    list_type: NotificationListType | Literal['all'],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """修改指定列表类型的为已读"""
+    notification_service = NotificationService(db)
+    if list_type == 'all':
+        return notification_service.mark_all_as_read(current_user.id)
+    else:
+        return notification_service.change_read_status_by_list_type(current_user.id, list_type)
 
 @router.get(
     "/all-unread-count",
