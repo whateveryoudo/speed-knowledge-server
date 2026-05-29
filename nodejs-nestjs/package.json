@@ -60,7 +60,14 @@
     "typeorm": "^0.3.19",
     "uuid": "^13.0.0",
     "ws": "^8.18.3",
-    "yjs": "^13.6.29"
+    "yjs": "^13.6.29",
+    "@speed-sheet/core": "file:../../speed-sheet/packages/core",
+    "@speed-sheet/shared": "file:../../speed-sheet/packages/shared"   
+  },
+  "pnpm": {
+    "overrides": {
+      "@speed-sheet/shared": "file:../../speed-sheet/packages/shared"
+    }
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.0",

@@ -2,6 +2,40 @@
 
 这是一个包含三种主流后端技术栈的完整项目脚手架，适合快速启动 API 服务开发。
 
+> **Speed Knowledge 知识库项目**：实际业务中，Python FastAPI 承担主业务 API，Node.js NestJS 承担协同编辑（Hocuspocus WebSocket）与文档内容初始化服务。
+
+## 📅 更新日志
+
+### 2026-05-29 — 表格文档 & 协同服务增强
+
+#### 📊 表格文档（Speed Sheet 后端支持）
+
+- ✅ `DocumentType.SHEET` 枚举扩展（Python FastAPI / Node.js NestJS 双端对齐）
+- ✅ `POST /document-content/create-default` 按文档类型生成默认内容
+  - Word：Tiptap ProseMirror JSON → Yjs 二进制
+  - Sheet：调用 `@speed-sheet/core` 的 `createDefaultDocumentContent` 生成默认工作簿
+- ✅ Python `DocumentService.create_default_content` 创建文档时自动调用 Node 服务初始化内容
+
+#### 🤝 协同服务（NestJS Hocuspocus）
+
+- ✅ 协同持久化按文档类型分流存储
+  - Word：`TiptapTransformer.fromYdoc` → ProseMirror JSON
+  - Sheet：`Sheet.toSnapshot()` → `WorkbookSnapshot` JSON
+- ✅ Sheet 文档协同保存时同步写入编辑历史、更新 `content_updated_at`
+- ✅ 协同鉴权：连接时调用 Python 内部接口 `GET /api/v1/internal/document/{id}/valid` 校验编辑权限
+- ✅ 服务间调用守卫（`InternalTokenGuard`）+ 幂等拦截器（`IdempotencyInterceptor`）保障 create-default 等内部接口安全
+
+#### 🔧 协同数据流
+
+```
+前端 SheetEditor
+  └─ HocuspocusProvider (documentId = 文档 ID)
+       └─ NestJS /collaboration WebSocket
+            ├─ onAuthenticate → Python 校验 DOC_EDIT 权限
+            ├─ fetch  → 从 DB 加载 Yjs 二进制
+            └─ store  → Sheet.toSnapshot() 持久化 node_json + 二进制
+```
+
 ## 📚 技术栈选择
 
 ### 1. **Node.js + NestJS** (`nodejs-nestjs/`)
@@ -39,6 +73,16 @@
 - ✅ 统一的响应格式
 - ✅ 错误处理
 
+### Speed Knowledge 业务扩展（NestJS 协同模块）
+
+- ✅ Hocuspocus 实时协同服务（`/collaboration` WebSocket）
+- ✅ Word / Sheet 双文档类型协同持久化
+- ✅ 协同编辑权限校验（Python 内部 API）
+- ✅ 文档内容初始化（`create-default`）
+- ✅ 编辑历史自动记录
+- ✅ @提及通知（Word 文档）
+- ✅ 向量同步任务（指定知识库）
+
 ## 📂 项目结构
 
 ```
@@ -67,6 +111,8 @@ pnpm run start:dev
 ```
 
 访问: http://localhost:3000/api/docs
+
+协同 WebSocket: `ws://localhost:3000/collaboration?knowledgeId={knowledgeId}`
 
 #### Python + FastAPI
 
@@ -173,6 +219,16 @@ docker-compose down
 - `PATCH /api/v1/users/{id}` - 更新用户
 - `DELETE /api/v1/users/{id}` - 删除用户
 
+### 协同 & 文档内容（NestJS 内部/协同服务）
+
+- `WS /collaboration` - Hocuspocus 协同 WebSocket（Word / Sheet）
+- `POST /document-content/create-default` - 按文档类型创建默认内容（内部调用）
+- `POST /document-content/sync-title` - 同步 Word 文档标题（内部调用）
+
+### 协同权限校验（Python 内部 API）
+
+- `GET /api/v1/internal/document/{document_id}/valid` - 校验当前用户是否拥有文档编辑权限（供 NestJS 协同鉴权）
+
 ## 🛠️ 开发工具推荐
 
 ### 通用工具
@@ -206,6 +262,9 @@ docker-compose down
 - `DATABASE_URL` - 数据库连接
 - `JWT_SECRET` - JWT 密钥
 - `CORS_ORIGINS` - 跨域配置
+- `PYTHON_SERVER_URL` - Python 服务地址（NestJS 协同鉴权回调）
+- `INTERNAL_SERVICE_TOKEN` - 服务间调用令牌
+- `SYNC_VECTOR_KNOWLEDGE_ID` - 启用向量同步的知识库 ID（可选）
 
 详细配置请查看各项目的 `.env.example` 文件。
 

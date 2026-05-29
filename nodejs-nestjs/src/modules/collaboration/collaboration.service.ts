@@ -14,6 +14,8 @@ import { DocumentEditHistoryService } from "../document-edit-history/document-ed
 import { AuthService } from "../auth/auth.service";
 import { DocumentService } from "../document/document.service";
 import { VectorSyncService } from "../vector-sync/vector-sync.service";
+import { DocumentType } from "@/enums/document";
+import { Sheet } from "@speed-sheet/core";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
 import { firstValueFrom } from "rxjs";
@@ -68,6 +70,16 @@ export class CollaborationService implements OnModuleInit {
     // 从 ydoc 提取 ProseMirror JSON（默认根类型名是 'content'，保持与你写入时一致）
     const pmJson = TiptapTransformer.fromYdoc(ydoc as any);
     return pmJson;
+  }
+  private yStateToSheetJson(state: Uint8Array) {
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(ydoc, state);
+    const sheet = new Sheet({ ydoc });
+    try {
+      return sheet.toSnapshot();
+    } finally {
+      sheet.destroy();
+    }
   }
   // 处理tiptap的mention节点，提取出所有attr内容（这里没有定死内容）
   private extractMentionIds(outNode: any, result: MentionItem[] = []) {
@@ -139,6 +151,7 @@ export class CollaborationService implements OnModuleInit {
     const documentEditHistoryService = this.documentEditHistoryService;
     const vectorSyncService = this.vectorSyncService;
     const yStateToPmJson = this.yStateToPmJson;
+    const yStateToSheetJson = this.yStateToSheetJson;
     const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
     const debounceHandleMention = this.debounceHandleMention.bind(this);
     const verifyUserPermission = this.verifyUserPermission.bind(this);
@@ -183,7 +196,12 @@ export class CollaborationService implements OnModuleInit {
             return new Uint8Array(content);
           },
           async store({ documentName, state, context }) {
-            const node = await yStateToPmJson(state);
+            // 根据文档类型选择正确的转换器
+            const doc = await documentService.getDocument(documentName);
+            const isSheet = doc.type === DocumentType.SHEET;
+            const node = isSheet
+              ? yStateToSheetJson(state)
+              : await yStateToPmJson(state);
             // 先那一遍旧的内容，用于对比
             const oldContentJson =
               await documentContentService.getDocumentContentJson(documentName);
@@ -202,20 +220,25 @@ export class CollaborationService implements OnModuleInit {
               document_id: documentName,
               edited_datetime: new Date(),
             });
-
-            // 增加向量同步任务(注意：这里需要传入知识库id)
-            if (syncVectorKnowledgeId === context.knowledgeId) {
-              await vectorSyncService.touch(context.knowledgeId, documentName);
+            if (!isSheet) {
+              // 文档特有功能：向量同步，@提及功能
+              // 增加向量同步任务(注意：这里需要传入知识库id)
+              if (syncVectorKnowledgeId === context.knowledgeId) {
+                await vectorSyncService.touch(
+                  context.knowledgeId,
+                  documentName,
+                );
+              }
+              const notificationEventId = randomUUID();
+              // 查找提及用户，增加通知
+              await debounceHandleMention(
+                documentName,
+                oldContentJson,
+                node,
+                context.user.id,
+                notificationEventId,
+              );
             }
-            const notificationEventId = randomUUID();
-            // 查找提及用户，增加通知
-            await debounceHandleMention(
-              documentName,
-              oldContentJson,
-              node,
-              context.user.id,
-              notificationEventId,
-            );
           },
         }),
       ],

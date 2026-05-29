@@ -23,9 +23,10 @@ class DocumentAbility(str, Enum):
 
 
 class DocumentType(str, Enum):
-    """文档类型:目前仅支持word"""
+    """文档类型"""
 
-    WORD = "word"  # Word
+    WORD = "word"  # 富文本文档
+    SHEET = "sheet"  # 表格
 
 
 class DocumentNodeDragAction(str, Enum):

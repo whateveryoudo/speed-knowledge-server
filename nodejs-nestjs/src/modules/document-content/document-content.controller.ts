@@ -13,14 +13,18 @@ import * as Y from "yjs";
 import extensions from "../../tiptap-extends/kit";
 import { InternalTokenGuard } from "../common/guards/internal-token.guard";
 import { IdempotencyInterceptor } from "../common/interceptors/idempotency.interceptor";
+import { DocumentService } from "../document/document.service";
+import { DocumentType } from "@/enums/document";
+import { createDefaultDocumentContent } from "@speed-sheet/core";
 
 @Controller("document-content")
 export class DocumentContentController {
   constructor(
-    private readonly documentContentService: DocumentContentService
+    private readonly documentContentService: DocumentContentService,
+    private readonly documentService: DocumentService,
   ) {}
 
-  private getDefaultContent(title: string = "无标题文档"): {
+  private getDefaultWordContent(title: string = "无标题文档"): {
     content: Buffer;
     node_json: string;
   } {
@@ -120,17 +124,36 @@ export class DocumentContentController {
     };
   }
 
+  private getDefaultSheetContent(sheetName?: string): {
+    content: Buffer;
+    node_json: string;
+  } {
+    const { content, nodeJson } = createDefaultDocumentContent({
+      sheetName,
+    });
+    console.log(content, nodeJson)
+    return {
+      content: Buffer.from(content),
+      node_json: nodeJson,
+    };
+  }
+
   @UseGuards(InternalTokenGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @Post("create-default")
   async createDefault(@Body() body: { documentId: string }) {
     const { documentId } = body;
-    const documentContent = this.getDefaultContent();
-    console.log(documentContent);
+    const document = await this.documentService.getDocument(documentId);
+    console.log(document);
+    const documentContent =
+      document.type === DocumentType.SHEET
+        ? this.getDefaultSheetContent(document.name)
+        : this.getDefaultWordContent(document.name);
+
     await this.documentContentService.createContent(
       documentId,
       documentContent.content,
-      documentContent.node_json
+      documentContent.node_json,
     );
     return {
       success: true,

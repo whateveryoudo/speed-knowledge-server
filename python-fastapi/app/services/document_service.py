@@ -50,10 +50,8 @@ class DocumentService(BaseService[Document]):
         super().__init__(db, Document)
 
     def create_default_content(self, document_id: str):
-        """构建文档内容(这里调用nodejs服务构建一个默认的空的流和json)"""
+        """构建 document_content：调用 Node create-default（按 document_base.type 写 word/sheet）"""
         try:
-            # 获取服务调用token
-
             nodejs_service_url = settings.NODEJS_SERVICE_URL
             url = f"{nodejs_service_url}/document-content/create-default"
             payload = {

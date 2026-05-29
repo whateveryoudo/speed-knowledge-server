@@ -100,7 +100,7 @@ class DocumentNodeService(BaseService[DocumentNode]):
                 status_code=status.HTTP_404_NOT_FOUND, detail="文档节点不存在"
             )
         if is_soft_delete:
-            self.soft_delete(document_node)
+            document_node.soft_delete()
         else:
             self.get_active_query().filter(
                 DocumentNode.document_id == document_id

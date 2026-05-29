@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@speed-sheet/shared': file:../../speed-sheet/packages/shared
+
 importers:
 
   .:
@@ -59,6 +62,12 @@ importers:
       '@socket.io/redis-adapter':
         specifier: ^8.3.0
         version: 8.3.0(socket.io-adapter@2.5.6)
+      '@speed-sheet/core':
+        specifier: file:../../speed-sheet/packages/core
+        version: file:../../speed-sheet/packages/core
+      '@speed-sheet/shared':
+        specifier: file:../../speed-sheet/packages/shared
+        version: file:../../speed-sheet/packages/shared
       '@tiptap/core':
         specifier: ^3.0.6
         version: 3.15.1(@tiptap/pm@3.15.1)
@@ -780,6 +789,12 @@ packages:
     engines: {node: '>=10.0.0'}
     peerDependencies:
       socket.io-adapter: ^2.5.4
+
+  '@speed-sheet/core@file:../../speed-sheet/packages/core':
+    resolution: {directory: ../../speed-sheet/packages/core, type: directory}
+
+  '@speed-sheet/shared@file:../../speed-sheet/packages/shared':
+    resolution: {directory: ../../speed-sheet/packages/shared, type: directory}
 
   '@sqltools/formatter@1.2.5':
     resolution: {integrity: sha512-Uy0+khmZqUrUGm5dmMqVlnvufZRSK0FbYzVgp0UMstm+F5+W2/jnEEQyc9vo1ZR/E5ZI/B1WjjoTqBqwJL6Krw==}
@@ -2782,6 +2797,11 @@ packages:
     resolution: {integrity: sha512-/qfG0Kk/bLJIvej4FcPQ2KYUJP8iQdU1CTxysNb/U2wUNb+/4K485yeio8iNoiwfqJnsTInXoRPTza0dZWHVJQ==}
     engines: {node: '>=8.0.0'}
 
+  nanoid@5.1.11:
+    resolution: {integrity: sha512-v+KEsUv2ps74PaSKv0gHTxTCgMXOIfBEbaqa6w6ISIGC7ZsvHN4N9oJ8d4cmf0n5oTzQz2SLmThbQWhjd/8eKg==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
+
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
@@ -4681,6 +4701,15 @@ snapshots:
       uid2: 1.0.0
     transitivePeerDependencies:
       - supports-color
+
+  '@speed-sheet/core@file:../../speed-sheet/packages/core':
+    dependencies:
+      '@speed-sheet/shared': file:../../speed-sheet/packages/shared
+      yjs: 13.6.29
+
+  '@speed-sheet/shared@file:../../speed-sheet/packages/shared':
+    dependencies:
+      nanoid: 5.1.11
 
   '@sqltools/formatter@1.2.5': {}
 
@@ -7073,6 +7102,8 @@ snapshots:
   named-placeholders@1.1.4:
     dependencies:
       lru.min: 1.1.3
+
+  nanoid@5.1.11: {}
 
   natural-compare@1.4.0: {}
 
