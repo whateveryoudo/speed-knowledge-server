@@ -27,3 +27,4 @@ class User(Base, SoftDeleteMixin):
     collaborators = relationship("Collaborator", back_populates="user")
     space_members = relationship("SpaceMember", back_populates="user")
     team_members = relationship("TeamMember", back_populates="user")
+    knowledge_common_pins = relationship("KnowledgeCommonPin", back_populates="user", cascade="all, delete")

@@ -25,6 +25,8 @@ from app.services.knowledge_daily_stats_service import KnowledgeDailyStatsServic
 from app.schemas.knowledge_daily_stats import KnowledgeDailyStatsResponse
 from app.services.collect_service import CollectService
 from app.services.permission_service import PermissionService
+from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
+from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
 
 from app.common.enums import (
     CollectResourceType,
@@ -180,3 +182,55 @@ async def delete_knowledge(
     """删除知识库(软删除)"""
     knowledge_service = KnowledgeService(db)
     return knowledge_service.soft_delete(knowledge.id)
+
+
+@router.post("/common-pin/create", response_model=KnowledgeCommonPinResponse, status_code=status.HTTP_201_CREATED)
+async def create_knowledge_common_pin(
+    knowledge_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> KnowledgeCommonPinResponse:
+    """创建一条常用知识库记录"""
+    knowledge_common_pin_service = KnowledgeCommonPinService(db)
+    return knowledge_common_pin_service.create(knowledge_id, current_user.id)
+
+
+@router.put("/common-pin/update/{knowledge_id}", response_model=None, status_code=status.HTTP_200_OK)
+async def update_knowledge_common_pin(
+    knowledge_id: str,
+    order_index: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """更新常用知识库记录的排序索引"""
+    knowledge_common_pin_service = KnowledgeCommonPinService(db)
+    return knowledge_common_pin_service.change_order_index(knowledge_id, current_user.id, order_index)
+
+@router.get("/common-pin/list", response_model=List[KnowledgeCommonPinResponse])
+async def get_knowledge_common_pin_list(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> List[KnowledgeCommonPinResponse]:
+    """获取用户常用知识库记录列表"""
+    knowledge_common_pin_service = KnowledgeCommonPinService(db)
+    return knowledge_common_pin_service.get_list_by_user_id(current_user.id)
+
+
+@router.delete(
+    "/common-pin/{knowledge_id}",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_knowledge_common_pin(
+    knowledge_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """取消常用知识库"""
+    knowledge_common_pin_service = KnowledgeCommonPinService(db)
+    deleted = knowledge_common_pin_service.delete_by_knowledge_id_and_user_id(
+        knowledge_id, current_user.id
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="常用记录不存在"
+        )

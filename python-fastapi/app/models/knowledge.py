@@ -101,3 +101,4 @@ class Knowledge(SoftDeleteMixin, Base):
     group = relationship("KnowledgeGroup", back_populates="knowledge_items")
     collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")
     collaborators = relationship("Collaborator", back_populates="knowledge", cascade="all, delete")
+    knowledge_common_pins = relationship("KnowledgeCommonPin", back_populates="knowledge", cascade="all, delete")

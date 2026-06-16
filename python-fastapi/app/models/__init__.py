@@ -23,6 +23,7 @@ from .vector_sync import VectorSync
 from .chat_session import ChatSession
 from .chat_message import ChatMessage
 from .notification import Notification
+from .knowledge_common_pin import KnowledgeCommonPin
 
 __all__ = [
     "User",
@@ -49,4 +50,5 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "Notification",
+    "KnowledgeCommonPin",
 ]
