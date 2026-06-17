@@ -36,10 +36,14 @@ class CollaboratorService:
 
     def __init__(self, db: Session):
         self.db = db
-        
+
     def get_by_id(self, collaborator_id: str) -> Optional[Collaborator]:
         """通过id获取协作者记录"""
-        return self.db.query(Collaborator).filter(Collaborator.id == collaborator_id).first()
+        return (
+            self.db.query(Collaborator)
+            .filter(Collaborator.id == collaborator_id)
+            .first()
+        )
 
     def get_resource_by_slug(
         self, resource_type: CollaborateResourceType, resource_identifier: str
@@ -418,22 +422,45 @@ class CollaboratorService:
 
         return None
 
+    def get_multiple_collaborators_by_resources(
+        self, user_id: int, target_type: CollaborateResourceType, target_ids: List[str]
+    ) -> List[Collaborator]:
+        """通过资源类型和资源id列表,批量查找对应的协作者记录"""
+        if not target_ids:
+            return []
+        query = self.db.query(Collaborator).filter(
+            Collaborator.user_id == user_id,
+            Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+        )
+
+        if target_type == CollaborateResourceType.KNOWLEDGE:
+            query = query.filter(Collaborator.knowledge_id.in_(target_ids))
+        else:
+            query = query.filter(Collaborator.document_id.in_(target_ids))
+        return query.all()
+
     def get_collaborator_by_resource(
         self, query_params: QueryPermissionGroupParams
     ) -> Optional[Collaborator]:
         """通过资源类型和资源id,用户id查找对应的协作者记录"""
-        target_row = (
-            self.db.query(Collaborator)
-            .filter(
-                (
-                    Collaborator.knowledge_id == query_params.target_id
-                    if query_params.target_type.value
-                    == CollaborateResourceType.KNOWLEDGE
-                    else Collaborator.document_id == query_params.target_id
-                ),
-                Collaborator.user_id == query_params.user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-            )
-            .first()
+        # target_row = (
+        #     self.db.query(Collaborator)
+        #     .filter(
+        #         (
+        #             Collaborator.knowledge_id == query_params.target_id
+        #             if query_params.target_type.value
+        #             == CollaborateResourceType.KNOWLEDGE
+        #             else Collaborator.document_id == query_params.target_id
+        #         ),
+        #         Collaborator.user_id == query_params.user_id,
+        #         Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+        #     )
+        #     .first()
+        # )
+        # 这里直接复用批量查询逻辑
+        collaborators = self.get_multiple_collaborators_by_resources(
+            query_params.user_id,
+            query_params.target_type,
+            [query_params.target_id],
         )
-        return target_row
+        return collaborators[0] if collaborators else None

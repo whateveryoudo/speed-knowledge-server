@@ -1,7 +1,7 @@
 """权限能力聚合服务"""
 
 from tokenize import group
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List
 from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.common.enums import CollaboratorRole, collaborator_role_name
@@ -11,8 +11,12 @@ from app.schemas.collaborator import QueryPermissionGroupParams
 from app.services.permission_ability_service import PermissionAbilityService
 from app.common.enums import CollaborateResourceType, KnowledgeAbility, DocumentAbility
 from app.services.permission_group_service import PermissionGroupService
-
+from app.models.permission_group import PermissionGroup
 # from app.services.document_collaborator_service import DocumentCollaboratorService
+from app.models.collaborator import Collaborator
+from collections import defaultdict
+from app.models.permission_ability import PermissionAbility
+
 
 
 class PermissionService:
@@ -95,11 +99,113 @@ class PermissionService:
         # TODO:当前文档的协同角色
         return False
 
+    def _build_ability_dict(
+        self, abilities: List[PermissionAbility]
+    ) -> Dict[Union[KnowledgeAbility, DocumentAbility], bool]:
+        result = {}
+        for ability in abilities:
+            key = ability.ability_key
+            try:
+                enum_key = KnowledgeAbility(key)
+            except ValueError:
+                try:
+                    enum_key = DocumentAbility(key)
+                except ValueError:
+                    enum_key = None
+            if enum_key is not None:
+                result[enum_key] = ability.enable
+        return result
+
+    def get_multiple_permission_ability_by_resources(
+        self, user_id: int, target_type: CollaborateResourceType, target_ids: List[str]
+    ) -> Dict[str, Dict[Union[KnowledgeAbility, DocumentAbility], bool]]:
+        """多资源批量查询能力，返回资源id与能力字典的映射"""
+        if not target_ids:
+            return {}
+        # 去重
+        target_ids = list(dict.fromkeys(target_ids))
+
+        # 批量查询协同者
+        collaborators = (
+            self.collaborator_service.get_multiple_collaborators_by_resources(
+                user_id, target_type, target_ids
+            )
+        )
+        collab_map: dict[str, Collaborator] = {}
+        for collaborator in collaborators:
+            target_id = (
+                collaborator.knowledge_id
+                if target_type == CollaborateResourceType.KNOWLEDGE
+                else collaborator.document_id
+            )
+            if target_id:
+                collab_map[target_id] = collaborator
+
+        if not collab_map:
+            return {target_id: {} for target_id in target_ids}
+
+        # 根据协同记录筛选出对应角色的权限组信息
+        groups = (
+            self.permission_group_service.get_multiple_permission_groups_by_resources(
+                target_type, target_ids
+            )
+        )
+
+        groups_by_target: dict[str, list[PermissionGroup]] = defaultdict(list)
+
+        for group in groups:
+            groups_by_target[group.target_id].append(group)
+
+        # 遍历协同对象，通过target_id,拿到当前匹配的role对应的groupId
+        group_id_by_target: dict[str, str] = {}
+        for target_id, collab in collab_map.items():
+            matched = next(
+                (
+                    g
+                    for g in groups_by_target.get(target_id, [])
+                    if g.role == collab.role
+                ),
+                None,
+            )
+            if matched:
+                group_id_by_target[target_id] = matched.id
+
+        if not group_id_by_target:
+            return {target_id: {} for target_id in target_ids}
+
+        # 批量查询权限能力
+        abilities = self.permission_ability_service.get_multiple_abilities_by_permission_group_ids(
+            list(group_id_by_target.values())
+        )
+
+        # 将能力集合进行按group_id分组合并
+
+        ability_by_group: dict[
+            str, Dict[Union[KnowledgeAbility, DocumentAbility], bool]
+        ] = defaultdict(list)
+
+        for ability in abilities:
+            ability_by_group[ability.permission_group_id].append(ability)
+
+        # 遍历资源id,组装最后的结果
+        result: dict[str, Optional[dict]] = {}
+        for target_id in target_ids:
+            group_id = group_id_by_target.get(target_id)
+            if not group_id:
+                result[target_id] = None
+                continue
+            result[target_id] = self._build_ability_dict(
+                ability_by_group.get(group_id, [])
+            )
+        return result
+
     def get_permission_ability_by_resource(
         self, user_id: int, target_type: CollaborateResourceType, target_id: str
     ) -> Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]]:
         """通过资源类型和资源id,用户id查找对应的权限能力"""
-        print(f"get_permission_ability_by_resource: user_id={user_id}, target_type={target_type}, target_id={target_id}")
+        print(
+            f"get_permission_ability_by_resource: user_id={user_id}, target_type={target_type}, target_id={target_id}"
+        )
         target_collaborator = self.collaborator_service.get_collaborator_by_resource(
             QueryPermissionGroupParams(
                 user_id=user_id, target_type=target_type, target_id=target_id

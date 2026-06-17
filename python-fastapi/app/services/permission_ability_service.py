@@ -84,8 +84,6 @@ class PermissionAbilityService:
         },
     }
 
-   
-
     def __init__(self, db: Session):
         self.db = db
 
@@ -98,7 +96,13 @@ class PermissionAbilityService:
             permission_abilities = {
                 **self.__default_knowledge_abilities_dict[permission_ability_in.role],
                 # 这里作下区分，其实知识库编辑可以理解为有文档的最高权限了
-                **self.__default_document_abilities_dict[permission_ability_in.role if permission_ability_in.role == CollaboratorRole.READ else CollaboratorRole.ADMIN],
+                **self.__default_document_abilities_dict[
+                    (
+                        permission_ability_in.role
+                        if permission_ability_in.role == CollaboratorRole.READ
+                        else CollaboratorRole.ADMIN
+                    )
+                ],
             }
         else:
             permission_abilities = self.__default_document_abilities_dict[
@@ -128,6 +132,16 @@ class PermissionAbilityService:
         )
         self.db.add(permission_ability)
         self.db.commit()
+
+    def get_multiple_abilities_by_permission_group_ids(
+        self, permission_group_ids: List[str]
+    ) -> List[PermissionAbility]:
+        """通过权限组id列表,批量获取权限能力集合"""
+        return (
+            self.db.query(PermissionAbility)
+            .filter(PermissionAbility.permission_group_id.in_(permission_group_ids))
+            .all()
+        )
 
     def get_ability_by_permission_group_id(
         self, permission_group_id: str

@@ -45,14 +45,28 @@ class PermissionGroupService:
             .first()
         )
 
-    def get_permission_groups_by_resource(
-        self, target_type: CollaborateResourceType, target_id: str
+    def get_multiple_permission_groups_by_resources(
+        self, target_type: CollaborateResourceType, target_ids: List[str]
     ) -> List[PermissionGroup]:
-        """根据资源类型和资源id查找对应的权限组(多条)"""
+        """根据资源类型和资源id列表,批量查找对应的权限组"""
+        if not target_ids:
+            return []
         return (
             self.db.query(PermissionGroup)
             .filter(
                 PermissionGroup.target_type == target_type,
-                PermissionGroup.target_id == target_id,
+                PermissionGroup.target_id.in_(target_ids),
             )
+            .all()
+        )
+
+    def get_permission_groups_by_resource(
+        self, target_type: CollaborateResourceType, target_id: str
+    ) -> List[PermissionGroup]:
+        """根据资源类型和资源id查找对应的权限组(多条)"""
+        if not target_id:
+            return []
+        # 这里直接复用批量查询逻辑
+        return self.get_multiple_permission_groups_by_resources(
+            target_type, [target_id]
         )

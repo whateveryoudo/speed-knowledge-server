@@ -1,11 +1,19 @@
 """知识库结构"""
 
 from pydantic import BaseModel, Field
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, List
 from datetime import datetime
 from app.schemas.attachment import AttachmentItem
-from app.common.enums import KnowledgeIndexPageLayout, KnowledgeIndexPageSort, KnowledgeFromWay, KnowledgeAbility, DocumentAbility
+from app.common.enums import (
+    KnowledgeIndexPageLayout,
+    KnowledgeIndexPageSort,
+    KnowledgeFromWay,
+    KnowledgeAbility,
+    DocumentAbility,
+)
 from app.schemas.team import TeamResponse
+from app.schemas.query import BasePaginationQuery
+
 
 class KnowledgeBase(BaseModel):
     """知识库基础结构"""
@@ -27,6 +35,16 @@ class KnowledgeBase(BaseModel):
     )
 
 
+class KnowledgeListQuery(BasePaginationQuery):
+    """知识库列表查询结构(继承自基础分页查询结构)"""
+
+    user_id: Optional[int] = Field(None, description="用户ID")
+    keyword: Optional[str] = Field(None, description="关键词")
+    scope: KnowledgeFromWay = Field(
+        default=KnowledgeFromWay.OWN, description="查询范围"
+    )
+
+
 class KnowledgeResponse(KnowledgeBase):
     """知识库响应结构"""
 
@@ -37,12 +55,17 @@ class KnowledgeResponse(KnowledgeBase):
     team: TeamResponse = Field(..., description="所属团队")
     source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源")
     collaborator_id: Optional[str] = Field(default=None, description="协同者ID")
-    ability: Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]] = Field(default=None, description="知识库权限能力")
+    ability: Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]] = Field(
+        default=None, description="知识库权限能力"
+    )
+
     class Config:
         from_attributes = True
 
+
 class KnowledgeRouteContext(BaseModel):
     """知识库路由上下文"""
+
     knowledge_id: str = Field(..., description="知识库ID")
     knowledge_name: str = Field(..., description="知识库名称")
     knowledge_slug: str = Field(..., description="知识库短链")
@@ -51,6 +74,7 @@ class KnowledgeRouteContext(BaseModel):
     team_slug: str = Field(..., description="所属团队短链")
     space_id: str = Field(..., description="所属空间ID")
     space_domain: str = Field(..., description="所属空间域名")
+
 
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""
@@ -72,6 +96,7 @@ class KnowledgeUpdate(KnowledgeBase):
         default=None, description="知识库短链", min_length=1, max_length=50
     )
 
+
 class KnowledgeFullResponse(KnowledgeResponse):
     """知识库完整响应结构"""
 
@@ -80,13 +105,16 @@ class KnowledgeFullResponse(KnowledgeResponse):
     enable_user_feed: bool = Field(..., description="是否显示协同人员")
     layout: KnowledgeIndexPageLayout = Field(..., description="布局")
     sort: KnowledgeIndexPageSort = Field(..., description="排序")
+
     class Config:
         from_attributes = True
+
 
 class KnowledgeIndexPageResponse(KnowledgeFullResponse):
     """知识库首页信息结构"""
 
     word_count: int = Field(..., description="文档字数")
     has_collected: bool = Field(..., description="是否已收藏")
+
     class Config:
         from_attributes = True

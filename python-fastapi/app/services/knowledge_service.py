@@ -8,7 +8,6 @@ from app.models.collaborator import Collaborator
 from sqlalchemy import or_, and_
 from app.schemas.collaborator import CollaboratorCreate
 from app.services.collaborator_service import CollaboratorService
-from app.common.enums import CollaboratorStatus, KnowledgeFromWay
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.models.document import Document
@@ -17,22 +16,43 @@ from app.common.enums import (
     CollaboratorRole,
     CollaborateResourceType,
     collaborator_role_name,
+    CollaboratorStatus,
+    KnowledgeFromWay,
+    CollaboratorSource,
 )
-from typing import List
+from typing import List, Optional, Dict
 import secrets
 import string
 from datetime import datetime
 from app.services.base_service import BaseService
-from app.schemas.knowledge import KnowledgeResponse, KnowledgeRouteContext
+from app.schemas.knowledge import (
+    KnowledgeResponse,
+    KnowledgeRouteContext,
+    KnowledgeListQuery,
+)
 from fastapi import HTTPException
 from fastapi import status
 from sqlalchemy.orm import joinedload
+from app.schemas.query import SortRule, BaseSortOrder
+from app.schemas.response import PaginationQuery, PaginationResponse
+from app.common.pagination import paginate_query, paginate_response
 
 alphabet = string.ascii_letters + string.digits
 
 
 class KnowledgeService(BaseService[Knowledge]):
     """知识库服务"""
+
+    DEFAULT_KNOWLEDGE_SORTS = [
+        SortRule(field="created_at", order=BaseSortOrder.DESC),
+    ]
+
+    SORT_COLUMN_MAP = {
+        "created_at": Knowledge.created_at,
+        "updated_at": Knowledge.updated_at,
+        "content_updated_at": Knowledge.content_updated_at,
+        "name": Knowledge.name,
+    }
 
     def to_wrap_knowledge_response(
         self, knowledge: Knowledge, user_id: int
@@ -117,52 +137,114 @@ class KnowledgeService(BaseService[Knowledge]):
             knowledge.items_count = items_count
         return knowledge
 
-    def get_list_by_user_id(self, user_id: int) -> List[KnowledgeResponse]:
-        """通过用户id和团队id查询知识库列表"""
-        # 新增逻辑，追加协作者知识库查询
-        rows = (
-            self.get_active_query()
-            .with_entities(Knowledge, Collaborator.id.label("collaborator_id"))
-            .outerjoin(
-                Collaborator,
-                and_(
-                    Knowledge.id == Collaborator.knowledge_id,
-                    Collaborator.user_id == user_id,
-                    Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                    Collaborator.user_id
-                    != Knowledge.user_id,  # 排除 协作者是创建者这条记录
-                ),
-            )
+    def _build_personal_query(self, query_in: KnowledgeListQuery):
+        """个人知识库查询条件"""
+        return (
+            self.db.query(Collaborator)
+            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
             .filter(
-                or_(
-                    Knowledge.user_id == user_id,
-                    Collaborator.id.isnot(None),
-                )
+                Collaborator.user_id == query_in.user_id,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                Collaborator.source == CollaboratorSource.CREATOR.value,
+                Knowledge.deleted_at.is_(None),
             )
-            .distinct()
-            .order_by(Knowledge.created_at.desc())
-            .all()
+            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
         )
-        # 结构组装（直接返回pydantic模型）
-        result: List[KnowledgeResponse] = []
-        for knowledge, collaborator_id in rows:
-            item = KnowledgeResponse.model_validate(knowledge, from_attributes=True)
-            ability = self.permission_service.get_permission_ability_by_resource(
-                user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id
+
+    def _apply_filters(self, query, query_in: KnowledgeListQuery):
+        """筛选条件追加(可以处理更多参数)"""
+        if query_in.keyword:
+            keyword = query_in.keyword.strip()
+            if keyword:
+                query = query.filter(Knowledge.name.ilike(f"%{keyword}%"))
+        return query
+
+    def _apply_sorter(self, query, sorts: List[SortRule]):
+        """排序追加(这里是多维度排序)"""
+        order_clauses = []
+        if not sorts:
+            sorts = self.DEFAULT_KNOWLEDGE_SORTS
+        for rule in sorts:
+            column = self.SORT_COLUMN_MAP.get(rule.field)
+            if column is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"不支持的排序字段:{rule.field}",
+                )
+            if rule.order == BaseSortOrder.DESC:
+                order_clauses.append(column.desc())
+            else:
+                order_clauses.append(column.asc())
+
+        return query.order_by(*order_clauses)
+
+    def _build_collaborate_query(self, query_in: KnowledgeListQuery):
+        """邀请协作知识库查询条件"""
+        return (
+            self.db.query(Collaborator)
+            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
+            .filter(
+                Collaborator.user_id == query_in.user_id,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                Collaborator.source != CollaboratorSource.CREATOR.value,
+                Knowledge.deleted_at.is_(None),
             )
-            item = item.model_copy(
-                update={
-                    "ability": ability,
-                    "source": (
-                        KnowledgeFromWay.OWN
-                        if knowledge.user_id == user_id
-                        else KnowledgeFromWay.COLLABORATION
-                    ),
-                    "collaborator_id": collaborator_id,
-                }
+            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
+        )
+
+    def _to_response(
+        self,
+        knowledge: Knowledge,
+        collaborator_id: str,
+        scope: KnowledgeFromWay,
+        ability_map: Optional[Dict[str, Dict]] = None,
+    ) -> KnowledgeResponse:
+        """转换为响应结构"""
+        return KnowledgeResponse.model_validate(knowledge).model_copy(
+            update={
+                "ability": ability_map.get(knowledge.id, {}),
+                "source": scope,
+                "collaborator_id": collaborator_id,
+            }
+        )
+
+    def get_list_by_user_id(
+        self, query_in: KnowledgeListQuery
+    ) -> PaginationResponse:
+        """分类查询知识库列表（个人/邀请协作）"""
+        if query_in.scope == KnowledgeFromWay.OWN or not query_in.scope:
+            query = self._build_personal_query(query_in)
+        elif query_in.scope == KnowledgeFromWay.COLLABORATION:
+            query = self._build_collaborate_query(query_in)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="scope参数错误"
             )
-            result.append(item)
-        return result
+
+        # 补全查询条件
+        query = self._apply_filters(query, query_in)
+        query = self._apply_sorter(query, query_in.sorts)
+
+        rows, total, has_more = paginate_query(
+            query, PaginationQuery(page=query_in.page, page_size=query_in.page_size)
+        )
+
+        # 数据补充（权限）
+
+        knowledge_ids = [row.knowledge_id for row in rows]
+        # 批量拿回权限能力
+        ability_map = self.permission_service.get_multiple_permission_ability_by_resources(
+            query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+        )
+
+        items = [
+            self._to_response(row.knowledge, row.id, query_in.scope, ability_map)
+            for row in rows
+        ]
+
+        return paginate_response(items, total, has_more, query_in)
 
     def soft_delete(self, knowledge_id: str) -> bool:
         """软删除知识库"""

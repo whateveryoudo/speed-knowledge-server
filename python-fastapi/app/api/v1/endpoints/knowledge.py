@@ -1,13 +1,16 @@
 """知识库端点"""
 
+from typing import List
+
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
-from typing import List, Optional
+from app.schemas.response import PaginationResponse
 from app.schemas.knowledge import (
     KnowledgeCreate,
     KnowledgeResponse,
     KnowledgeIndexPageResponse,
     KnowledgeFullResponse,
+    KnowledgeListQuery,
 )
 from app.core.deps import (
     get_db,
@@ -56,13 +59,17 @@ async def create_knowledge(
     return created_knowledge.slug
 
 
-@router.get("/list", response_model=List[KnowledgeResponse])
+@router.post("/list", response_model=PaginationResponse)
 async def get_knowledge_list(
+    query_in: KnowledgeListQuery,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-) -> List[KnowledgeResponse]:
+) -> PaginationResponse:
     """获取知识库列表"""
     knowledge_service = KnowledgeService(db)
-    knowledge_list = knowledge_service.get_list_by_user_id(current_user.id)
+
+    knowledge_list = knowledge_service.get_list_by_user_id(
+        query_in.model_copy(update={"user_id": current_user.id})
+    )
     return knowledge_list
 
 

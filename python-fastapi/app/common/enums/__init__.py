@@ -1,6 +1,6 @@
 from .space import SpaceType, SpaceMemberRole
 from .team import TeamVisibility, TeamMemberRole
-from .common import AIAction, AIActionPromptDict, CollectResourceType
+from .common import AIAction, AIActionPromptDict, CollectResourceType, BaseSortOrder
 from .knowledge import (
     KnowledgeIndexPageLayout,
     KnowledgeIndexPageSort,
@@ -56,4 +56,5 @@ __all__ = [
     "ChatSessionStatus",
     "NotificationBizType",
     "NotificationListType",
+    "BaseSortOrder",
 ]

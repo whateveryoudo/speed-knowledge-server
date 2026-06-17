@@ -2,6 +2,11 @@
 
 from enum import Enum
 
+class BaseSortOrder(str, Enum):
+    """基础排序顺序"""
+    ASC = "asc"  # 升序(默认)
+    DESC = "desc"  # 降序
+
 
 class AIAction(str, Enum):
     """AI 动作"""

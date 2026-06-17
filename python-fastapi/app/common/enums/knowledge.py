@@ -10,6 +10,7 @@ class KnowledgeIndexPageLayout(str, Enum):
     CARD = "card"  # 卡片视图
     COLUMN = "column"  # 专栏视图
 
+
 class KnowledgeAbility(str, Enum):
     """角色能力(知识库)"""
     COLLECT_BOOK = 'collect_book' # 收藏知识库
