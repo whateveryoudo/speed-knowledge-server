@@ -37,10 +37,14 @@ from app.common.enums import (
     KnowledgeAbility,
 )
 from app.schemas.knowledge_group import (
-    KnowledgeGroupUpdate,
+    KnowledgeGroupUpdateBody,
     KnowledgeGroupResponse,
     KnowledgeGroupCreate,
 )
+from app.schemas.knowledge_group_relation import KnowledgeGroupRelationMoveBody
+from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
+from app.common.utils import next_order_index
+from app.models.knowledge_group import KnowledgeGroup
 
 router = APIRouter()
 
@@ -131,11 +135,13 @@ async def create_knowledge_group(
 ) -> int:
     """创建知识库分组"""
     knowledge_group_service = KnowledgeGroupService(db)
-    group_length = len(knowledge_group_service.get_list_by_user_id(current_user.id))
+    order_index = next_order_index(
+        db, KnowledgeGroup, user_id=current_user.id
+    )
     knowledge_group_data = KnowledgeGroupCreate(
         user_id=current_user.id,
         group_name="新建分组",
-        order_index=group_length,
+        order_index=order_index,
         is_default=False,
     )
     created_knowledge_group = knowledge_group_service.create(knowledge_group_data)
@@ -147,13 +153,40 @@ async def create_knowledge_group(
 )
 async def update_knowledge_group(
     group_id: str,
-    knowledge_group_in: KnowledgeGroupUpdate,
+    knowledge_group_in: KnowledgeGroupUpdateBody,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     """更新知识库分组"""
     knowledge_group_service = KnowledgeGroupService(db)
-    knowledge_group_service.update(group_id, knowledge_group_in)
+    knowledge_group_service.update(group_id, current_user.id, knowledge_group_in)
+
+
+@router.put(
+    "/group/order/{group_id}", response_model=None, status_code=status.HTTP_200_OK
+)
+async def update_knowledge_group_order(
+    group_id: str,
+    order_index: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """更新知识库分组排序"""
+    knowledge_group_service = KnowledgeGroupService(db)
+    knowledge_group_service.change_order_index(group_id, current_user.id, order_index)
+
+
+@router.delete(
+    "/group/{group_id}", response_model=None, status_code=status.HTTP_200_OK
+)
+async def delete_knowledge_group(
+    group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """删除知识库分组"""
+    knowledge_group_service = KnowledgeGroupService(db)
+    knowledge_group_service.delete(group_id, current_user.id)
 
 
 @router.get("/group/list", response_model=List[KnowledgeGroupResponse])
@@ -162,8 +195,34 @@ async def get_knowledge_group_list(
 ) -> List[KnowledgeGroupResponse]:
     """获取知识库分组列表"""
     knowledge_group_service = KnowledgeGroupService(db)
-    knowledge_group_list = knowledge_group_service.get_list_by_user_id(current_user.id)
-    return knowledge_group_list
+    return knowledge_group_service.get_list_by_user_id(current_user.id)
+
+
+@router.get("/group/list-detail", response_model=List[KnowledgeGroupResponse])
+async def get_knowledge_group_list_detail(
+    keyword: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[KnowledgeGroupResponse]:
+    """获取带知识库的分组列表"""
+    knowledge_group_service = KnowledgeGroupService(db)
+    return knowledge_group_service.get_list_with_knowledge(current_user.id, keyword)
+
+
+@router.put(
+    "/group/relation/{knowledge_id}",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+)
+async def move_knowledge_group_relation(
+    knowledge_id: str,
+    move_in: KnowledgeGroupRelationMoveBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """移动/排序分组内知识库"""
+    relation_service = KnowledgeGroupRelationService(db)
+    relation_service.move_relation(current_user.id, knowledge_id, move_in)
 
 
 @router.get("/{knowledge_id}/document/tree", response_model=List[DocumentNodeResponse])

@@ -41,13 +41,6 @@ class Knowledge(SoftDeleteMixin, Base):
         comment="主键",
     )
     user_id = Column[int](Integer, index=True, nullable=False, comment="所属用户")
-    group_id = Column[str](
-        String(36),
-        ForeignKey("knowledge_group.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-        comment="所属分组",
-    )
     icon = Column[str](String(20), nullable=False, comment="知识库图标")
     name = Column[str](String(128), nullable=False, comment="知识库名称")
     slug = Column[str](String(64), index=True, nullable=False, unique=True, comment="知识库短链")
@@ -98,7 +91,7 @@ class Knowledge(SoftDeleteMixin, Base):
     space = relationship("Space", back_populates="knowledge_items")
     team = relationship("Team", back_populates="knowledge_items")
     documents = relationship("Document", back_populates="knowledge", cascade="all, delete")
-    group = relationship("KnowledgeGroup", back_populates="knowledge_items")
+    group_relations = relationship("KnowledgeGroupRelation", back_populates="knowledge", cascade="all, delete")
     collects = relationship("Collect", back_populates="knowledge", cascade="all, delete")
     collaborators = relationship("Collaborator", back_populates="knowledge", cascade="all, delete")
     knowledge_common_pins = relationship("KnowledgeCommonPin", back_populates="knowledge", cascade="all, delete")

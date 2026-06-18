@@ -17,11 +17,10 @@ from app.schemas.query import BasePaginationQuery
 
 class KnowledgeBase(BaseModel):
     """知识库基础结构"""
-
+    user_id: int = Field(..., description="用户ID")
     icon: str = Field(default="icon-book-0", description="知识库图标")
     name: str = Field(..., description="知识库名称", min_length=1, max_length=50)
     slug: str = Field(..., description="知识库短链", min_length=1, max_length=50)
-    group_id: str = Field(..., description="所属分组")
     team_id: str = Field(..., description="所属团队")
     space_id: str = Field(..., description="所属空间")
     description: Optional[str] = Field(
@@ -38,7 +37,6 @@ class KnowledgeBase(BaseModel):
 class KnowledgeListQuery(BasePaginationQuery):
     """知识库列表查询结构(继承自基础分页查询结构)"""
 
-    user_id: Optional[int] = Field(None, description="用户ID")
     keyword: Optional[str] = Field(None, description="关键词")
     scope: KnowledgeFromWay = Field(
         default=KnowledgeFromWay.OWN, description="查询范围"
@@ -79,6 +77,7 @@ class KnowledgeRouteContext(BaseModel):
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""
 
+    group_id: Optional[str] = Field(default=None, description="所属分组ID")
     slug: Optional[str] = Field(
         default=None, description="知识库短链", min_length=1, max_length=50
     )

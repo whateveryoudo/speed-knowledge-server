@@ -5,6 +5,8 @@ from app.models.knowledge import Knowledge
 from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
 from app.services.knowledge_service import KnowledgeService
 from typing import List
+from app.common.utils import next_order_index, is_duplicate_entry
+from sqlalchemy.exc import IntegrityError
 
 
 class KnowledgeCommonPinService:
@@ -48,16 +50,39 @@ class KnowledgeCommonPinService:
 
     def create(self, knowledge_id: str, user_id: int) -> KnowledgeCommonPinResponse:
         """创建一条常用知识库记录"""
-        count = (
-            self.db.query(KnowledgeCommonPin)
-            .filter(KnowledgeCommonPin.user_id == user_id)
-            .count()
-        )
+        existing_record = self.get_by_knowledge_id_and_user_id(knowledge_id, user_id)
+        if existing_record:
+            response = self._to_response(existing_record, user_id)
+            if not response:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="知识库不存在或已删除",
+                )
+            return response
+
         new_record = KnowledgeCommonPin(
-            knowledge_id=knowledge_id, order_index=count, user_id=user_id
+            knowledge_id=knowledge_id,
+            order_index=next_order_index(self.db, KnowledgeCommonPin, user_id=user_id),
+            user_id=user_id,
         )
         self.db.add(new_record)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError as e:
+            self.db.rollback()
+            if is_duplicate_entry(e):
+                existing_record = self.get_by_knowledge_id_and_user_id(
+                    knowledge_id, user_id
+                )
+                if existing_record:
+                    response = self._to_response(existing_record, user_id)
+                    if response:
+                        return response
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="已在常用列中",
+                )
+            raise e
         self.db.refresh(new_record)
         response = self._to_response(new_record, user_id)
         if not response:

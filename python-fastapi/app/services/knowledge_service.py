@@ -1,6 +1,5 @@
 """知识库服务"""
 
-from tokenize import group
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
@@ -36,6 +35,10 @@ from sqlalchemy.orm import joinedload
 from app.schemas.query import SortRule, BaseSortOrder
 from app.schemas.response import PaginationQuery, PaginationResponse
 from app.common.pagination import paginate_query, paginate_response
+from sqlalchemy.exc import IntegrityError
+from app.common.utils import is_duplicate_entry, is_slug_duplicate
+from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
+from app.schemas.knowledge_group_relation import KnowledgeGroupRelationCreate
 
 alphabet = string.ascii_letters + string.digits
 
@@ -74,50 +77,84 @@ class KnowledgeService(BaseService[Knowledge]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Knowledge)
         self.permission_service = PermissionService(db)
+        self.knowledge_group_relation_service = KnowledgeGroupRelationService(db)
 
     def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
-        temp_slug = self._generate_slug()
-        while self.get_active_query().filter(Knowledge.slug == temp_slug).first():
-            temp_slug = self._generate_slug()
-        # 默认isPublic为False
-        knowledge = Knowledge(
-            user_id=knowledge_in.user_id,
-            name=knowledge_in.name,
-            team_id=knowledge_in.team_id,
-            group_id=knowledge_in.group_id,
-            icon=knowledge_in.icon,
-            slug=temp_slug,
-            space_id=knowledge_in.space_id,
-            description=knowledge_in.description,
-        )
-        self.db.add(knowledge)
-        self.db.flush()
-        # 追加默认协作者
-        collaborator_service = CollaboratorService(self.db)
-        collaborator_service.join_default_collaborator(
-            CollaboratorCreate(
-                user_id=knowledge_in.user_id,
-                knowledge_id=knowledge.id,
-                target_type=CollaborateResourceType.KNOWLEDGE,
-            )
-        )
-        # 创建默认权限组(追加3个角色权限)
-        for role in CollaboratorRole:
-            permission_group_service = PermissionGroupService(self.db)
-            permission_group_service.create_permission_group(
-                # 权限组名称: 知识库名称(知识库短链)-角色名称
-                PermissionGroupCreate(
-                    name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
-                    role=role,
-                    target_type=CollaborateResourceType.KNOWLEDGE,
-                    target_id=knowledge.id,
+        last_exec: IntegrityError | None = None
+        for _ in range(3):
+            try:
+                temp_slug = self._generate_slug()
+                while (
+                    self.get_active_query().filter(Knowledge.slug == temp_slug).first()
+                ):
+                    temp_slug = self._generate_slug()
+                # 默认isPublic为False
+                knowledge = Knowledge(
+                    user_id=knowledge_in.user_id,
+                    name=knowledge_in.name,
+                    team_id=knowledge_in.team_id,
+                    icon=knowledge_in.icon,
+                    slug=temp_slug,
+                    space_id=knowledge_in.space_id,
+                    description=knowledge_in.description,
                 )
-            )
+                self.db.add(knowledge)
+                self.db.flush()
+                group_id = knowledge_in.group_id
+                if not group_id:
+                    from app.services.knowledge_group_service import KnowledgeGroupService
 
-        self.db.commit()
-        self.db.refresh(knowledge)
-        return knowledge
+                    default_group = KnowledgeGroupService(self.db).get_default_group(
+                        knowledge_in.user_id
+                    )
+                    group_id = default_group.id
+                self.knowledge_group_relation_service.create(
+                    KnowledgeGroupRelationCreate(
+                        user_id=knowledge_in.user_id,
+                        knowledge_id=knowledge.id,
+                        group_id=group_id,
+                    ),
+                    commit=False,
+                )
+                # 追加默认协作者
+                collaborator_service = CollaboratorService(self.db)
+                collaborator_service.join_default_collaborator(
+                    CollaboratorCreate(
+                        user_id=knowledge_in.user_id,
+                        knowledge_id=knowledge.id,
+                        target_type=CollaborateResourceType.KNOWLEDGE,
+                    )
+                )
+                # 创建默认权限组(追加3个角色权限)
+                for role in CollaboratorRole:
+                    permission_group_service = PermissionGroupService(self.db)
+                    permission_group_service.create_permission_group(
+                        # 权限组名称: 知识库名称(知识库短链)-角色名称
+                        PermissionGroupCreate(
+                            name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
+                            role=role,
+                            target_type=CollaborateResourceType.KNOWLEDGE,
+                            target_id=knowledge.id,
+                        )
+                    )
+
+                self.db.commit()
+                self.db.refresh(knowledge)
+                return knowledge
+            except IntegrityError as e:
+                self.db.rollback()
+                last_exec = e
+                if is_slug_duplicate(e):
+                    continue
+                if is_duplicate_entry(e):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="知识库分组关系已存在",
+                    )
+                raise e
+        if last_exec:
+            raise last_exec
 
     def get_by_id_or_slug(self, identifier: str) -> Knowledge:
         """通过知识库id/短链查询知识库(附带文档数量)"""
@@ -210,9 +247,7 @@ class KnowledgeService(BaseService[Knowledge]):
             }
         )
 
-    def get_list_by_user_id(
-        self, query_in: KnowledgeListQuery
-    ) -> PaginationResponse:
+    def get_list_by_user_id(self, query_in: KnowledgeListQuery) -> PaginationResponse:
         """分类查询知识库列表（个人/邀请协作）"""
         if query_in.scope == KnowledgeFromWay.OWN or not query_in.scope:
             query = self._build_personal_query(query_in)
@@ -235,8 +270,10 @@ class KnowledgeService(BaseService[Knowledge]):
 
         knowledge_ids = [row.knowledge_id for row in rows]
         # 批量拿回权限能力
-        ability_map = self.permission_service.get_multiple_permission_ability_by_resources(
-            query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+        ability_map = (
+            self.permission_service.get_multiple_permission_ability_by_resources(
+                query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+            )
         )
 
         items = [

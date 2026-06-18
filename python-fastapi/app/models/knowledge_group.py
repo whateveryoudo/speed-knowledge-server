@@ -5,8 +5,7 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 from app.schemas.knowledge_group import DEFAULT_DISPLAY_CONFIG
 import uuid
-from app.core.mixins import SoftDeleteMixin
-class KnowledgeGroup(SoftDeleteMixin, Base):
+class KnowledgeGroup(Base):
     """知识库分组模型"""
 
     __tablename__ = "knowledge_group"
@@ -19,5 +18,4 @@ class KnowledgeGroup(SoftDeleteMixin, Base):
     updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), comment="更新时间")
 
     display_config = Column(JSON, default=DEFAULT_DISPLAY_CONFIG.model_dump(), nullable=True, comment="显示配置")
-    knowledge_items = relationship("Knowledge", back_populates="group", cascade="all, delete")
-    
+    group_relations = relationship("KnowledgeGroupRelation", back_populates="group", cascade="all, delete")

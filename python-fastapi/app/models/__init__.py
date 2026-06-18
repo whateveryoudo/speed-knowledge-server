@@ -24,6 +24,7 @@ from .chat_session import ChatSession
 from .chat_message import ChatMessage
 from .notification import Notification
 from .knowledge_common_pin import KnowledgeCommonPin
+from .knowledge_group_relation import KnowledgeGroupRelation
 
 __all__ = [
     "User",
@@ -51,4 +52,5 @@ __all__ = [
     "ChatMessage",
     "Notification",
     "KnowledgeCommonPin",
+    "KnowledgeGroupRelation"
 ]
