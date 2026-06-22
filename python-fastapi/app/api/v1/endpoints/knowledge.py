@@ -66,7 +66,8 @@ async def create_knowledge(
 @router.post("/list", response_model=PaginationResponse)
 async def get_knowledge_list(
     query_in: KnowledgeListQuery,
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> PaginationResponse:
     """获取知识库列表"""
     knowledge_service = KnowledgeService(db)
@@ -80,7 +81,9 @@ async def get_knowledge_list(
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
     current_user: User = Depends(get_current_user),
-    knowledge: Knowledge = Depends(VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)),
+    knowledge: Knowledge = Depends(
+        VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)
+    ),
     db: Session = Depends(get_db),
 ) -> Knowledge:
     """通过短链/id获取知识库详情"""
@@ -91,7 +94,9 @@ async def get_knowledge_detail(
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
-    knowledge: Knowledge = Depends(VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)),
+    knowledge: Knowledge = Depends(
+        VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)
+    ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeIndexPageResponse:
@@ -135,9 +140,7 @@ async def create_knowledge_group(
 ) -> int:
     """创建知识库分组"""
     knowledge_group_service = KnowledgeGroupService(db)
-    order_index = next_order_index(
-        db, KnowledgeGroup, user_id=current_user.id
-    )
+    order_index = next_order_index(db, KnowledgeGroup, user_id=current_user.id)
     knowledge_group_data = KnowledgeGroupCreate(
         user_id=current_user.id,
         group_name="新建分组",
@@ -145,7 +148,7 @@ async def create_knowledge_group(
         is_default=False,
     )
     created_knowledge_group = knowledge_group_service.create(knowledge_group_data)
-    return created_knowledge_group.id
+    return created_knowledge_group
 
 
 @router.put(
@@ -176,9 +179,7 @@ async def update_knowledge_group_order(
     knowledge_group_service.change_order_index(group_id, current_user.id, order_index)
 
 
-@router.delete(
-    "/group/{group_id}", response_model=None, status_code=status.HTTP_200_OK
-)
+@router.delete("/group/{group_id}", response_model=None, status_code=status.HTTP_200_OK)
 async def delete_knowledge_group(
     group_id: str,
     current_user: User = Depends(get_current_user),
@@ -250,7 +251,11 @@ async def delete_knowledge(
     return knowledge_service.soft_delete(knowledge.id)
 
 
-@router.post("/common-pin/create", response_model=KnowledgeCommonPinResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/common-pin/create",
+    response_model=KnowledgeCommonPinResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_knowledge_common_pin(
     knowledge_id: str,
     current_user: User = Depends(get_current_user),
@@ -261,7 +266,11 @@ async def create_knowledge_common_pin(
     return knowledge_common_pin_service.create(knowledge_id, current_user.id)
 
 
-@router.put("/common-pin/update/{knowledge_id}", response_model=None, status_code=status.HTTP_200_OK)
+@router.put(
+    "/common-pin/update/{knowledge_id}",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+)
 async def update_knowledge_common_pin(
     knowledge_id: str,
     order_index: int,
@@ -270,7 +279,10 @@ async def update_knowledge_common_pin(
 ) -> None:
     """更新常用知识库记录的排序索引"""
     knowledge_common_pin_service = KnowledgeCommonPinService(db)
-    return knowledge_common_pin_service.change_order_index(knowledge_id, current_user.id, order_index)
+    return knowledge_common_pin_service.change_order_index(
+        knowledge_id, current_user.id, order_index
+    )
+
 
 @router.get("/common-pin/list", response_model=List[KnowledgeCommonPinResponse])
 async def get_knowledge_common_pin_list(

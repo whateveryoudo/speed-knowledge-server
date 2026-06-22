@@ -77,7 +77,6 @@ class KnowledgeInGroupItem(KnowledgeResponse):
     order_index: int = Field(..., description="排序索引")
     relation_id: str = Field(..., description="关系ID")
     doc_summary: List[DocumentSummaryItem] = Field(..., description="文档总结(TOP3)")
-    doc_count: int = Field(..., description="文档数量")
 
 class KnowledgeGroupResponse(KnowledgeGroupBase):
     """知识库分组响应"""

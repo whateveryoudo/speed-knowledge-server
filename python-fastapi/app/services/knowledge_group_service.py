@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
-from app.common.utils import next_order_index
+from app.common.utils import next_order_index, prepare_insert_order_index
 from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.models.knowledge_group import KnowledgeGroup
@@ -60,11 +60,15 @@ class KnowledgeGroupService:
 
     def create(self, knowledge_group_in: KnowledgeGroupCreate) -> KnowledgeGroup:
         """创建知识库分组"""
+        # 这里再头部插入
+        order_index = prepare_insert_order_index(
+            self.db, KnowledgeGroup, 0, user_id=knowledge_group_in.user_id
+        )
         knowledge_group = KnowledgeGroup(
             user_id=knowledge_group_in.user_id,
             is_default=knowledge_group_in.is_default,
             group_name=knowledge_group_in.group_name,
-            order_index=knowledge_group_in.order_index,
+            order_index=order_index,
             display_config=(
                 knowledge_group_in.display_config or DEFAULT_DISPLAY_CONFIG
             ).model_dump(),
@@ -132,7 +136,11 @@ class KnowledgeGroupService:
             order_type = knowledge_order_type.get(knowledge_id, 1)
             sorted_docs = sorted(
                 docs,
-                key=lambda x: (x.content_update_at or x.updated_at if order_type == 1 else x.created_at),
+                key=lambda x: (
+                    x.content_updated_at or x.updated_at
+                    if order_type == 1
+                    else x.created_at
+                ),
                 reverse=True,
             )
             doc_summaries[knowledge_id] = [
@@ -202,12 +210,17 @@ class KnowledgeGroupService:
             if keyword and keyword not in (knowledge.name or "").lower():
                 continue
             response = knowledge_service.to_wrap_knowledge_response(knowledge, user_id)
+            # 同步文档数量
+            response = response.model_copy(
+                update={
+                    "items_count": doc_counts.get(knowledge.id, 0),
+                }
+            )
             response = KnowledgeInGroupItem(
                 **response.model_dump(),
                 order_index=relation.order_index,
                 relation_id=relation.id,
                 doc_summary=doc_summaries.get(knowledge.id, []),
-                doc_count=doc_counts.get(knowledge.id, 0),
             )
             items_by_group.setdefault(relation.group_id, []).append(response)
 
