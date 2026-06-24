@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import datetime
-from app.common.enums import DocumentType, DocumentNodeDragAction
+from app.common.enums import DocumentType
 
 
 class DocumentBase(BaseModel):
@@ -45,7 +45,6 @@ class DocumentRouteContext(BaseModel):
     space_id: str = Field(..., description="所属空间ID")
     space_domain: Optional[str] = Field(default=None, description="空间域名")
 
-# 这里不继承基础类，需要传入的参数很少
 class DocumentCreate(BaseModel):
     """创建文档结构"""
 
@@ -53,7 +52,6 @@ class DocumentCreate(BaseModel):
     knowledge_id: str = Field(..., description="所属知识库ID")
     parent_id: Optional[str] = Field(default=None, description="父节点ID")
     type: DocumentType = Field(..., description="文档类型")
-
 
 class DocumentUpdate(BaseModel):
     """更新文档结构"""
@@ -67,11 +65,3 @@ class DocumentUpdate(BaseModel):
     trigger: Literal["outer", "editor"] = Field(
         default="outer", description="触发方式", choices=["outer", "editor"]
     )
-
-
-class DragDocumentNodeParams(BaseModel):
-    """拖拽文档节点参数"""
-
-    action: DocumentNodeDragAction = Field(..., description="操作类型")
-    node_id: str = Field(..., description="节点ID")
-    target_id: str = Field(..., description="目标节点ID")

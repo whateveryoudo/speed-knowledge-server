@@ -6,13 +6,13 @@ from fastapi import HTTPException, status
 from app.schemas.document import (
     DocumentCreate,
     DocumentUpdate,
-    DocumentResponse,
-    DragDocumentNodeParams,
     DocumentRouteContext,
 )
+from app.schemas.document_node import DocumentNodeCreate
 from typing import List
 from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
+from app.models.document_node import DocumentNode
 from app.services.collaborator_service import CollaboratorService
 from app.schemas.collaborator import CollaboratorCreate
 from app.models.user import User
@@ -24,8 +24,13 @@ import httpx
 import logging
 from sqlalchemy import func, or_, and_
 from app.services.base_service import BaseService
-from app.common.enums import CollaborateResourceType
-from app.common.enums import CollaboratorRole, CollaboratorStatus
+from app.common.enums import (
+    CollaborateResourceType,
+    DocumentType,
+    DocumentNodeType,
+    CollaboratorRole,
+    CollaboratorStatus,
+)
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.common.enums import collaborator_role_name
@@ -78,7 +83,7 @@ class DocumentService(BaseService[Document]):
                 f"Create default content by nodejs failed:documentId={document_id},error={e}"
             )
 
-    def create(self, document_in: DocumentCreate) -> Document:
+    def create(self, document_in: DocumentCreate) -> DocumentNode:
         """创建文档"""
         temp_slug = self._generate_slug()
         while self.get_active_query().filter(Document.slug == temp_slug).first():
@@ -117,13 +122,26 @@ class DocumentService(BaseService[Document]):
             )
         # 调用节点更新
         document_node_service = DocumentNodeService(self.db)
-        # 追加文档id
-        temp_document_in = document_in.model_copy(update={"id": document.id})
-        document_node_service.create_node(temp_document_in, document_in.parent_id)
+        # 提取节点创建结构(这里提取为两类，如果是通用文档则设置为文档类型，否则为目录类型)
+        node_type = (
+            DocumentNodeType.DOC
+            if document_in.type in DocumentType
+            else DocumentNodeType.TITLE
+        )
+        document_node = document_node_service.create_node(
+            DocumentNodeCreate(
+                knowledge_id=document.knowledge_id,
+                name=document.name,
+                id=document.id,
+                type=node_type,
+                parent_id=document_in.parent_id,
+            )
+        )
         self.db.commit()
         # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
         self.create_default_content(document.id)
-        return document
+        # 这里返回节点信息（不返回文档信息）
+        return document_node
 
     def get_by_id_or_slug(self, identifier: str) -> Document:
         """通过id或短链获取文档"""
@@ -222,7 +240,7 @@ class DocumentService(BaseService[Document]):
         else:
             self.db.delete(document)
         # 这里同步删除节点
-        document_node_service.delete_by_document_id(document.id, is_soft_delete)
+        document_node_service.delete_by_document_id(document.id, auto_commit=False)
         self.db.commit()
         return None
 

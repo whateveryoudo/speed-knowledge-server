@@ -76,7 +76,7 @@ class KnowledgeRouteContext(BaseModel):
 
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""
-
+    user_id: Optional[int] = Field(default=None, description="所属用户ID")
     group_id: Optional[str] = Field(default=None, description="所属分组ID")
     slug: Optional[str] = Field(
         default=None, description="知识库短链", min_length=1, max_length=50

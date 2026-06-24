@@ -7,10 +7,9 @@ from app.db.base import Base
 import uuid
 from datetime import datetime
 from app.common.enums import DocumentNodeType
-from app.core.mixins import SoftDeleteMixin
 
 
-class DocumentNode(SoftDeleteMixin, Base):
+class DocumentNode(Base):
     """文档节点树"""
 
     __tablename__ = "document_node"
