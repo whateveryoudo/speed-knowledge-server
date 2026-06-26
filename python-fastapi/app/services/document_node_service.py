@@ -5,9 +5,13 @@ from sqlalchemy.orm import Session, contains_eager
 from sqlalchemy import and_
 from app.models.document import Document
 from app.models.document_node import DocumentNode
-from app.schemas.document_node import DocumentNodeResponse
 from typing import List
-from app.schemas.document_node import DocumentNodeCreate, DragDocumentNodeParams
+from app.schemas.document_node import (
+    DocumentNodeCreate,
+    DragDocumentNodeParams,
+    DocumentNodeResponse,
+    DocumentNodeUpdate,
+)
 from app.common.enums import DocumentNodeType, DocumentNodeDragAction
 
 
@@ -159,6 +163,34 @@ class DocumentNodeService:
         self._delete_subtree(node)
         self.db.commit()
         return None
+
+    def update_node(
+        self, node_id: str, update_in: DocumentNodeUpdate
+    ) -> None:
+        """更新文档节点"""
+        node = self.get_node_by_id(node_id)
+        if not node:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在"
+            )
+        if node.type == DocumentNodeType.DOC:
+            # 如果是文档节点
+            if not node.document_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="文档节点缺少关联 document_id",
+                )
+            from app.services.document_service import DocumentService
+
+            document_service = DocumentService(self.db)
+            document_service.update_title(
+                node.document_id, update_in.title, trigger="outer"
+            )
+        else:
+            node.title = update_in.title
+            self.db.commit()
+        self.db.refresh(node)
+        return node
 
     def drag_document(self, drag_document_in: DragDocumentNodeParams) -> None:
         """拖拽文档"""

@@ -9,7 +9,7 @@ from app.schemas.document import (
     DocumentRouteContext,
 )
 from app.schemas.document_node import DocumentNodeCreate
-from typing import List
+from typing import List, Literal
 from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
 from app.models.document_node import DocumentNode
@@ -189,30 +189,47 @@ class DocumentService(BaseService[Document]):
         except Exception as e:
             logger.error(f"Sync title by nodejs failed:title={new_title},error={e}")
 
+    def update_title(
+        self,
+        document_id: str,
+        new_title: str,
+        *,
+        trigger: Literal["outer", "inner"] = "outer",
+    ) -> None:
+        """更新文档标题(普通文档更新和目录节点更新)"""
+        document = self.get_by_id_or_slug(document_id)
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+            )
+        # 更新文档节点标题
+        from app.services.document_node_service import DocumentNodeService
+
+        document_node_service = DocumentNodeService(self.db)
+        document_node = document_node_service.get_node_by_document_id(document.id)
+        if not document_node:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档节点不存在"
+            )
+        old_name = document.name
+        # 同步node表的title
+        document_node.title = new_title
+        document.name = new_title
+        self.db.commit()
+        if new_title and old_name != new_title and trigger == "outer":
+            self._sync_title_by_nodejs(document.id, new_title)
+
     def update_by_id_or_slug(
         self, identifier: str, updated_document: DocumentUpdate
     ) -> Document:
         """通过id或短链更新文档"""
-        # 调用节点更新
-        document_service = DocumentService(self.db)
-        document = document_service.get_by_id_or_slug(identifier)
-        document_node_service = DocumentNodeService(self.db)
-        document_node = document_node_service.get_node_by_document_id(document.id)
-        old_name = document.name
-        # 同步node表的title
-        document_node.title = updated_document.name
-        document.name = updated_document.name
-        # 如果更新了名称（外层触发,内层会触发协作），则调用node服务更新标题
-        print("updated_document.trigger", updated_document.trigger)
-        self.db.commit()
+        document = self.get_by_id_or_slug(identifier)
+        if updated_document.name:
+            self.update_title(
+                document.id, updated_document.name, trigger=updated_document.trigger
+            )
         self.db.refresh(document)
-        if (
-            updated_document.name
-            and old_name != updated_document.name
-            and updated_document.trigger == "outer"
-        ):
-            self._sync_title_by_nodejs(document.id, updated_document.name)
-
         return document
 
     def get_content(self, document_id: str) -> str:

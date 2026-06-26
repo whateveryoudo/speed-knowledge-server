@@ -15,10 +15,11 @@ from app.schemas.document_node import (
     DocumentNodeResponse,
     DocumentNodeCreate,
     DragDocumentNodeParams,
+    DocumentNodeUpdate,
 )
 from datetime import datetime
 from app.services.collect_service import CollectService
-from app.common.enums import CollectResourceType
+from app.common.enums import CollectResourceType, DocumentNodeType
 from app.schemas.user import UserResponse
 
 router = APIRouter()
@@ -40,8 +41,6 @@ async def create_document(
     created_document_node = document_service.create(document_data)
 
     return created_document_node
-
-
 
 
 @router.get("/{knowledge_id}/document/list", response_model=List[DocumentResponse])
@@ -70,8 +69,6 @@ async def get_document_detail(
     return DocumentResponse.model_validate(document).model_copy(
         update={"has_collected": collected_record is not None}
     )
-
-
 
 
 @router.put("/{identifier}", response_model=DocumentResponse)
@@ -131,8 +128,6 @@ async def get_context_users(
     return document_service.get_context_users(document_id, keyword)
 
 
-
-
 @node_router.post(
     "/catalog_nodes",
     response_model=DocumentNodeResponse,
@@ -169,3 +164,14 @@ async def delete_document_node(
     """删除文档节点（1.DOC软删；2.双向链表更新；3.递归删除子项）"""
     document_node_service = DocumentNodeService(db)
     return document_node_service.delete_node(node_id)
+
+
+@node_router.put("/{node_id}", response_model=None)
+async def update_document_node(
+    node_id: str,
+    document_node_in: DocumentNodeUpdate,
+    db: Session = Depends(get_db),
+) -> None:
+    """更新文档节点"""
+    document_node_service = DocumentNodeService(db)
+    return document_node_service.update_node(node_id, document_node_in)
