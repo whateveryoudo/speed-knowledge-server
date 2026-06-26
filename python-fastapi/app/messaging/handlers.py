@@ -1,6 +1,5 @@
 from app.db.session import SessionLocal
 from app.services.document_service import DocumentService
-from app.ai.chains.index_chain import index_document_form_json
 from typing import TypedDict
 
 class DocumentContentUpdatedDict(TypedDict):
@@ -20,6 +19,8 @@ async def handle_document__content_updated(evt: DocumentContentUpdatedDict):
         if node_json is None:
             raise ValueError(f"文档内容不存在")
         try:
+            from app.ai.chains.index_chain import index_document_form_json
+
             index_document_form_json(
                 event_id=evt.get("event_id"),
                 knowledge_id=evt.get("knowledge_id"),

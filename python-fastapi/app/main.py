@@ -30,7 +30,12 @@ async def lifespan(app: FastAPI):
     """应用生命周期"""
     global scheduler
     scheduler = start_scheduler()
-    consumer_task = asyncio.create_task(start_rabbitmq_consumer())
+    consumer_task = None
+    if settings.ENABLE_VECTOR_SYNC:
+        consumer_task = asyncio.create_task(start_rabbitmq_consumer())
+        print("MQ 向量同步消费者已启动")
+    else:
+        print("MQ 向量同步消费者已关闭（ENABLE_VECTOR_SYNC=false）")
 
     app.state.scheduler = scheduler
     app.state.consumer_task = consumer_task
@@ -41,11 +46,12 @@ async def lifespan(app: FastAPI):
             scheduler.shutdown()
         except Exception as e:
             print(f"关闭定时任务失败: {e}")
-        consumer_task.cancel()
-        try:
-            await consumer_task
-        except Exception as e:
-            print(f"关闭消费者任务失败: {e}")
+        if consumer_task is not None:
+            consumer_task.cancel()
+            try:
+                await consumer_task
+            except Exception as e:
+                print(f"关闭消费者任务失败: {e}")
 
 
 app = FastAPI(
