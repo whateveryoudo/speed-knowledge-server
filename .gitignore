@@ -1,0 +1,8 @@
+# 本地环境变量（服务器/本机各自维护，勿提交）
+.env
+.env.local
+.env.*.local
+
+# 本地 compose（以 docker-compose.example.yml 为模板复制后使用）
+docker-compose.yml
+docker-compose.override.yml
