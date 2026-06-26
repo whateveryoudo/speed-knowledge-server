@@ -40,9 +40,7 @@ services:
       - minio-data:/data
 
   app:
-    build:
-      context: ./python-fastapi
-      dockerfile: Dockerfile
+    image: crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge/app:latest,
     container_name: speed-knowledge-app
     restart: unless-stopped
     env_file:
@@ -71,9 +69,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
   nestjs:
-    build:
-      context: ./nodejs-nestjs
-      dockerfile: Dockerfile
+    image: crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge/nestjs:latest,
     container_name: speed-knowledge-nestjs
     restart: unless-stopped
     environment:

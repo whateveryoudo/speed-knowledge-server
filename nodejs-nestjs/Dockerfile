@@ -3,50 +3,36 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 复制依赖文件
 COPY package*.json ./
 COPY pnpm-lock.yaml* ./
 
-# 安装 pnpm 和依赖
-RUN npm install -g pnpm
+# bcrypt 等 native 模块需要编译工具（仅 builder 阶段，不会进入最终镜像）
+RUN apk add --no-cache python3 make g++
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 RUN pnpm install --frozen-lockfile
 
-# 复制源代码
 COPY . .
 
-# 构建应用
 RUN pnpm run build
+RUN pnpm prune --prod
 
 # 生产阶段
 FROM node:20-alpine
 
 WORKDIR /app
 
-# 创建非 root 用户
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 
-# 复制依赖文件
-COPY package*.json ./
-COPY pnpm-lock.yaml* ./
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
+COPY --chown=nestjs:nodejs package.json ./
 
-# 安装生产依赖
-RUN npm install -g pnpm
-RUN pnpm install --prod --frozen-lockfile
-
-# 从构建阶段复制编译后的代码
-COPY --from=builder /app/dist ./dist
-
-# 设置用户
 USER nestjs
 
-# 暴露端口
 EXPOSE 3000
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# 启动应用
 CMD ["node", "dist/main"]
-

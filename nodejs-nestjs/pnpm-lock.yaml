@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@speed-sheet/shared': file:../../speed-sheet/packages/shared
-
 importers:
 
   .:
@@ -63,11 +60,11 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0(socket.io-adapter@2.5.6)
       '@speed-sheet/core':
-        specifier: file:../../speed-sheet/packages/core
-        version: file:../../speed-sheet/packages/core
+        specifier: ^0.1.2
+        version: 0.1.2(yjs@13.6.29)
       '@speed-sheet/shared':
-        specifier: file:../../speed-sheet/packages/shared
-        version: file:../../speed-sheet/packages/shared
+        specifier: ^0.1.2
+        version: 0.1.2
       '@tiptap/core':
         specifier: ^3.0.6
         version: 3.15.1(@tiptap/pm@3.15.1)
@@ -790,11 +787,13 @@ packages:
     peerDependencies:
       socket.io-adapter: ^2.5.4
 
-  '@speed-sheet/core@file:../../speed-sheet/packages/core':
-    resolution: {directory: ../../speed-sheet/packages/core, type: directory}
+  '@speed-sheet/core@0.1.2':
+    resolution: {integrity: sha512-RLqzDhFVkRvbdMYrQ8URMIRQ+3n9aYGGfskPlrvIVoTHZqvZ/YCQegGw4+kn10BLNxtHmCoDWCzspLkn7GUt5A==}
+    peerDependencies:
+      yjs: ^13.6.0
 
-  '@speed-sheet/shared@file:../../speed-sheet/packages/shared':
-    resolution: {directory: ../../speed-sheet/packages/shared, type: directory}
+  '@speed-sheet/shared@0.1.2':
+    resolution: {integrity: sha512-e9k6hCcyX5JvBfT9JEL+fwGPsDKuFYWBMcD1w73dUqESCFhawWKmv8H570x1DLDQJV7J1pcAZUyxE7nhziUh2g==}
 
   '@sqltools/formatter@1.2.5':
     resolution: {integrity: sha512-Uy0+khmZqUrUGm5dmMqVlnvufZRSK0FbYzVgp0UMstm+F5+W2/jnEEQyc9vo1ZR/E5ZI/B1WjjoTqBqwJL6Krw==}
@@ -4702,12 +4701,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@speed-sheet/core@file:../../speed-sheet/packages/core':
+  '@speed-sheet/core@0.1.2(yjs@13.6.29)':
     dependencies:
-      '@speed-sheet/shared': file:../../speed-sheet/packages/shared
+      '@speed-sheet/shared': 0.1.2
       yjs: 13.6.29
 
-  '@speed-sheet/shared@file:../../speed-sheet/packages/shared':
+  '@speed-sheet/shared@0.1.2':
     dependencies:
       nanoid: 5.1.11
 
