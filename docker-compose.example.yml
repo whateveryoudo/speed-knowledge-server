@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: ${ACR_REGISTRY}/nginx-1.27-alpine:latest
     container_name: speed-knowledge-nginx
     restart: unless-stopped
     ports:
@@ -12,7 +12,7 @@ services:
       - app
       - nestjs
   db:
-    image: mysql:8.4.5
+    image: ${ACR_REGISTRY}/mysql-8.4.5:latest
     container_name: speed-knowledge-db
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       - mysql-data:/var/lib/mysql
 
   redis:
-    image: redis:7-alpine
+    image: ${ACR_REGISTRY}/redis-7-alpine:latest
     container_name: speed-knowledge-redis
     restart: unless-stopped
     volumes:
@@ -40,7 +40,7 @@ services:
       - minio-data:/data
 
   app:
-    image: crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge/app:latest
+    image: ${ACR_REGISTRY}/app:latest
     container_name: speed-knowledge-app
     restart: unless-stopped
     env_file:
@@ -60,7 +60,7 @@ services:
       - minio
       - rabbitmq
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: ${ACR_REGISTRY}/rabbitmq-3-management-alpine:latest
     container_name: speed-knowledge-rabbitmq
     restart: unless-stopped
     environment:
@@ -69,7 +69,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
   nestjs:
-    image: crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge/nestjs:latest
+    image: ${ACR_REGISTRY}/nestjs:latest
     container_name: speed-knowledge-nestjs
     restart: unless-stopped
     environment:
