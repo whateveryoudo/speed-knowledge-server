@@ -1,32 +1,48 @@
 # 多阶段构建
-FROM node:20-alpine AS builder
+# ECS 为 linux/amd64；Mac 上请用 scripts/deploy-app.sh nestjs（buildx --platform linux/amd64）
+ARG NODE_IMAGE=docker.m.daocloud.io/library/node:20-alpine
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml ./
 
-# bcrypt 等 native 模块需要编译工具（仅 builder 阶段，不会进入最终镜像）
-RUN apk add --no-cache python3 make g++
+RUN npm config set registry "${NPM_REGISTRY}" \
+  && npm install -g pnpm@9.15.0 \
+  && pnpm config set registry "${NPM_REGISTRY}"
 
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
-RUN pnpm install --frozen-lockfile
+# 构建阶段不需要运行 native install 脚本（bcrypt 在生产阶段编译）
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY . .
 
 RUN pnpm run build
-RUN pnpm prune --prod
 
-# 生产阶段
-FROM node:20-alpine
+# 生产阶段在本镜像平台安装依赖并编译 bcrypt，避免跨架构拷贝 node_modules
+FROM ${NODE_IMAGE}
+
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 WORKDIR /app
 
-RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
+RUN apk add --no-cache python3 make g++ \
+  && npm config set registry "${NPM_REGISTRY}" \
+  && npm install -g pnpm@9.15.0 \
+  && pnpm config set registry "${NPM_REGISTRY}"
 
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY package.json pnpm-lock.yaml ./
+
+ENV npm_config_build_from_source=true
+RUN pnpm install --frozen-lockfile --prod \
+  && pnpm rebuild bcrypt \
+  && apk del python3 make g++
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 \
+  && chown -R nestjs:nodejs /app
+
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
-COPY --chown=nestjs:nodejs package.json ./
 
 USER nestjs
 

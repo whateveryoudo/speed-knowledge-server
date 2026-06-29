@@ -5,9 +5,13 @@ from app.schemas.team import TeamCreate, TeamUpdate, TeamResponse
 from app.schemas.team_member import TeamMemberCreate, TeamMemberResponse
 from app.services.team_member_service import TeamMemberService
 from app.core.deps import get_db
+from typing import List
 
 router = APIRouter()
 
+@router.get("/list", response_model=List[TeamResponse])
+def get_team_list(space_id: str, db: Session = Depends(get_db)):
+    return TeamService(db).get_team_list_by_space_id(space_id)
 
 @router.post("/member", response_model=TeamMemberResponse)
 def add_member(member: TeamMemberCreate, db: Session = Depends(get_db)):

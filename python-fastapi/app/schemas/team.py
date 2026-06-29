@@ -30,6 +30,7 @@ class TeamUpdate(TeamBase):
 
 class TeamResponse(TeamBase):
     id: str = Field(..., description="团队ID")
+    is_default: bool = Field(default=False, description="是否为默认团队（个人花园）")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 

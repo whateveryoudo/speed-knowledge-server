@@ -20,6 +20,10 @@ class TeamService(BaseService):
         """生成团队短链"""
         return "".join(secrets.choice(alphabet) for _ in range(6))
 
+    def get_team_list_by_space_id(self, space_id: str):
+        """根据空间ID获取团队列表"""
+        return self.get_active_query().filter(Team.space_id == space_id)
+
     def get_team(self, team_id: str):
         return self.get_active_query().filter(Team.id == team_id).first()
 
@@ -41,7 +45,11 @@ class TeamService(BaseService):
         temp_slug = self._generate_slug()
         while self.get_active_query().filter(Team.slug == temp_slug).first():
             temp_slug = self._generate_slug()
-        team_row = Team(**team_create.model_dump(exclude={"members","slug"}), slug = temp_slug)
+        team_row = Team(
+            **team_create.model_dump(exclude={"members", "slug"}),
+            slug=temp_slug,
+            is_default=True,
+        )
         self.db.add(team_row)
         self.db.flush()
         # 追加默认成员

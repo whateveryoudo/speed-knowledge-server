@@ -3,7 +3,6 @@ from fastapi import HTTPException, status
 from app.models.knowledge_common_pin import KnowledgeCommonPin
 from app.models.knowledge import Knowledge
 from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
-from app.services.knowledge_service import KnowledgeService
 from typing import List
 from app.common.utils import next_order_index, is_duplicate_entry
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +15,8 @@ class KnowledgeCommonPinService:
     def _to_response(
         self, pin: KnowledgeCommonPin, user_id: int
     ) -> KnowledgeCommonPinResponse | None:
+        """转换为响应对象"""
+        from app.services.knowledge_service import KnowledgeService
         knowledge_service = KnowledgeService(self.db)
         knowledge = (
             knowledge_service.get_active_query()
