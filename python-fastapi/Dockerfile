@@ -1,5 +1,7 @@
 # 多阶段构建
-FROM python:3.11-slim AS builder
+# 国内 Mac 默认走 DaoCloud 镜像；可覆盖: --build-arg PYTHON_IMAGE=python:3.13-slim
+ARG PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.13-slim
+FROM ${PYTHON_IMAGE} AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -17,7 +19,7 @@ COPY . .
 
 RUN uv sync --frozen --no-dev
 
-FROM python:3.11-slim
+FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 

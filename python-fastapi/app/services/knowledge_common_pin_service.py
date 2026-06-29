@@ -48,7 +48,9 @@ class KnowledgeCommonPinService:
             .first()
         )
 
-    def create(self, knowledge_id: str, user_id: int) -> KnowledgeCommonPinResponse:
+    def create(
+        self, knowledge_id: str, user_id: int, *, commit: bool = True
+    ) -> KnowledgeCommonPinResponse:
         """创建一条常用知识库记录"""
         existing_record = self.get_by_knowledge_id_and_user_id(knowledge_id, user_id)
         if existing_record:
@@ -66,6 +68,15 @@ class KnowledgeCommonPinService:
             user_id=user_id,
         )
         self.db.add(new_record)
+        if not commit:
+            self.db.flush()
+            response = self._to_response(new_record, user_id)
+            if not response:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="知识库不存在或已删除",
+                )
+            return response
         try:
             self.db.commit()
         except IntegrityError as e:

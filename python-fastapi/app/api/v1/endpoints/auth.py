@@ -12,7 +12,7 @@ from app.core.redis_client import get_redis
 from app.schemas.user import Token, CaptchaResponse
 from app.core.deps import get_db
 from app.services.user_service import UserService
-from app.core.security import create_access_token, verify_captcha
+from app.core.security import create_access_token, verify_captcha, get_client_ip
 from app.schemas.user import OAuth2PasswordRequestFormWithCaptcha
 
 router = APIRouter()
@@ -30,7 +30,7 @@ async def login(
     if verify_captcha(
         captcha_id=form_data.verificateId,
         captcha_value=form_data.verificateCode,
-        client_ip=request.client.host,
+        client_ip=get_client_ip(request),
         redis_client=redis_client,
     ):
         """验证码校验通过"""
@@ -55,12 +55,7 @@ async def getverificate_code(
     request: Request, redis_client: redis.Redis = Depends(get_redis)
 ) -> CaptchaResponse:
     """获取图形验证码"""
-    client_ip = request.client.host
-    # 是否有代理
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
-
+    client_ip = get_client_ip(request)
     # 生成4位随机验证码
     captcha_txt = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
 

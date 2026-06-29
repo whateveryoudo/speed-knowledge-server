@@ -1,4 +1,3 @@
-from warnings import deprecated
 from app.db.base import Base
 from sqlalchemy import Column, String, DateTime, Enum, ForeignKey,func, Integer
 from sqlalchemy.orm import relationship

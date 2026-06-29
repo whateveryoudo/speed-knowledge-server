@@ -1,10 +1,5 @@
 from typing import Optional, List, Union
 from fastapi import HTTPException, status
-from app.schemas.collaborator import (
-    CollaboratorValidInfo,
-    CollaboratorValidParams,
-    QueryPermissionGroupParams,
-)
 from sqlalchemy.orm import Session, joinedload
 from app.models.knowledge import Knowledge
 from app.models.document import Document
@@ -12,9 +7,13 @@ from app.models.collaborator import Collaborator
 from app.models.permission_group import PermissionGroup
 from app.core.config import settings
 from app.schemas.collaborator import (
+    CollaboratorValidInfo,
+    CollaboratorValidParams,
+    QueryPermissionGroupParams,
     CollaboratorResponse,
     CollaboratorCreate,
     CollaboratorAudit,
+    CollaboratorUpdateInfo,
 )
 from app.schemas.notification import NotificationSendRequest
 from app.common.enums import (

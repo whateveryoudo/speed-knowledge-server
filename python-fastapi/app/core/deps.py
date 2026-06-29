@@ -26,6 +26,7 @@ from app.common.enums import (
     DocumentAbility,
 )
 from app.core.config import settings
+from app.common.utils import get_space_subdomain
 
 
 def get_db() -> Generator:
@@ -211,12 +212,11 @@ def get_current_space(
     current_user: User = Depends(get_current_user),
 ):
     """获取当前空间"""
-    host = request.headers.get("host", "").split(";")[0]
-    parts = host.split(".")
+    host = request.headers.get("host", "")
     space_service = SpaceService(db)
-    if len(parts) >= 3 and parts[0] not in {"localhost"}:
-        space_domin = parts[0]
-        space = space_service.get_by_domin(space_domin)
+    space_domin = get_space_subdomain(host)
+    if space_domin:
+        space = space_service.get_space_by_domin(space_domin)
         if not space:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"

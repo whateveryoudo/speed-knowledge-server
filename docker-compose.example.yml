@@ -18,6 +18,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-speed-knowledge}
+      # 允许 Docker 网段内服务（app 等）连接 root
+      MYSQL_ROOT_HOST: "%"
     volumes:
       - mysql-data:/var/lib/mysql
 
@@ -40,7 +42,7 @@ services:
       - minio-data:/data
 
   app:
-    image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/app:latest
+    image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/app:${APP_IMAGE_TAG:-latest}
     container_name: speed-knowledge-app
     restart: unless-stopped
     env_file:
@@ -69,7 +71,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
   nestjs:
-    image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/nestjs:latest
+    image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/nestjs:${NESTJS_IMAGE_TAG:-latest}
     container_name: speed-knowledge-nestjs
     restart: unless-stopped
     environment:

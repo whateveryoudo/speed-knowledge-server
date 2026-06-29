@@ -7,7 +7,7 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 import redis
 from app.services.user_service import UserService
-from app.core.security import verify_captcha
+from app.core.security import verify_captcha, get_client_ip
 from app.core.redis_client import get_redis
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupCreate
@@ -37,7 +37,7 @@ async def create_user(
     if verify_captcha(
         captcha_id=user_in.verificateId,
         captcha_value=user_in.verificateCode,
-        client_ip=request.client.host,
+        client_ip=get_client_ip(request),
         redis_client=redis_client,
     ):
         """验证码校验通过"""

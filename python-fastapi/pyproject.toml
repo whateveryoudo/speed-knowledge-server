@@ -4,7 +4,7 @@ target-version = ['py310']
 include = '\.pyi?$'
 
 [project]
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 name = "speed-knowledge-server"
 version = "0.1.0"
 description = "Speed Knowledge Server"

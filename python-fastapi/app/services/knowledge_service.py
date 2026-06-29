@@ -39,6 +39,7 @@ from sqlalchemy.exc import IntegrityError
 from app.common.utils import is_duplicate_entry, is_slug_duplicate
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.schemas.knowledge_group_relation import KnowledgeGroupRelationCreate
+from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
 
 alphabet = string.ascii_letters + string.digits
 
@@ -138,6 +139,13 @@ class KnowledgeService(BaseService[Knowledge]):
                             target_id=knowledge.id,
                         )
                     )
+                # 默认添加为常用知识库
+                common_pin_service = KnowledgeCommonPinService(self.db)
+                common_pin_service.create(
+                    knowledge.id,
+                    knowledge_in.user_id,
+                    commit=False
+                )
 
                 self.db.commit()
                 self.db.refresh(knowledge)
@@ -145,7 +153,7 @@ class KnowledgeService(BaseService[Knowledge]):
             except IntegrityError as e:
                 self.db.rollback()
                 last_exec = e
-                if is_slug_duplicate(e):
+                if is_slug_duplicate(e, "slug"):
                     continue
                 if is_duplicate_entry(e):
                     raise HTTPException(

@@ -236,6 +236,12 @@ async def response_wrapper_middleware(request: Request, call_next):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+@app.get("/health")
+async def health():
+    """健康检查"""
+    return {"status": "ok"}
+
+
 @app.get("/")
 async def root():
     """根路径"""

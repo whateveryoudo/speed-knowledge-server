@@ -3,7 +3,6 @@
 from typing import Optional
 from fastapi import HTTPException, status, Request
 from sqlalchemy import delete
-from typing_extensions import deprecated
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import timedelta, datetime
@@ -11,6 +10,17 @@ from app.core.config import settings
 import redis
 
 pwd_context = CryptContext(schemes=["bcrypt"],  deprecated="auto")
+
+
+def get_client_ip(request: Request) -> str:
+    """获取客户端 IP（nginx 等反代后优先 X-Forwarded-For）"""
+    client_ip = request.client.host if request.client else ""
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    elif request.headers.get("X-Real-IP"):
+        client_ip = request.headers.get("X-Real-IP", client_ip).strip()
+    return client_ip
 
 
 def verify_password(plain_password: str, hased_password: str) -> bool:
