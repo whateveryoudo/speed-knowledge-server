@@ -42,6 +42,14 @@ class KnowledgeListQuery(BasePaginationQuery):
         default=KnowledgeFromWay.OWN, description="查询范围"
     )
 
+class KnowledgeListMineQuery(BasePaginationQuery):
+    """我的知识库列表查询结构(继承自基础分页查询结构)"""
+
+    user_id: Optional[int] = Field(None, description="用户ID，由 endpoint 注入")
+    keyword: Optional[str] = Field(None, description="关键词")
+    abilities: Optional[List[Union[KnowledgeAbility, DocumentAbility]]] = Field(
+        None, description="权限能力过滤，不传则不过滤"
+    )
 
 class KnowledgeResponse(KnowledgeBase):
     """知识库响应结构"""

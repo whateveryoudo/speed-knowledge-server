@@ -12,6 +12,7 @@ from app.core.redis_client import get_redis
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupCreate
 from app.schemas.user import UserResponse, UserFullListParams
+from app.core.security import RateLimitByIP
 from typing import List
 
 router = APIRouter()
@@ -21,6 +22,7 @@ router = APIRouter()
 async def create_user(
     request: Request,
     user_in: UserCreate,
+    _: None = Depends(RateLimitByIP(key_prefix="user", limit=10, window_seconds=60)),
     db: Session = Depends(get_db),
     redis_client: redis.Redis = Depends(get_redis),
 ) -> int:

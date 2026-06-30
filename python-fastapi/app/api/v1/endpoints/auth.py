@@ -9,50 +9,102 @@ import base64
 from app.common.simpleImageCaptcha import SimpleImageCaptcha
 from fastapi.responses import StreamingResponse
 from app.core.redis_client import get_redis
-from app.schemas.user import Token, CaptchaResponse
+from app.schemas.user import Token, CaptchaResponse, LoginErrorResponse
 from app.core.deps import get_db
 from app.services.user_service import UserService
-from app.core.security import create_access_token, verify_captcha, get_client_ip
+from app.core.security import (
+    create_access_token,
+    verify_captcha,
+    get_client_ip,
+    MinIntervalByIP,
+    RateLimitByIP,
+    need_login_captcha,
+    record_login_failure,
+    clear_login_failure,
+)
 from app.schemas.user import OAuth2PasswordRequestFormWithCaptcha
 
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    responses={
+        400: {
+            "model": LoginErrorResponse,
+            "description": "Bad Request",
+        },
+        401: {
+            "model": LoginErrorResponse,
+            "description": "Unauthorized",
+        },
+    },
+)
 async def login(
     request: Request,
+    _: None = Depends(RateLimitByIP(key_prefix="auth", limit=10, window_seconds=60)),
     form_data: OAuth2PasswordRequestFormWithCaptcha = Depends(),
     db: Session = Depends(get_db),
     redis_client: redis.Redis = Depends(get_redis),
 ):
     print(form_data)
-    """用户登录（支持邮箱或用户名登录）"""
-    if verify_captcha(
-        captcha_id=form_data.verificateId,
-        captcha_value=form_data.verificateCode,
-        client_ip=get_client_ip(request),
-        redis_client=redis_client,
-    ):
-        """验证码校验通过"""
-        user_service = UserService(db)
-        # form_data.username 可以是邮箱或用户名
-        user = user_service.authenticate(form_data.username, form_data.password)
 
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名/邮箱或密码错误",
-                headers={"WWW-Authenticate", "Bearer"},
-            )
-        print(user.id)
-        access_token = create_access_token(data={"sub": str(user.id)})
-        print(access_token)
-        return {"access_token": access_token, "token_type": "bearer"}
+    client_ip = get_client_ip(request)
+    user_name = form_data.username
+    captcha_required = need_login_captcha(redis_client, client_ip, user_name)
+
+    if captcha_required and not (form_data.verificateId and form_data.verificateCode):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "需要验证码",
+                "captcha_required": True,
+            },
+        )
+
+    if captcha_required:
+        verify_captcha(
+            captcha_id=form_data.verificateId,
+            captcha_value=form_data.verificateCode,
+            client_ip=get_client_ip(request),
+            redis_client=redis_client,
+        )
+
+    """验证码校验通过"""
+    user_service = UserService(db)
+    # form_data.username 可以是邮箱或用户名
+    user = user_service.authenticate(form_data.username, form_data.password)
+
+    if not user:
+        # 记录失败次数
+        record_login_failure(redis_client, client_ip, user_name)
+        # 判断是否需要验证码
+        captcha_required = need_login_captcha(redis_client, client_ip, user_name)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "message": "用户名/邮箱或密码错误",
+                "captcha_required": captcha_required,
+            },
+            headers={"WWW-Authenticate", "Bearer"},
+        )
+    print(user.id)
+    # 清除登录失败记录
+    clear_login_failure(redis_client, client_ip, user_name)
+    access_token = create_access_token(data={"sub": str(user.id)})
+    print(access_token)
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/getVerificateCode", response_model=CaptchaResponse)
 async def getverificate_code(
-    request: Request, redis_client: redis.Redis = Depends(get_redis)
+    request: Request,
+    _: None = Depends(MinIntervalByIP(key_prefix="captcha", interval_seconds=1)),
+    __: None = Depends(
+        RateLimitByIP(key_prefix="captcha", limit=20, window_seconds=60)
+    ),
+    redis_client: redis.Redis = Depends(get_redis),
 ) -> CaptchaResponse:
     """获取图形验证码"""
     client_ip = get_client_ip(request)

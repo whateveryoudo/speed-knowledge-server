@@ -22,8 +22,8 @@ class OAuth2PasswordRequestFormWithCaptcha(OAuth2PasswordRequestForm):
         grant_type: Annotated[Union[str, None], Form(patter="password")] = None,
         username: Annotated[str, Form(..., description="用户名")],
         password: Annotated[str, Form(..., description="密码")],
-        verificateId: Annotated[str, Form(..., description="验证码ID")],
-        verificateCode: Annotated[str, Form(..., description="验证码")],
+        verificateId: Annotated[Optional[str], Form(..., description="验证码ID")],
+        verificateCode: Annotated[Optional[str], Form(..., description="验证码")],
     ):
         super().__init__(grant_type=grant_type,username=username,password=password)
         self.verificateId = verificateId
@@ -104,3 +104,9 @@ class UserFullListParams(BaseModel):
     """用户完整列表请求体"""
 
     keyword: str = Field(..., description="关键词")
+
+class LoginErrorResponse(BaseModel):
+    """登录失败响应体"""
+
+    message: str = Field(..., description="错误信息")
+    captcha_required: bool = Field(..., description="是否需要验证码")

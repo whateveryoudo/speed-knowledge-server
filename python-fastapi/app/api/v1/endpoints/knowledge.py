@@ -11,6 +11,7 @@ from app.schemas.knowledge import (
     KnowledgeIndexPageResponse,
     KnowledgeFullResponse,
     KnowledgeListQuery,
+    KnowledgeListMineQuery,
 )
 from app.core.deps import (
     get_db,
@@ -69,7 +70,7 @@ async def get_knowledge_list(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaginationResponse:
-    """获取知识库列表"""
+    """获取知识库列表(这里主要是用于 知识库列表区分（我的/被邀请的）)"""
     knowledge_service = KnowledgeService(db)
 
     knowledge_list = knowledge_service.get_list_by_user_id(
@@ -77,6 +78,16 @@ async def get_knowledge_list(
     )
     return knowledge_list
 
+
+@router.post("/mine/list", response_model=PaginationResponse)
+async def get_knowledge_list_mine(
+    query_in: KnowledgeListMineQuery,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaginationResponse:
+    """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
+    knowledge_service = KnowledgeService(db)
+    return knowledge_service.get_list_mine(query_in.model_copy(update={"user_id": current_user.id}))
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(

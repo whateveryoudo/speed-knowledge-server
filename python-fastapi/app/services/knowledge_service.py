@@ -4,7 +4,7 @@ from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
 from app.models.collaborator import Collaborator
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, exists
 from app.schemas.collaborator import CollaboratorCreate
 from app.services.collaborator_service import CollaboratorService
 from app.services.permission_group_service import PermissionGroupService
@@ -28,6 +28,7 @@ from app.schemas.knowledge import (
     KnowledgeResponse,
     KnowledgeRouteContext,
     KnowledgeListQuery,
+    KnowledgeListMineQuery,
 )
 from fastapi import HTTPException
 from fastapi import status
@@ -40,6 +41,10 @@ from app.common.utils import is_duplicate_entry, is_slug_duplicate
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.schemas.knowledge_group_relation import KnowledgeGroupRelationCreate
 from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
+from app.models.permission_group import PermissionGroup
+from app.models.permission_ability import PermissionAbility
+from app.common.enums import KnowledgeAbility, DocumentAbility
+from typing import Union
 
 alphabet = string.ascii_letters + string.digits
 
@@ -104,7 +109,9 @@ class KnowledgeService(BaseService[Knowledge]):
                 self.db.flush()
                 group_id = knowledge_in.group_id
                 if not group_id:
-                    from app.services.knowledge_group_service import KnowledgeGroupService
+                    from app.services.knowledge_group_service import (
+                        KnowledgeGroupService,
+                    )
 
                     default_group = KnowledgeGroupService(self.db).get_default_group(
                         knowledge_in.user_id
@@ -142,9 +149,7 @@ class KnowledgeService(BaseService[Knowledge]):
                 # 默认添加为常用知识库
                 common_pin_service = KnowledgeCommonPinService(self.db)
                 common_pin_service.create(
-                    knowledge.id,
-                    knowledge_in.user_id,
-                    commit=False
+                    knowledge.id, knowledge_in.user_id, commit=False
                 )
 
                 self.db.commit()
@@ -224,6 +229,44 @@ class KnowledgeService(BaseService[Knowledge]):
 
         return query.order_by(*order_clauses)
 
+    def _apply_abilities_filter(
+        self, query, abilities: List[Union[KnowledgeAbility, DocumentAbility]]
+    ):
+        """权限能力过滤"""
+        if not abilities:
+            return query
+
+        for ability in abilities:
+            ability_key = ability.value if hasattr(ability, "value") else ability
+            query = query.filter(
+                exists().where(
+                    and_(
+                        PermissionGroup.target_id == Knowledge.id,
+                        PermissionGroup.target_type
+                        == CollaborateResourceType.KNOWLEDGE.value,
+                        PermissionGroup.role == Collaborator.role,
+                        PermissionAbility.permission_group_id == PermissionGroup.id,
+                        PermissionAbility.ability_key == ability_key,
+                        PermissionAbility.enable.is_(True),
+                    )
+                )
+            )
+        return query
+
+    def _build_mine_query(self, query_in: KnowledgeListMineQuery):
+        """我的知识库查询条件"""
+        return (
+            self.db.query(Collaborator)
+            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
+            .filter(
+                Collaborator.user_id == query_in.user_id,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                Knowledge.deleted_at.is_(None),
+            )
+            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
+        )
+
     def _build_collaborate_query(self, query_in: KnowledgeListQuery):
         """邀请协作知识库查询条件"""
         return (
@@ -289,6 +332,41 @@ class KnowledgeService(BaseService[Knowledge]):
             for row in rows
         ]
 
+        return paginate_response(items, total, has_more, query_in)
+
+    def get_list_mine(self, query_in: KnowledgeListMineQuery) -> PaginationResponse:
+        """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
+        query = self._build_mine_query(query_in)
+        query = self._apply_abilities_filter(query, query_in.abilities)
+        query = self._apply_filters(query, query_in)
+        query = self._apply_sorter(query, query_in.sorts)
+
+        rows, total, has_more = paginate_query(
+            query, PaginationQuery(page=query_in.page, page_size=query_in.page_size)
+        )
+
+        # 数据补充（权限）
+        knowledge_ids = [row.knowledge_id for row in rows]
+        # 批量拿回权限能力
+        ability_map = (
+            self.permission_service.get_multiple_permission_ability_by_resources(
+                query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+            )
+        )
+        # 组装成和get_list_by_user_id一样的响应结构
+        items = [
+            self._to_response(
+                row.knowledge,
+                row.id,
+                (
+                    KnowledgeFromWay.OWN
+                    if row.source == CollaboratorSource.CREATOR.value
+                    else KnowledgeFromWay.COLLABORATION
+                ),
+                ability_map,
+            )
+            for row in rows
+        ]
         return paginate_response(items, total, has_more, query_in)
 
     def soft_delete(self, knowledge_id: str) -> bool:

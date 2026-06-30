@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     DEBUG: bool
     DOMAIN: str
 
+    # 登录失败次数和窗口时间
+    LOGIN_FAIL_THRESHOLD: int
+    LOGIN_FAIL_WINDOW_SECONDS: int
+
     # CORS配置
     CORS_ORIGINS_RAW: str = "*"
 
