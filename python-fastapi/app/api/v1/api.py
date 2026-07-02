@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     dashboard,
     notification,
     internal,
+    search,
 )
 from app.api.v1.endpoints.ai import doubao
 
@@ -37,3 +38,4 @@ api_router.include_router(doubao.router, prefix="/ai/doubao")
 # api_router.include_router(robot.router, prefix="/ai/robot")
 api_router.include_router(notification.router, prefix="/notification")
 api_router.include_router(internal.router, prefix="/internal")
+api_router.include_router(search.router, prefix="/search")

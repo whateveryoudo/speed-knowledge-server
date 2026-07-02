@@ -4,7 +4,13 @@ from fastapi import APIRouter, status, Depends, HTTPException, Query
 from sqlalchemy.orm.session import Session
 from typing import List
 from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
-from app.core.deps import get_db, get_current_user, get_document_or_403
+from app.core.deps import (
+    get_db,
+    VertifyDocumentPermission,
+    get_current_user,
+    get_document_or_403,
+    get_knowledge_or_403,
+)
 from app.models.user import User
 from app.services.document_service import DocumentService
 from app.services.document_node_service import DocumentNodeService
@@ -19,8 +25,9 @@ from app.schemas.document_node import (
 )
 from datetime import datetime
 from app.services.collect_service import CollectService
-from app.common.enums import CollectResourceType, DocumentNodeType
+from app.common.enums import CollectResourceType, DocumentAbility, DocumentNodeType
 from app.schemas.user import UserResponse
+from app.models.knowledge import Knowledge
 
 router = APIRouter()
 node_router = APIRouter()
@@ -43,15 +50,15 @@ async def create_document(
     return created_document_node
 
 
-@router.get("/{knowledge_id}/document/list", response_model=List[DocumentResponse])
+@router.get("/{identifier}/document/list", response_model=List[DocumentResponse])
 async def get_document_list_by_knowledge_id(
-    knowledge_id: str,
+    knowledge: Knowledge = Depends(get_knowledge_or_403),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[DocumentResponse]:
     """获取知识库下的文档列表"""
     document_service = DocumentService(db)
-    document_list = document_service.get_list_by_knowledge_id(knowledge_id)
+    document_list = document_service.get_list_by_knowledge_id(knowledge.id)
     return document_list
 
 
@@ -75,7 +82,7 @@ async def get_document_detail(
 async def update_document(
     identifier: str,
     document_in: DocumentUpdate,
-    document: Document = Depends(get_document_or_403),
+    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_EDIT)),
     db: Session = Depends(get_db),
 ) -> Document:
     """更新文档"""
@@ -85,20 +92,20 @@ async def update_document(
     return updated_document
 
 
-@router.get("/content/{document_id}", response_model=str)
+@router.get("/content/{identifier}", response_model=str)
 async def get_document_content(
-    document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    document: Document = Depends(get_document_or_403),
 ) -> str:
     """获取文档内容(这里是json数据)"""
     document_service = DocumentService(db)
-    document_content = document_service.get_content(document_id)
+    document_content = document_service.get_content(document.id)
     # 更新浏览历史记录
     document_view_history_service = DocumentViewHistoryService(db)
     document_view_history_service.create(
         DocumentViewHistoryCreate(
-            document_id=document_id,
+            document_id=document.id,
             viewed_user_id=current_user.id,
             viewed_datetime=datetime.now(),
         )
@@ -108,13 +115,12 @@ async def get_document_content(
 
 @router.delete("/{identifier}", response_model=None)
 async def delete_document(
-    identifier: str,
-    document: Document = Depends(get_document_or_403),
+    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_DELETE)),
     db: Session = Depends(get_db),
 ) -> None:
     """删除文档"""
     document_service = DocumentService(db)
-    return document_service.delete_by_id_or_slug(identifier)
+    return document_service.delete_by_id_or_slug(document.id)
 
 
 @router.get("/{document_id}/context-users", response_model=List[UserResponse])

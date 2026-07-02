@@ -1,5 +1,6 @@
 """权限能力聚合服务"""
 
+from fastapi import HTTPException
 from tokenize import group
 from typing import Optional, Dict, Union, List
 from sqlalchemy.orm import Session
@@ -12,11 +13,12 @@ from app.services.permission_ability_service import PermissionAbilityService
 from app.common.enums import CollaborateResourceType, KnowledgeAbility, DocumentAbility
 from app.services.permission_group_service import PermissionGroupService
 from app.models.permission_group import PermissionGroup
+
 # from app.services.document_collaborator_service import DocumentCollaboratorService
 from app.models.collaborator import Collaborator
 from collections import defaultdict
 from app.models.permission_ability import PermissionAbility
-
+from app.models.knowledge import Knowledge
 
 
 class PermissionService:
@@ -66,6 +68,30 @@ class PermissionService:
             CollaboratorRole.EDITOR,
         ]
 
+    def assert_knowledge_readable(self, user_id: int, identifier: str) -> Knowledge:
+        """封装一层知识库是否可读（用于deps和其他一些场景）"""
+        from app.services.knowledge_service import KnowledgeService
+
+        knowledge_service = KnowledgeService(self.db)
+        knowledge = knowledge_service.get_by_id_or_slug(identifier)
+        if not knowledge:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if not self.can_read_knowledge(user_id, knowledge.id, knowledge.is_public):
+            raise HTTPException(status_code=403, detail="你无权访问此知识库")
+        return knowledge
+
+    def assert_document_readable(self, user_id: int, identifier: str) -> Document:
+        """封装一层文档是否可读（用于deps和其他一些场景）"""
+        from app.services.document_service import DocumentService
+
+        document_service = DocumentService(self.db)
+        document = document_service.get_by_id_or_slug(identifier)
+        if not document:
+            raise HTTPException(status_code=404, detail="文档不存在")
+        if not self.can_read_document(user_id, document, document.is_public):
+            raise HTTPException(status_code=403, detail="你无权访问此文档")
+        return document
+
     def can_read_knowledge(
         self, user_id: int, knowledge_id: str, is_public: bool
     ) -> bool:
@@ -87,16 +113,33 @@ class PermissionService:
         # TODO:当前文档的协同角色
         return False
 
-    def can_read_document(self, user_id: int, document: Document) -> bool:
+    def can_read_document(
+        self, user_id: int, document: Document, is_public: bool
+    ) -> bool:
         # 如果是创建者
         if document.user_id == user_id:
             return True
+        # 增加公开知识库判断和文档公开判断
+        if is_public or (
+            document and document.knowledge and document.knowledge.is_public
+        ):
+            return True
+
         # 知识库角色
         knowledge_role = self.get_user_role_in_knowledge(user_id, document.knowledge_id)
 
         if knowledge_role is not None:
             return True
-        # TODO:当前文档的协同角色
+
+        doc_collaborator = self.collaborator_service.get_collaborator_by_resource(
+            QueryPermissionGroupParams(
+                user_id=user_id,
+                target_type=CollaborateResourceType.DOCUMENT,
+                target_id=document.id,
+            )
+        )
+        if doc_collaborator is not None:
+            return True
         return False
 
     def _build_ability_dict(
@@ -115,6 +158,10 @@ class PermissionService:
             if enum_key is not None:
                 result[enum_key] = ability.enable
         return result
+
+    def get_guest_readonly_abilities(self) -> dict:
+        """用于获取游客的权限能力(全部只读)"""
+        return self.permission_ability_service.get_guest_readonly_abilities()
 
     def get_multiple_permission_ability_by_resources(
         self, user_id: int, target_type: CollaborateResourceType, target_ids: List[str]

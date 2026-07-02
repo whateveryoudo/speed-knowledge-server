@@ -17,6 +17,7 @@ from app.core.deps import (
     get_db,
     get_current_user,
     VertifyKnowledgePermission,
+    get_knowledge_or_403,
 )
 from app.models.user import User
 from app.models.knowledge import Knowledge
@@ -87,14 +88,15 @@ async def get_knowledge_list_mine(
 ) -> PaginationResponse:
     """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
     knowledge_service = KnowledgeService(db)
-    return knowledge_service.get_list_mine(query_in.model_copy(update={"user_id": current_user.id}))
+    return knowledge_service.get_list_mine(
+        query_in.model_copy(update={"user_id": current_user.id})
+    )
+
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
     current_user: User = Depends(get_current_user),
-    knowledge: Knowledge = Depends(
-        VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)
-    ),
+    knowledge: Knowledge = Depends(get_knowledge_or_403),
     db: Session = Depends(get_db),
 ) -> Knowledge:
     """通过短链/id获取知识库详情"""
@@ -105,9 +107,7 @@ async def get_knowledge_detail(
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
-    knowledge: Knowledge = Depends(
-        VertifyKnowledgePermission(KnowledgeAbility.READ_BOOK)
-    ),
+    knowledge: Knowledge = Depends(get_knowledge_or_403),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeIndexPageResponse:
@@ -237,15 +237,15 @@ async def move_knowledge_group_relation(
     relation_service.move_relation(current_user.id, knowledge_id, move_in)
 
 
-@router.get("/{knowledge_id}/document/tree", response_model=List[DocumentNodeResponse])
+@router.get("/{identifier}/document/tree", response_model=List[DocumentNodeResponse])
 async def get_document_tree(
-    knowledge_id: str,
+    knowledge: Knowledge = Depends(get_knowledge_or_403),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[DocumentNodeResponse]:
     """获取知识库的文档树"""
     document_tree_service = DocumentNodeService(db)
-    document_tree = document_tree_service.get_document_tree_nodes(knowledge_id)
+    document_tree = document_tree_service.get_document_tree_nodes(knowledge.id)
     print("取到了文档树", document_tree)
     return document_tree
 

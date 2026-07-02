@@ -96,48 +96,54 @@ def get_current_user_from_query(
     return user
 
 
-def vertify_document_permission(
-    ability_key: Union[KnowledgeAbility, DocumentAbility],
-    identifier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> None:
-    """验证资源权限(文档)"""
-    document_service = DocumentService(db)
-    target_document = document_service.get_by_id_or_slug(identifier)
-    if not target_document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
-    permission_service = PermissionService(db)
-    # 当前文档所属的知识库能力集
-    knowledge_ability = (
-        permission_service.get_permission_ability_by_resource(
-            current_user.id,
-            CollaborateResourceType.KNOWLEDGE,
-            target_document.knowledge_id,
+class VertifyDocumentPermission:
+    """验证文档权限（strict，走 ability，不认公开只读）"""
+
+    def __init__(self, ability_key: Union[KnowledgeAbility, DocumentAbility]):
+        self.ability_key = ability_key
+
+    def __call__(
+        self,
+        identifier: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Document:
+        document_service = DocumentService(db)
+        target_document = document_service.get_by_id_or_slug(identifier)
+        if not target_document:
+            raise HTTPException(status_code=404, detail="文档不存在")
+
+        permission_service = PermissionService(db)
+        knowledge_ability = (
+            permission_service.get_permission_ability_by_resource(
+                current_user.id,
+                CollaborateResourceType.KNOWLEDGE,
+                target_document.knowledge_id,
+            )
+            or {}
         )
-        or {}
-    )
-    # 当前文档能力集
-    document_ability = (
-        permission_service.get_permission_ability_by_resource(
-            current_user.id, CollaborateResourceType.DOCUMENT, target_document.id
+        document_ability = (
+            permission_service.get_permission_ability_by_resource(
+                current_user.id,
+                CollaborateResourceType.DOCUMENT,
+                target_document.id,
+            )
+            or {}
         )
-        or {}
-    )
-    # 合并能力集
-    print('knowledge_ability', knowledge_ability, ability_key)
-    merged_ability = {}
-    all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
-    for key in all_keys:
-        merged_ability[key] = bool(
-            knowledge_ability.get(key, False) or document_ability.get(key, False)
-        )
-    if not merged_ability.get(ability_key):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[ability_key]}",
-        )
-    return target_document
+
+        merged_ability = {}
+        all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
+        for key in all_keys:
+            merged_ability[key] = bool(
+                knowledge_ability.get(key, False) or document_ability.get(key, False)
+            )
+
+        if not merged_ability.get(self.ability_key):
+            raise HTTPException(
+                status_code=403,
+                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}",
+            )
+        return target_document
 
 
 def get_document_or_403(
@@ -145,10 +151,17 @@ def get_document_or_403(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Document:
-    """获取文档或返回403"""
-    return vertify_document_permission(
-        DocumentAbility.DOC_READ, identifier, current_user, db
-    )
+    """获取文档或返回403(这里改成了直接使用PermissionService的assert_document_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
+    return PermissionService(db).assert_document_readable(current_user.id, identifier)
+
+
+def get_knowledge_or_403(
+    identifier: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Knowledge:
+    """获取知识库或返回403(这里改成了直接使用PermissionService的assert_knowledge_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
+    return PermissionService(db).assert_knowledge_readable(current_user.id, identifier)
 
 
 class VertifyKnowledgePermission:

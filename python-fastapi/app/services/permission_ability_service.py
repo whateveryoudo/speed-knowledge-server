@@ -87,6 +87,14 @@ class PermissionAbilityService:
     def __init__(self, db: Session):
         self.db = db
 
+    @classmethod
+    def get_guest_readonly_abilities(cls) -> dict:
+        """用于获取游客的权限能力(全部只读)"""
+        return {
+            **cls.__default_knowledge_abilities_dict[CollaboratorRole.READ],
+            **cls.__default_document_abilities_dict[CollaboratorRole.READ],
+        }
+
     def create_permission_ability_by_role(
         self, permission_ability_in: PermissionAbilityCreateByRole
     ) -> PermissionAbility:
