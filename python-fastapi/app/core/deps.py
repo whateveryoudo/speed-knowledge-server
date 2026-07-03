@@ -108,42 +108,14 @@ class VertifyDocumentPermission:
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> Document:
-        document_service = DocumentService(db)
-        target_document = document_service.get_by_id_or_slug(identifier)
-        if not target_document:
-            raise HTTPException(status_code=404, detail="文档不存在")
-
-        permission_service = PermissionService(db)
-        knowledge_ability = (
-            permission_service.get_permission_ability_by_resource(
-                current_user.id,
-                CollaborateResourceType.KNOWLEDGE,
-                target_document.knowledge_id,
-            )
-            or {}
-        )
-        document_ability = (
-            permission_service.get_permission_ability_by_resource(
-                current_user.id,
-                CollaborateResourceType.DOCUMENT,
-                target_document.id,
-            )
-            or {}
-        )
-
-        merged_ability = {}
-        all_keys = set(knowledge_ability.keys()) | set(document_ability.keys())
-        for key in all_keys:
-            merged_ability[key] = bool(
-                knowledge_ability.get(key, False) or document_ability.get(key, False)
-            )
-
-        if not merged_ability.get(self.ability_key):
+        if not isinstance(self.ability_key, DocumentAbility):
             raise HTTPException(
-                status_code=403,
-                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="文档权限校验能力类型不匹配",
             )
-        return target_document
+        return PermissionService(db).assert_document_ability(
+            current_user.id, identifier, self.ability_key
+        )
 
 
 def get_document_or_403(
@@ -177,23 +149,9 @@ class VertifyKnowledgePermission:
         db: Session = Depends(get_db),
     ) -> Optional[Knowledge]:
         """验证资源权限"""
-        knowledge_service = KnowledgeService(db)
-        target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
-        if not target_knowledge:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-            )
-        permission_service = PermissionService(db)
-        ability = permission_service.get_permission_ability_by_resource(
-            current_user.id, CollaborateResourceType.KNOWLEDGE, target_knowledge.id
+        return PermissionService(db).assert_knowledge_ability(
+            current_user.id, identifier, self.ability_key
         )
-        print(ability)
-        if not ability or not ability.get(self.ability_key):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"你无权{permission_service.DEFAULT_ABILITY_NAME_DICT[self.ability_key]}",
-            )
-        return target_knowledge
 
 
 # def vertify_knowledge_manage_permission(

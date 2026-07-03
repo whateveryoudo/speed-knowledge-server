@@ -80,6 +80,21 @@ async def get_knowledge_list(
     return knowledge_list
 
 
+@router.put(
+    "/{identifier}/toggle-public", response_model=bool, status_code=status.HTTP_200_OK
+)
+async def toggle_knowledge_public(
+    identifier: str,
+    knowledge: Knowledge = Depends(
+        VertifyKnowledgePermission(KnowledgeAbility.MODIFY_BOOK_PERMISSION)
+    ),
+    db: Session = Depends(get_db),
+) -> bool:
+    """切换知识库公开状态"""
+    knowledge_service = KnowledgeService(db)
+    return knowledge_service.toggle_public(identifier)
+
+
 @router.post("/mine/list", response_model=PaginationResponse)
 async def get_knowledge_list_mine(
     query_in: KnowledgeListMineQuery,

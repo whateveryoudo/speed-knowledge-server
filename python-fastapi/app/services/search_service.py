@@ -34,8 +34,8 @@ class SearchService:
             for row in self.db.query(Collaborator)
             .filter(
                 Collaborator.user_id == user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED,
-                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
+                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE.value,
                 Collaborator.knowledge_id.isnot(None),
             )
             .distinct()
@@ -76,6 +76,7 @@ class SearchService:
         else:
             # 根据用户id查询协同表中符合的知识库
             accessible_ids = self._get_collaborator_knowledge_ids(user_id)
+            print(f"accessible_ids: {accessible_ids}")
             if not accessible_ids:
                 return []
             query = query.filter(Knowledge.id.in_(accessible_ids))
@@ -84,7 +85,7 @@ class SearchService:
         # 对结果进行处理
         return [self._to_knowledge_item(row) for row in rows]
 
-    def _get_collaborator_document_ids(self, user_id: int) -> List[int]:
+    def   _get_collaborator_document_ids(self, user_id: int) -> List[int]:
         """根据用户id查询协同表中符合的文档id集合"""
         return [
             row.document_id
@@ -130,7 +131,8 @@ class SearchService:
                 Document.name.ilike(f"%{keyword}%"),
             )
         )
-
+        print(f"user_id: {user_id}")
+        print(f"keyword: {keyword}")
         if visibility == SearchVisibilityType.PUBLIC:
             query = query.filter(
                 or_(Document.is_public.is_(True), Knowledge.is_public.is_(True))

@@ -25,7 +25,7 @@ from .chat_message import ChatMessage
 from .notification import Notification
 from .knowledge_common_pin import KnowledgeCommonPin
 from .knowledge_group_relation import KnowledgeGroupRelation
-
+from .resource_access_setting import ResourceAccessSetting
 __all__ = [
     "User",
     "Space",
@@ -52,5 +52,6 @@ __all__ = [
     "ChatMessage",
     "Notification",
     "KnowledgeCommonPin",
-    "KnowledgeGroupRelation"
+    "KnowledgeGroupRelation",
+    "ResourceAccessSetting"
 ]

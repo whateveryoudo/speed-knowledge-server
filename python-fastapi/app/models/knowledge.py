@@ -55,6 +55,10 @@ class Knowledge(SoftDeleteMixin, Base):
         Boolean, nullable=False, server_default=text("0"), comment="是否公开"
     )
 
+    enable_password_protection = Column[bool](
+        Boolean, nullable=False, server_default=text("0"), comment="是否启用高级密码保护,默认不开启"
+    )
+
     enable_catalog = Column[bool](
         Boolean, nullable=False, server_default=text("1"), comment="是否启用目录"
     )

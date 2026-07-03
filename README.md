@@ -4,7 +4,42 @@
 
 > **Speed Knowledge 知识库项目**：实际业务中，Python FastAPI 承担主业务 API，Node.js NestJS 承担协同编辑（Hocuspocus WebSocket）与文档内容初始化服务。
 
+## 🌐 线上环境
+
+| 项目 | 地址 |
+|------|------|
+| **生产 Web（前端）** | [http://speeddoc.cn/](http://speeddoc.cn/) |
+| **API 文档（FastAPI）** | 生产环境一般为 `http://speeddoc.cn/api/docs` 或独立 API 域名（以实际 Nginx 配置为准） |
+
+> **GitHub 仓库主页配置**：仓库 **About → Website** 可填 [http://speeddoc.cn/](http://speeddoc.cn/)，方便在 GitHub 上跳转官网。这与 ECS/Docker 部署无关；**数据库迁移**仍需在服务器执行 `alembic upgrade head`（见下方发布说明）。
+
 ## 📅 更新日志
+
+### 2026-07-03 — 公开访问 & 权限服务重构
+
+#### 🔐 知识库公开与密码保护（Python FastAPI）
+
+- ✅ `resource_access_setting` 表：知识库/文档 1:1 访问配置（4 位明文密码，可空）
+- ✅ Alembic：`5984b406803c` — 创建 `resource_access_setting` 等字段调整
+- ✅ `POST/PUT/DELETE/GET /api/v1/resource` — 密码配置 CRUD（按 target 鉴权）
+- ✅ `PUT /api/v1/knowledge/{identifier}/toggle-public` — 切换 `is_public`（需 `MODIFY_BOOK_PERMISSION`）
+- ✅ `toggle_public` 不再误删密码；关密码走 DELETE 或显式清空
+
+#### 🛡️ 权限层重构
+
+- ✅ `PermissionService`：`assert_knowledge_ability` / `assert_document_ability` / `assert_can_manage_access_setting` / `assert_*_readable`
+- ✅ `deps.Vertify*` 薄转发至 Service；`get_permission_ability_by_resource` 仍为底层能力查询
+- ✅ 文档权限：合并所属知识库 + 文档 ability（`_get_merged_document_ability_map`）
+
+#### 📦 发布 / 数据库
+
+```bash
+# 代码部署后，在 python-fastapi 或 app 容器内执行
+alembic upgrade head
+
+# Docker 示例（项目根目录）
+docker compose exec app alembic upgrade head
+```
 
 ### 2026-05-29 — 表格文档 & 协同服务增强
 

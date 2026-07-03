@@ -1,0 +1,48 @@
+---
+description: SQLAlchemy 枚举列查询与比较约定
+globs: app/**/*.py
+alwaysApply: false
+---
+
+# SQLAlchemy 枚举查询约定
+
+## 两种列声明，行为不同
+
+### 1. `Column(Enum(MyEnum))` — ORM 自动转换
+
+```python
+visibility = Column(Enum(TeamVisibility), ...)
+```
+
+- **读**：DB 值 → Python 枚举成员（如 `TeamVisibility.PUBLIC`）
+- **写 / filter**：可直接用枚举成员，`Model.col == MyEnum.X` 通常可用
+
+### 2. `Column[MyEnum](Integer/String)` — 仅类型标注，ORM 不转换
+
+```python
+status = Column[CollaboratorStatus](Integer, ...)
+target_type = Column[CollaborateResourceType](String(30), ...)
+```
+
+运行时列仍是 **Integer / String**，`Column[...]` 不参与 SQLAlchemy 类型系统。
+
+- **读**：多为原始值 `2`、`'knowledge'`，不是枚举成员
+- **写 / filter**：查询条件必须用 **`.value`**，否则绑参与库中值不一致，条件恒不匹配
+
+```python
+# ✅
+Collaborator.status == CollaboratorStatus.ACCEPTED.value
+
+# ❌ 易导致空结果（如 accessible_ids: []）
+Collaborator.status == CollaboratorStatus.ACCEPTED
+```
+
+## 新代码怎么写
+
+1. 改 model 为 `Column(Enum(...))` 前，**查询/写入一律 `.value`**
+2. 参考 `knowledge_service.py` 中 `Collaborator.status` 的写法
+3. 新增 collaborator 相关 SQL 时：`grep "Collaborator.status =="` 对齐现有惯例
+
+## 不必一次性重构
+
+不必为修一个 bug 把所有 model 改成 `Enum` 列；`.value` 与当前 `Integer`/`String` 存储兼容。

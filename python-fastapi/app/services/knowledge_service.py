@@ -44,6 +44,7 @@ from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
 from app.models.permission_group import PermissionGroup
 from app.models.permission_ability import PermissionAbility
 from app.common.enums import KnowledgeAbility, DocumentAbility
+from app.services.resource_access_service import ResourceAccessService
 from typing import Union
 
 alphabet = string.ascii_letters + string.digits
@@ -281,6 +282,22 @@ class KnowledgeService(BaseService[Knowledge]):
             )
             .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
         )
+
+    def toggle_public(self, identifier: str) -> bool:
+        """切换知识库公开状态"""
+        knowledge = (
+            self.get_active_query()
+            .filter(
+                or_(Knowledge.id == identifier, Knowledge.slug == identifier),
+            )
+            .first()
+        )
+        if knowledge:
+            knowledge.is_public = not knowledge.is_public
+            # 默认不开启高级密码保护
+            self.db.commit()
+            return True
+        return False
 
     def _to_response(
         self,

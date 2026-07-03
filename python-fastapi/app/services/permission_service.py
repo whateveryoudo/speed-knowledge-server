@@ -1,7 +1,6 @@
 """权限能力聚合服务"""
 
-from fastapi import HTTPException
-from tokenize import group
+from fastapi import HTTPException, status
 from typing import Optional, Dict, Union, List
 from sqlalchemy.orm import Session
 from app.models.document import Document
@@ -65,19 +64,131 @@ class PermissionService:
         role = self.get_user_role_in_knowledge(user_id, knowledge_id)
         return role in [
             CollaboratorRole.ADMIN,
-            CollaboratorRole.EDITOR,
+            CollaboratorRole.EDIT,
         ]
 
-    def assert_knowledge_readable(self, user_id: int, identifier: str) -> Knowledge:
-        """封装一层知识库是否可读（用于deps和其他一些场景）"""
+    def _ability_denied_message(
+        self, ability: Union[KnowledgeAbility, DocumentAbility]
+    ) -> str:
+        return f"你无权{self.DEFAULT_ABILITY_NAME_DICT[ability]}"
+
+    def _get_knowledge_ability_map(
+        self, user_id: int, knowledge_id: str
+    ) -> Dict[Union[KnowledgeAbility, DocumentAbility], bool]:
+        return (
+            self.get_permission_ability_by_resource(
+                user_id, CollaborateResourceType.KNOWLEDGE, knowledge_id
+            )
+            or {}
+        )
+
+    def _get_merged_document_ability_map(
+        self, user_id: int, document: Document
+    ) -> Dict[Union[KnowledgeAbility, DocumentAbility], bool]:
+        """合并知识库+ 文档自身的 ability"""
+        knowledge_abilities = self._get_knowledge_ability_map(
+            user_id, document.knowledge_id
+        )
+        document_abilities = (
+            self.get_permission_ability_by_resource(
+                user_id, CollaborateResourceType.DOCUMENT, document.id
+            )
+            or {}
+        )
+        merged_abilities: Dict[Union[KnowledgeAbility, DocumentAbility], bool] = {}
+
+        for key in set(knowledge_abilities.keys()) | set(document_abilities.keys()):
+            merged_abilities[key] = bool(
+                knowledge_abilities.get(key, False)
+                or document_abilities.get(key, False)
+            )
+        return merged_abilities
+
+    def assert_knowledge_ability(
+        self, user_id: int, identifier: str, ability: KnowledgeAbility
+    ) -> Knowledge:
+        """封装一层知识库是否拥有某项能力（用于deps和其他一些场景）"""
         from app.services.knowledge_service import KnowledgeService
 
         knowledge_service = KnowledgeService(self.db)
-        knowledge = knowledge_service.get_by_id_or_slug(identifier)
+        target_knowledge = knowledge_service.get_by_id_or_slug(identifier)
+        if not target_knowledge:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+            )
+        abilities = self._get_knowledge_ability_map(user_id, target_knowledge.id)
+        if not abilities.get(ability):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=self._ability_denied_message(ability),
+            )
+        return target_knowledge
+
+    def assert_document_ability(
+        self, user_id: int, identifier: str, ability: DocumentAbility
+    ) -> Document:
+        """封装一层文档的某项能力（用于deps和其他一些场景）"""
+        from app.services.document_service import DocumentService
+
+        document_service = DocumentService(self.db)
+        target_document = document_service.get_by_id_or_slug(identifier)
+        if not target_document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+            )
+        abilities = self._get_merged_document_ability_map(user_id, target_document)
+        if not abilities.get(ability):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=self._ability_denied_message(ability),
+            )
+        return target_document
+
+    def assert_can_manage_access_setting(
+        self, user_id: int, target_type: CollaborateResourceType, target_id: str
+    ) -> None:
+        """访问高级配置的密码权限"""
+        if target_type == CollaborateResourceType.KNOWLEDGE:
+            self.assert_knowledge_ability(
+                user_id, target_id, KnowledgeAbility.MODIFY_BOOK_PERMISSION
+            )
+            return
+        if target_type == CollaborateResourceType.DOCUMENT:
+            document = self.document_service.get_by_id_or_slug(target_id)
+            if not document:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+                )
+            merged = self._get_merged_document_ability_map(user_id, document)
+            can_share = bool(merged.get(DocumentAbility.DOC_SHARE, False))
+            can_manage_knowledge = bool(
+                merged.get(KnowledgeAbility.MODIFY_BOOK_PERMISSION, False)
+            )
+            if not (can_share or can_manage_knowledge):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=self._ability_denied_message(DocumentAbility.DOC_SHARE),
+                )
+            return
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的资源类型"
+        )
+
+    def assert_knowledge_readable(self, user_id: int, identifier: str) -> Knowledge:
+        """知识库是否可读（含 is_public）"""
+        from app.services.knowledge_service import KnowledgeService
+
+        knowledge = KnowledgeService(self.db).get_by_id_or_slug(identifier)
         if not knowledge:
-            raise HTTPException(status_code=404, detail="知识库不存在")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="知识库不存在",
+            )
         if not self.can_read_knowledge(user_id, knowledge.id, knowledge.is_public):
-            raise HTTPException(status_code=403, detail="你无权访问此知识库")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="你无权访问此知识库",
+            )
         return knowledge
 
     def assert_document_readable(self, user_id: int, identifier: str) -> Document:

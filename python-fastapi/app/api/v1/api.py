@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     notification,
     internal,
     search,
+    resource,
 )
 from app.api.v1.endpoints.ai import doubao
 
@@ -33,6 +34,7 @@ api_router.include_router(document.node_router, prefix="/document-node")
 api_router.include_router(collect.router, prefix="/collect")
 api_router.include_router(collaborator.router, prefix="/collaborator")
 api_router.include_router(doubao.router, prefix="/ai/doubao")
+api_router.include_router(resource.router, prefix="/resource")
 # robot 依赖 Qdrant + embedding，云端向量调试通过后再启用
 # from app.api.v1.endpoints.ai import robot
 # api_router.include_router(robot.router, prefix="/ai/robot")
