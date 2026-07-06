@@ -43,36 +43,50 @@ def get_db() -> Generator:
 
 
 bearer_scheme = HTTPBearer(auto_error=True)
+optional_bearer_scheme = HTTPBearer(auto_error=False)
 
+
+_CREDENTIALS_EXCEPTION = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="无效的令牌，请重新登录",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+def _resolve_user_from_token(token: str, db: Session) -> User:
+    """从access_token中解析用户(这里提取公共方法，多个地方复用)"""
+    # 解密token
+    payload = decode_access_token(token)
+
+    if payload is None:
+        raise _CREDENTIALS_EXCEPTION
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise _CREDENTIALS_EXCEPTION
+
+    user = UserService(db).get_by_id(int(user_id))
+    if user is None:
+        raise _CREDENTIALS_EXCEPTION
+
+    return user
+
+
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """_summary_: 获取当前用户(可选)"""
+    if credentials is None:
+        return None
+    return _resolve_user_from_token(credentials.credentials, db)
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """_summary_: 获取当前用户(鉴权)"""
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="无效的令牌，请重新登录",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    token = credentials.credentials
-    # 解密token
-    payload = decode_access_token(token)
-
-    if payload is None:
-        raise credentials_exception
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise credentials_exception
-
-    user = UserService(db).get_by_id(int(user_id))
-    if user is None:
-        raise credentials_exception
-
-    return user
+    return _resolve_user_from_token(credentials.credentials, db)
 
 
 # 用于获取查询参数中的用户（可以用在一些直接用url访问的）
@@ -120,20 +134,24 @@ class VertifyDocumentPermission:
 
 def get_document_or_403(
     identifier: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> Document:
     """获取文档或返回403(这里改成了直接使用PermissionService的assert_document_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
-    return PermissionService(db).assert_document_readable(current_user.id, identifier)
+    return PermissionService(db).assert_document_readable(
+        current_user.id if current_user and current_user.id else None, identifier
+    )
 
 
 def get_knowledge_or_403(
     identifier: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> Knowledge:
     """获取知识库或返回403(这里改成了直接使用PermissionService的assert_knowledge_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
-    return PermissionService(db).assert_knowledge_readable(current_user.id, identifier)
+    return PermissionService(db).assert_knowledge_readable(
+        current_user.id if current_user and current_user.id else None, identifier
+    )
 
 
 class VertifyKnowledgePermission:

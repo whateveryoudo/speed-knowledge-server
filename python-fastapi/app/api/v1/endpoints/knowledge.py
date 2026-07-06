@@ -18,6 +18,7 @@ from app.core.deps import (
     get_current_user,
     VertifyKnowledgePermission,
     get_knowledge_or_403,
+    get_optional_current_user,
 )
 from app.models.user import User
 from app.models.knowledge import Knowledge
@@ -110,20 +111,23 @@ async def get_knowledge_list_mine(
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
-    current_user: User = Depends(get_current_user),
+    current_user: User| None = Depends(get_optional_current_user),
     knowledge: Knowledge = Depends(get_knowledge_or_403),
     db: Session = Depends(get_db),
 ) -> Knowledge:
     """通过短链/id获取知识库详情"""
-    # 同时追加当前用户的能力集合
     knowledge_service = KnowledgeService(db)
+    if current_user is None:
+        # 支持游客访问知识库详情
+        return knowledge_service.to_wrap_knowledge_response_for_guest(knowledge)
+    # 同时追加当前用户的能力集合
     return knowledge_service.to_wrap_knowledge_response(knowledge, current_user.id)
 
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
     knowledge: Knowledge = Depends(get_knowledge_or_403),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeIndexPageResponse:
     """获取知识库的首页信息"""
@@ -139,9 +143,12 @@ async def get_knowledge_index_page(
             if knowledge_daily_stats
             else None
         )
-        collected_record = collect_service.check_is_collected(
-            current_user.id, knowledge.id, CollectResourceType.KNOWLEDGE
-        )
+        if current_user and current_user.id:
+            collected_record = collect_service.check_is_collected(
+                current_user.id, knowledge.id, CollectResourceType.KNOWLEDGE
+            )
+        else:
+            collected_record = None
         # 合并一些属性
         return KnowledgeIndexPageResponse(
             **knowledge_index_page_schema.model_dump(),
@@ -150,7 +157,7 @@ async def get_knowledge_index_page(
                 if knowledge_daily_stats_schema
                 else 0
             ),
-            has_collected=collected_record is not None,
+            has_collected=collected_record
         )
     else:
         raise HTTPException(
@@ -255,7 +262,7 @@ async def move_knowledge_group_relation(
 @router.get("/{identifier}/document/tree", response_model=List[DocumentNodeResponse])
 async def get_document_tree(
     knowledge: Knowledge = Depends(get_knowledge_or_403),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> List[DocumentNodeResponse]:
     """获取知识库的文档树"""

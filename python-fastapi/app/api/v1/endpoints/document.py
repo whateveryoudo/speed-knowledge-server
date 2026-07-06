@@ -8,6 +8,7 @@ from app.core.deps import (
     get_db,
     VertifyDocumentPermission,
     get_current_user,
+    get_optional_current_user,
     get_document_or_403,
     get_knowledge_or_403,
 )
@@ -66,15 +67,18 @@ async def get_document_list_by_knowledge_id(
 async def get_document_detail(
     document: Document = Depends(get_document_or_403),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ) -> DocumentResponse:
     """通过id或短链获取文档详情"""
-    collect_service = CollectService(db)
-    collected_record = collect_service.check_is_collected(
-        current_user.id, document.id, CollectResourceType.DOCUMENT
-    )
+    if current_user and current_user.id:
+        collect_service = CollectService(db)
+        collected_record = collect_service.check_is_collected(
+            current_user.id, document.id, CollectResourceType.DOCUMENT
+        )
+    else:
+        collected_record = None
     return DocumentResponse.model_validate(document).model_copy(
-        update={"has_collected": collected_record is not None}
+        update={"has_collected": collected_record}
     )
 
 
@@ -95,21 +99,22 @@ async def update_document(
 @router.get("/content/{identifier}", response_model=str)
 async def get_document_content(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     document: Document = Depends(get_document_or_403),
 ) -> str:
     """获取文档内容(这里是json数据)"""
     document_service = DocumentService(db)
     document_content = document_service.get_content(document.id)
-    # 更新浏览历史记录
-    document_view_history_service = DocumentViewHistoryService(db)
-    document_view_history_service.create(
-        DocumentViewHistoryCreate(
-            document_id=document.id,
-            viewed_user_id=current_user.id,
-            viewed_datetime=datetime.now(),
+    # 更新浏览历史记录(游客不更新)
+    if current_user and current_user.id:
+        document_view_history_service = DocumentViewHistoryService(db)
+        document_view_history_service.create(
+            DocumentViewHistoryCreate(
+                document_id=document.id,
+                viewed_user_id=current_user.id,
+                viewed_datetime=datetime.now(),
+            )
         )
-    )
     return document_content
 
 

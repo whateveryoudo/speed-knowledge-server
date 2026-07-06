@@ -17,6 +17,7 @@ from app.schemas.query import BasePaginationQuery
 
 class KnowledgeBase(BaseModel):
     """知识库基础结构"""
+
     user_id: int = Field(..., description="用户ID")
     icon: str = Field(default="icon-book-0", description="知识库图标")
     name: str = Field(..., description="知识库名称", min_length=1, max_length=50)
@@ -42,6 +43,7 @@ class KnowledgeListQuery(BasePaginationQuery):
         default=KnowledgeFromWay.OWN, description="查询范围"
     )
 
+
 class KnowledgeListMineQuery(BasePaginationQuery):
     """我的知识库列表查询结构(继承自基础分页查询结构)"""
 
@@ -50,6 +52,7 @@ class KnowledgeListMineQuery(BasePaginationQuery):
     abilities: Optional[List[Union[KnowledgeAbility, DocumentAbility]]] = Field(
         None, description="权限能力过滤，不传则不过滤"
     )
+
 
 class KnowledgeResponse(KnowledgeBase):
     """知识库响应结构"""
@@ -84,6 +87,7 @@ class KnowledgeRouteContext(BaseModel):
 
 class KnowledgeCreate(KnowledgeBase):
     """创建知识库结构"""
+
     user_id: Optional[int] = Field(default=None, description="所属用户ID")
     group_id: Optional[str] = Field(default=None, description="所属分组ID")
     slug: Optional[str] = Field(
@@ -121,7 +125,7 @@ class KnowledgeIndexPageResponse(KnowledgeFullResponse):
     """知识库首页信息结构"""
 
     word_count: int = Field(..., description="文档字数")
-    has_collected: bool = Field(..., description="是否已收藏")
+    has_collected: Optional[bool] = Field(default=None, description="是否已收藏")
 
     class Config:
         from_attributes = True

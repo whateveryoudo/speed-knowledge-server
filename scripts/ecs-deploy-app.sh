@@ -10,6 +10,9 @@
 #   IMAGE_TAG=v1.2.0 ./scripts/ecs-deploy-app.sh -t v1.2.0 app
 #
 # 若 compose 使用非 latest tag，可在 ECS .env 中设置 APP_IMAGE_TAG / NESTJS_IMAGE_TAG
+#
+# 部署顺序: pull → env 键检查 → Settings 校验 → migrate → recreate
+# preflight 失败会 exit，不会 force-recreate（旧容器继续跑）
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -23,13 +26,15 @@ fi
 
 IMAGE_TAG="${IMAGE_TAG:-${APP_IMAGE_TAG:-latest}}"
 SERVICES=()
+SKIP_PREFLIGHT=0
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
   echo ""
   echo "选项:"
-  echo "  -t, --tag TAG   镜像 tag（默认 latest，或 .env 中 APP_IMAGE_TAG）"
-  echo "  -h, --help      显示帮助"
+  echo "  -t, --tag TAG        镜像 tag（默认 latest，或 .env 中 APP_IMAGE_TAG）"
+  echo "  --skip-preflight     跳过 env 检查 / Settings 校验 / migrate（不推荐）"
+  echo "  -h, --help           显示帮助"
   echo ""
   echo "服务名: app | nestjs | all（all = app + nestjs）"
   exit "${1:-0}"
@@ -40,6 +45,10 @@ while [[ $# -gt 0 ]]; do
     -t|--tag)
       IMAGE_TAG="$2"
       shift 2
+      ;;
+    --skip-preflight)
+      SKIP_PREFLIGHT=1
+      shift
       ;;
     -h|--help)
       usage 0
@@ -69,6 +78,34 @@ export NESTJS_IMAGE_TAG="${IMAGE_TAG}"
 echo "==> pull ${SERVICES[*]} (tag: ${IMAGE_TAG})"
 docker compose pull "${SERVICES[@]}"
 
+deploys_app=0
+for svc in "${SERVICES[@]}"; do
+  if [[ "$svc" == "app" ]]; then
+    deploys_app=1
+    break
+  fi
+done
+
+if [[ $SKIP_PREFLIGHT -eq 0 ]]; then
+  echo ""
+  echo "==> preflight: env 键检查"
+  ./scripts/check-env-keys.sh
+
+  if [[ $deploys_app -eq 1 ]]; then
+    echo ""
+    echo "==> preflight: app Settings 校验"
+    docker compose run --rm app python -c "from app.core.config import settings; print('env OK')"
+
+    echo ""
+    echo "==> db migrate"
+    docker compose run --rm app alembic upgrade head
+  fi
+else
+  echo ""
+  echo "WARN: 已跳过 preflight（--skip-preflight）"
+fi
+
+echo ""
 echo "==> recreate ${SERVICES[*]}"
 docker compose up -d --force-recreate --no-deps "${SERVICES[@]}"
 

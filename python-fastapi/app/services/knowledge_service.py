@@ -64,6 +64,17 @@ class KnowledgeService(BaseService[Knowledge]):
         "name": Knowledge.name,
     }
 
+    def to_wrap_knowledge_response_for_guest(
+        self, knowledge: Knowledge
+    ) -> KnowledgeResponse:
+        """包装知识库响应(游客访问)"""
+        ability = self.permission_service.get_guest_readonly_abilities()
+        return KnowledgeResponse.model_validate(knowledge).model_copy(
+            update={
+                "ability": ability,
+            }
+        )
+
     def to_wrap_knowledge_response(
         self, knowledge: Knowledge, user_id: int
     ) -> KnowledgeResponse:

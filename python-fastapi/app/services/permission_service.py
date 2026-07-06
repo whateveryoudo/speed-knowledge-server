@@ -174,7 +174,7 @@ class PermissionService:
             status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的资源类型"
         )
 
-    def assert_knowledge_readable(self, user_id: int, identifier: str) -> Knowledge:
+    def assert_knowledge_readable(self, user_id: int | None, identifier: str) -> Knowledge:
         """知识库是否可读（含 is_public）"""
         from app.services.knowledge_service import KnowledgeService
 
@@ -191,7 +191,7 @@ class PermissionService:
             )
         return knowledge
 
-    def assert_document_readable(self, user_id: int, identifier: str) -> Document:
+    def assert_document_readable(self, user_id: int | None, identifier: str) -> Document:
         """封装一层文档是否可读（用于deps和其他一些场景）"""
         from app.services.document_service import DocumentService
 
@@ -204,10 +204,15 @@ class PermissionService:
         return document
 
     def can_read_knowledge(
-        self, user_id: int, knowledge_id: str, is_public: bool
+        self, user_id: int | None, knowledge_id: str, is_public: bool
     ) -> bool:
+        """知识库是否可读（这里增加了公开知识库访问）"""
+        if is_public:
+            return True
+        if user_id is None:
+            return False
         role = self.get_user_role_in_knowledge(user_id, knowledge_id)
-        return is_public or role is not None
+        return role is not None
 
     def can_edit_document(self, user_id: int, document: Document) -> bool:
         # 如果是创建者
@@ -225,17 +230,18 @@ class PermissionService:
         return False
 
     def can_read_document(
-        self, user_id: int, document: Document, is_public: bool
+        self, user_id: int | None, document: Document, is_public: bool
     ) -> bool:
+        knowledge_is_public = (
+            document and document.knowledge and document.knowledge.is_public
+        )
+        if is_public or knowledge_is_public:
+            return True
+        if user_id is None:
+            return False
         # 如果是创建者
         if document.user_id == user_id:
             return True
-        # 增加公开知识库判断和文档公开判断
-        if is_public or (
-            document and document.knowledge and document.knowledge.is_public
-        ):
-            return True
-
         # 知识库角色
         knowledge_role = self.get_user_role_in_knowledge(user_id, document.knowledge_id)
 
@@ -272,7 +278,7 @@ class PermissionService:
 
     def get_guest_readonly_abilities(self) -> dict:
         """用于获取游客的权限能力(全部只读)"""
-        return self.permission_ability_service.get_guest_readonly_abilities()
+        return PermissionAbilityService.get_guest_readonly_abilities()
 
     def get_multiple_permission_ability_by_resources(
         self, user_id: int, target_type: CollaborateResourceType, target_ids: List[str]

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from typing import List
-from app.schemas.collect import CollectCreate, CollectResponse, CollectSearch
+from app.schemas.collect import CollectCreate, CollectResponse, CollectSearch, CollectListItemResponse
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.services.collect_service import CollectService
@@ -32,12 +32,12 @@ async def remove_collect(
     collect_service.remove_collect(current_user.id, collect_in.identifier, collect_in.resource_type)
     return None
 
-@router.get("/list", response_model=List[CollectResponse], status_code=status.HTTP_200_OK)
+@router.get("/list", response_model=List[CollectListItemResponse], status_code=status.HTTP_200_OK)
 async def get_collects(
-    search_collect: CollectSearch,
+    search_collect: CollectSearch = Depends(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> List[CollectResponse]:
+) -> List[CollectListItemResponse]:
     """获取资源收藏列表"""
     collect_service = CollectService(db)
     collects = collect_service.get_collects(current_user.id, search_collect)
