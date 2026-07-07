@@ -406,7 +406,7 @@ class CollaboratorService:
             .filter(
                 Collaborator.user_id == user_id,
                 Collaborator.knowledge_id == knowledge_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED,
+                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
             )
             .first()
         )

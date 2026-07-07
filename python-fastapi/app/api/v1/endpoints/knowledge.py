@@ -157,7 +157,7 @@ async def get_knowledge_index_page(
                 if knowledge_daily_stats_schema
                 else 0
             ),
-            has_collected=collected_record
+            has_collected=bool(collected_record)
         )
     else:
         raise HTTPException(

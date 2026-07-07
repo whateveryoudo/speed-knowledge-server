@@ -11,7 +11,7 @@ import { DocumentContentModule } from './modules/document-content/document-conte
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
 
-import { redisStore } from 'cache-manager-ioredis-yet';
+import { createKeyv } from '@keyv/redis';
 import { NotificationModule } from './modules/notification/notification.module';
 console.log(process.env);
 @Module({
@@ -25,15 +25,18 @@ console.log(process.env);
     // Redis Cache
     CacheModule.registerAsync({
       isGlobal: true,
-      useFactory: async () => ({
-        store: await redisStore({
-          host: process.env.REDIS_HOST,
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-          password: process.env.REDIS_PASSWORD,
-          db: parseInt(process.env.REDIS_DB || '0', 10),
-        }),
-        // ttl: 3600 * 1000
-      }),
+      useFactory: async () => {
+        const host = (process.env.REDIS_HOST || 'localhost').replace(/"/g, '');
+        const port = process.env.REDIS_PORT || '6379';
+        const password = process.env.REDIS_PASSWORD;
+        const db = process.env.REDIS_DB || '0';
+        const auth = password ? `:${password}@` : '';
+        const redisUrl = `redis://${auth}${host}:${port}/${db}`;
+
+        return {
+          stores: [createKeyv(redisUrl)],
+        };
+      },
     }),
     // 数据库模块
     TypeOrmModule.forRoot({

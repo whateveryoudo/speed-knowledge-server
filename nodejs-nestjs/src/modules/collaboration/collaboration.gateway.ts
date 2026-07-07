@@ -12,7 +12,19 @@ export class CollaborationGateway implements OnModuleInit {
     }
 
     initialize(server: any) {
-        this.wss = new WebSocketServer({ server, path: '/collaboration' });
+        this.wss = new WebSocketServer({ noServer: true });
+
+        server.on('upgrade', (request: any, socket: any, head: Buffer) => {
+            const url = new URL(request.url, `http://${request.headers.host}`);
+            if (url.pathname !== '/collaboration') {
+                return;
+            }
+
+            this.wss.handleUpgrade(request, socket, head, (ws) => {
+                this.wss.emit('connection', ws, request);
+            });
+        });
+
         this.wss.on('connection', (ws: WebSocket, request: any) => {
             // 获取一些参数
             const url = new URL(request.url, `http://${request.headers.host}`);
