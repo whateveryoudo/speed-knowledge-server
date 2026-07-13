@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     # 内部服务调用token
     INTERNAL_SERVICE_TOKEN: str
 
+    # 阿里云Direct Mail配置
+    ALIYUN_DM_USE_ECS_RAM_ROLE: bool
+    ALIYUN_DM_ACCESS_KEY_ID: str
+    ALIYUN_DM_ACCESS_KEY_SECRET: str 
+    ALIYUN_DM_ACCOUNT_NAME: str
+    ALIYUN_DM_FROM_ALIAS: str
+    ALIYUN_DM_TEMPLATE_ID: str
+    ALIYUN_DM_REGION: str
+    ALIYUN_DM_REGISTER_SUBJECT: str
+    EMAIL_CODE_EXPIRE_SECONDS: int
+    EMAIL_CODE_COOLDOWN_SECONDS: int
+
     # mq队列
 
     RABBITMQ_URL: str

@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Form
 from typing import Union, Annotated
+from app.common.enums.auth import EmailScene
 
 
 class OAuth2PasswordRequestFormWithCaptcha(OAuth2PasswordRequestForm):
@@ -19,13 +20,13 @@ class OAuth2PasswordRequestFormWithCaptcha(OAuth2PasswordRequestForm):
     def __init__(
         self,
         *,
-        grant_type: Annotated[Union[str, None], Form(patter="password")] = None,
+        grant_type: Annotated[Union[str, None], Form(pattern="password")] = None,
         username: Annotated[str, Form(..., description="用户名")],
         password: Annotated[str, Form(..., description="密码")],
-        verificateId: Annotated[Optional[str], Form(..., description="验证码ID")],
-        verificateCode: Annotated[Optional[str], Form(..., description="验证码")],
+        verificateId: Annotated[Optional[str], Form(description="验证码ID")] = None,
+        verificateCode: Annotated[Optional[str], Form(description="验证码")] = None,
     ):
-        super().__init__(grant_type=grant_type,username=username,password=password)
+        super().__init__(grant_type=grant_type, username=username, password=password)
         self.verificateId = verificateId
         self.verificateCode = verificateCode
 
@@ -50,6 +51,26 @@ class CaptchaResponse(BaseModel):
 
     captcha_id: str = Field(..., description="验证码ID，用于校验")
     captcha_image: str = Field(..., description="图片base64")
+
+
+# 邮箱验证码结构
+
+
+class SendEmailCodeRequest(BaseModel):
+    """邮箱验证码请求体"""
+
+    email: str = Field(..., description="邮箱")
+    scene: Optional[EmailScene] = Field(
+        default=EmailScene.REGISTER,
+        description="场景：注册、忘记密码、重置密码、修改邮箱",
+    )
+
+
+class SendEmailCodeResponse(BaseModel):
+    """邮箱验证码响应体"""
+
+    message: Optional[str] = Field(default="验证码已发送", description="消息")
+    expire_seconds: Optional[int] = Field(default=600, description="过期时间（秒）")
 
 
 class UserBase(BaseModel):
@@ -95,15 +116,17 @@ class UserResponse(UserBase):
 
 class UserCreate(UserBase):
     """用户请求体"""
-
-    verificateCode: Optional[str] = None
-    verificateId: Optional[str] = None
+    email_code: str = Field(..., min_length=6, max_length=6, description="邮箱验证码")
+    # verificateCode: Optional[str] = None
+    # verificateId: Optional[str] = None
     password: str
+
 
 class UserFullListParams(BaseModel):
     """用户完整列表请求体"""
 
     keyword: str = Field(..., description="关键词")
+
 
 class LoginErrorResponse(BaseModel):
     """登录失败响应体"""

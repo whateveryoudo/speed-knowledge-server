@@ -33,6 +33,9 @@ dependencies = [
   "apscheduler==3.10.4",
   "volcengine-python-sdk==5.0.6",
   "aio-pika>=9.6.1",
+  "alibabacloud_dm20151123>=1.0.0",
+  "alibabacloud_tea_openapi>=0.3.0",
+  "alibabacloud_credentials>=1.0.9"
 ]
 [dependency-groups]
 dev = [

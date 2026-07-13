@@ -34,7 +34,10 @@ RUN apk add --no-cache python3 make g++ \
 
 COPY package.json pnpm-lock.yaml ./
 
-ENV npm_config_build_from_source=true
+# Alpine 需源码编译 bcrypt；用镜像内 Node 头文件，避免 node-gyp 拉 unofficial-builds.nodejs.org
+ENV npm_config_build_from_source=true \
+  npm_config_nodedir=/usr/local \
+  NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node/
 RUN pnpm install --frozen-lockfile --prod \
   && pnpm rebuild bcrypt \
   && apk del python3 make g++

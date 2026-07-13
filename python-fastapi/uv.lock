@@ -20,6 +20,15 @@ wheels = [
 ]
 
 [[package]]
+name = "aiofiles"
+version = "24.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/03/a88171e277e8caa88a4c77808c20ebb04ba74cc4681bf1e9416c862de237/aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c", size = 30247, upload-time = "2024-06-24T11:02:03.584Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5", size = 15896, upload-time = "2024-06-24T11:02:01.529Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -133,6 +142,94 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/94/13/8b084e0f2efb0275a1d534838844926f798bd766566b1375174e2448cd31/alembic-1.18.4.tar.gz", hash = "sha256:cb6e1fd84b6174ab8dbb2329f86d631ba9559dd78df550b57804d607672cedbc", size = 2056725, upload-time = "2026-02-10T16:00:47.195Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/29/6533c317b74f707ea28f8d633734dbda2119bbadfc61b2f3640ba835d0f7/alembic-1.18.4-py3-none-any.whl", hash = "sha256:a5ed4adcf6d8a4cb575f3d759f071b03cd6e5c7618eb796cb52497be25bfe19a", size = 263893, upload-time = "2026-02-10T16:00:49.997Z" },
+]
+
+[[package]]
+name = "alibabacloud-credentials"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "alibabacloud-credentials-api" },
+    { name = "alibabacloud-tea" },
+    { name = "apscheduler" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ad/0d/1f340b3cd601174ea1fe92eca788a58283974b75d59dc1c7fabbcc1b935e/alibabacloud_credentials-1.0.9.tar.gz", hash = "sha256:11ad6206ce2bacc5b4ba5f2c7acfec93d70444dfe2e2c065c8017512e828019b", size = 42100, upload-time = "2026-06-09T12:23:39.095Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/9e/0f0c9e100113f30496992e08cde2f21607967a589c55ed1e20f1023a875a/alibabacloud_credentials-1.0.9-py3-none-any.whl", hash = "sha256:e572cdfb46e4cbf62afa4d61e8516488731cd69aed7da24fe57222d0b976944f", size = 50879, upload-time = "2026-06-09T12:23:37.965Z" },
+]
+
+[[package]]
+name = "alibabacloud-credentials-api"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/7e/6145e2d132752f0de72701df556304c59dda311405a252a598ad6fd9b4de/alibabacloud_credentials_api-1.0.1.tar.gz", hash = "sha256:8ea0668a6558f6956b8d20b2e561d19a80ea29c22cf56a3004d434b24a981b36", size = 2314, upload-time = "2026-06-25T06:50:33.198Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/49/ff401af96d77d40ab918096d831bd3360f3eec60f10e65125e5789c4e617/alibabacloud_credentials_api-1.0.1-py3-none-any.whl", hash = "sha256:5f27889113214fc53493b3e918eb26d73dfab2022e22bdaac262849b8e58cbc0", size = 2230, upload-time = "2026-06-25T06:49:09.991Z" },
+]
+
+[[package]]
+name = "alibabacloud-dm20151123"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alibabacloud-credentials" },
+    { name = "alibabacloud-tea-openapi" },
+    { name = "darabonba-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/f9/416485e4735bdbf5031b46f64202396d764ab49b8c7108c35b315218ef2a/alibabacloud_dm20151123-1.11.0.tar.gz", hash = "sha256:89b97cbc6b8860670dec320004d912c8600f0634e5044307c7153139335ab774", size = 80436, upload-time = "2026-06-25T17:38:04.379Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/99/9cfeed4b34bff7b59b42f05faac97e52765bbc1564fa376d97151fd6dc0e/alibabacloud_dm20151123-1.11.0-py3-none-any.whl", hash = "sha256:1002886729a1a5c818c31655afc0df3bc68b7cd382a8f372c9d3d898d9f3527c", size = 239432, upload-time = "2026-06-25T17:38:03.089Z" },
+]
+
+[[package]]
+name = "alibabacloud-gateway-spi"
+version = "0.0.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alibabacloud-credentials" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/67/7cd36a36bf0ec53efd3fe31eaf398713f375b7b1cdcd32c51b6c0fdc09e2/alibabacloud_gateway_spi-0.0.4.tar.gz", hash = "sha256:73d6e20d65b54eed26d89c19640d3a7572e18c45ecada627f806f5dbe8ed2130", size = 4253, upload-time = "2026-06-25T06:34:08.238Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/85/81170c45e9d1240736f9776a1c690b958c975509381221b5f8d960b5376d/alibabacloud_gateway_spi-0.0.4-py3-none-any.whl", hash = "sha256:0d5256e95d8719da8ec9611b7ffbb12c2d26fdf7ce52c8f64e4e06350731e893", size = 4290, upload-time = "2026-06-25T06:34:07.22Z" },
+]
+
+[[package]]
+name = "alibabacloud-tea"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/7d/b22cb9a0d4f396ee0f3f9d7f26b76b9ed93d4101add7867a2c87ed2534f5/alibabacloud-tea-0.4.3.tar.gz", hash = "sha256:ec8053d0aa8d43ebe1deb632d5c5404339b39ec9a18a0707d57765838418504a", size = 8785, upload-time = "2025-03-24T07:34:42.958Z" }
+
+[[package]]
+name = "alibabacloud-tea-openapi"
+version = "0.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alibabacloud-credentials" },
+    { name = "alibabacloud-gateway-spi" },
+    { name = "alibabacloud-tea-util" },
+    { name = "cryptography" },
+    { name = "darabonba-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/93/138bcdc8fc596add73e37cf2073798f285284d1240bda9ee02f9384fc6be/alibabacloud_tea_openapi-0.4.4.tar.gz", hash = "sha256:1b0917bc03cd49417da64945e92731716d53e2eb8707b235f54e45b7473221ce", size = 21960, upload-time = "2026-03-26T10:16:16.792Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/5a/6bfc4506438c1809c486f66217ad11eab78157192b3d5707b4e2f4212f6c/alibabacloud_tea_openapi-0.4.4-py3-none-any.whl", hash = "sha256:cea6bc1fe35b0319a8752cb99eb0ecb0dab7ca1a71b99c12970ba0867410995f", size = 26236, upload-time = "2026-03-26T10:16:15.861Z" },
+]
+
+[[package]]
+name = "alibabacloud-tea-util"
+version = "0.3.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alibabacloud-tea" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/ee/ea90be94ad781a5055db29556744681fc71190ef444ae53adba45e1be5f3/alibabacloud_tea_util-0.3.14.tar.gz", hash = "sha256:708e7c9f64641a3c9e0e566365d2f23675f8d7c2a3e2971d9402ceede0408cdb", size = 7515, upload-time = "2025-11-19T06:01:08.504Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/9e/c394b4e2104766fb28a1e44e3ed36e4c7773b4d05c868e482be99d5635c9/alibabacloud_tea_util-0.3.14-py3-none-any.whl", hash = "sha256:10d3e5c340d8f7ec69dd27345eb2fc5a1dab07875742525edf07bbe86db93bfe", size = 6697, upload-time = "2025-11-19T06:01:07.355Z" },
 ]
 
 [[package]]
@@ -605,6 +702,20 @@ version = "1.4.3"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/59/911a1a597264f1fb7ac176995a0f0b6062e37f8c1b6e0f23071a76838507/cuda_pathfinder-1.4.3-py3-none-any.whl", hash = "sha256:4345d8ead1f701c4fb8a99be6bc1843a7348b6ba0ef3b031f5a2d66fb128ae4c", size = 47951, upload-time = "2026-03-16T21:31:25.526Z" },
+]
+
+[[package]]
+name = "darabonba-core"
+version = "1.0.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "alibabacloud-tea" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/d9/076bfec3ef28b39d04a9c5e48ef56f20f1a62ed9f684f857a7c503b362b6/darabonba_core-1.0.7.tar.gz", hash = "sha256:c2de2ee260682b4c08c9ec67793de66a2bdf316363b9165f152b9acaa16b4dc3", size = 21705, upload-time = "2026-06-22T12:41:36.562Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/01/34073c5e1742db3399d5837b44ac237e1001f092224a1a2addf30c5f9aaa/darabonba_core-1.0.7-py3-none-any.whl", hash = "sha256:d83ca9253f4bfb0ee8ac1075e23a3480fbd1133f5f96ec08f0e25d1612e299bd", size = 24852, upload-time = "2026-06-22T12:41:35.629Z" },
 ]
 
 [[package]]
@@ -3043,6 +3154,9 @@ source = { virtual = "." }
 dependencies = [
     { name = "aio-pika" },
     { name = "alembic" },
+    { name = "alibabacloud-credentials" },
+    { name = "alibabacloud-dm20151123" },
+    { name = "alibabacloud-tea-openapi" },
     { name = "apscheduler" },
     { name = "bcrypt" },
     { name = "captcha" },
@@ -3094,6 +3208,9 @@ dev = [
 requires-dist = [
     { name = "aio-pika", specifier = ">=9.6.1" },
     { name = "alembic", specifier = ">=1.13.1" },
+    { name = "alibabacloud-credentials", specifier = ">=1.0.9" },
+    { name = "alibabacloud-dm20151123", specifier = ">=1.0.0" },
+    { name = "alibabacloud-tea-openapi", specifier = ">=0.3.0" },
     { name = "apscheduler", specifier = "==3.10.4" },
     { name = "bcrypt", specifier = ">=3.2.0,<4.0.0" },
     { name = "captcha", specifier = "==0.5.0" },

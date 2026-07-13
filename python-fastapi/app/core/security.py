@@ -7,7 +7,7 @@ from jose import JWTError, jwt
 from datetime import timedelta, datetime
 from app.core.config import settings
 from app.core.redis_client import get_redis
-
+from app.common.enums.auth import EmailScene
 import redis
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -202,4 +202,25 @@ def verify_captcha(
 
     redis_client.delete(captcha_key, captcha_ip_key)
 
+    return True
+
+
+def verify_email_code(*, scene: EmailScene, email: str, code: str, redis_client: redis.Redis) -> bool:
+    """验证邮箱验证码"""
+    email_key = f"email_code:{scene.value}:{email.lower()}"
+    stored_code = redis_client.get(name=email_key)
+    if not stored_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱验证码不存在或已过期"
+        )
+
+    if isinstance(stored_code, bytes):
+        stored_code = stored_code.decode("utf-8")
+
+    if stored_code != code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱验证码错误"
+        )
+
+    redis_client.delete(email_key)
     return True

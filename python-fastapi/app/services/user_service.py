@@ -33,7 +33,7 @@ class UserService(BaseService):
 
         hashed_password = get_password_hash(user_in.password)
         user = User(
-            email=user_in.email,
+            email=user_in.email.lower(),
             username=user_in.username,
             password=hashed_password,
             nickname=user_in.nickname,

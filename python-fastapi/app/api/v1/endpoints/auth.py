@@ -22,7 +22,15 @@ from app.core.security import (
     record_login_failure,
     clear_login_failure,
 )
-from app.schemas.user import OAuth2PasswordRequestFormWithCaptcha
+
+from app.schemas.user import (
+    OAuth2PasswordRequestFormWithCaptcha,
+    SendEmailCodeResponse,
+    SendEmailCodeRequest,
+)
+from app.services.email_service import EmailService
+from app.core.config import settings
+from app.common.enums.auth import EmailScene
 
 router = APIRouter()
 
@@ -100,9 +108,9 @@ async def login(
 @router.get("/getVerificateCode", response_model=CaptchaResponse)
 async def getverificate_code(
     request: Request,
-    _: None = Depends(MinIntervalByIP(key_prefix="captcha", interval_seconds=1)),
+    _: None = Depends(MinIntervalByIP(key_prefix="captcha:min_interval", interval_seconds=1)),
     __: None = Depends(
-        RateLimitByIP(key_prefix="captcha", limit=20, window_seconds=60)
+        RateLimitByIP(key_prefix="captcha:rate_limit", limit=20, window_seconds=60)
     ),
     redis_client: redis.Redis = Depends(get_redis),
 ) -> CaptchaResponse:
@@ -140,3 +148,53 @@ async def getverificate_code(
     #         "capcha-key": "some-unique-id"
     #     }
     # )
+
+
+@router.post("/sendEmailCode", response_model=SendEmailCodeResponse)
+async def send_email_code(
+    body: SendEmailCodeRequest,
+    _: None = Depends(MinIntervalByIP(key_prefix="email_code:min_interval", interval_seconds=1)),
+    __: None = Depends(
+        RateLimitByIP(key_prefix="email_code:rate_limit", limit=10, window_seconds=60)
+    ),
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis),
+) -> SendEmailCodeResponse:
+    email = body.email.lower()
+    scene = body.scene
+
+    if scene == EmailScene.REGISTER:
+        # 注册场景
+        user_service = UserService(db)
+        user = user_service.get_by_email(email)
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱已存在"
+            )
+
+    cooldown_key = f"email_code_cooldown:{scene}:{email}"
+    if redis_client.exists(cooldown_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="发送频率过高，请稍后再试",
+        )
+    code = "".join(
+        random.choices(string.ascii_uppercase + string.digits, k=6)
+    )
+
+    code_key = f"email_code:{scene.value}:{email}"
+    
+
+    email_service = EmailService()
+    email_service.send_verification_code(scene, email, code)
+
+
+    redis_client.setex(
+        name=code_key, time=settings.EMAIL_CODE_EXPIRE_SECONDS, value=code
+    )
+    redis_client.setex(
+        name=cooldown_key, time=settings.EMAIL_CODE_COOLDOWN_SECONDS, value=1
+    )
+    return SendEmailCodeResponse(
+        message="验证码已发送", expire_seconds=settings.EMAIL_CODE_EXPIRE_SECONDS
+    )

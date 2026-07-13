@@ -7,13 +7,14 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 import redis
 from app.services.user_service import UserService
-from app.core.security import verify_captcha, get_client_ip
+from app.core.security import verify_email_code, get_client_ip
 from app.core.redis_client import get_redis
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupCreate
 from app.schemas.user import UserResponse, UserFullListParams
 from app.core.security import RateLimitByIP
 from typing import List
+from app.common.enums.auth import EmailScene
 
 router = APIRouter()
 
@@ -35,42 +36,42 @@ async def create_user(
     Returns:
         int: 用户id
     """
-    print(user_in)
-    if verify_captcha(
-        captcha_id=user_in.verificateId,
-        captcha_value=user_in.verificateCode,
-        client_ip=get_client_ip(request),
+    # 验证邮箱验证码
+    verify_email_code(
+        scene=EmailScene.REGISTER,
+        email=user_in.email,
+        code=user_in.email_code,
         redis_client=redis_client,
-    ):
-        """验证码校验通过"""
+    )
+    """验证码校验通过"""
 
-        user_service = UserService(db)
-        # 检查邮箱是否已注册
-        existing_user = user_service.get_by_email(user_in.email)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="该邮箱已注册"
-            )
-
-        # 检查用户名是否已存在
-        existing_user = user_service.get_by_username(user_in.username)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="该用户名已被使用"
-            )
-
-        created_user = user_service.create(user_in)
-        # 新用户创建成功时，会创建一个默认分组
-        knowledge_group_service = KnowledgeGroupService(db)
-        knowledge_group_service.create(
-            KnowledgeGroupCreate(
-                user_id=created_user.id,
-                group_name="我的知识库",
-                order_index=0,
-                is_default=True,
-            )
+    user_service = UserService(db)
+    # 检查邮箱是否已注册
+    existing_user = user_service.get_by_email(user_in.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="该邮箱已注册"
         )
-        return created_user.id
+
+    # 检查用户名是否已存在
+    existing_user = user_service.get_by_username(user_in.username)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="该用户名已被使用"
+        )
+
+    created_user = user_service.create(user_in)
+    # 新用户创建成功时，会创建一个默认分组
+    knowledge_group_service = KnowledgeGroupService(db)
+    knowledge_group_service.create(
+        KnowledgeGroupCreate(
+            user_id=created_user.id,
+            group_name="我的知识库",
+            order_index=0,
+            is_default=True,
+        )
+    )
+    return created_user.id
 
 
 @router.get("/", response_model=UserResponse)
