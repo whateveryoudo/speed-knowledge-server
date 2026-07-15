@@ -9,7 +9,7 @@ from app.schemas.document import (
     DocumentRouteContext,
 )
 from app.schemas.document_node import DocumentNodeCreate
-from typing import List, Literal
+from typing import List, Literal, Optional
 from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
 from app.models.document_node import DocumentNode
@@ -30,6 +30,7 @@ from app.common.enums import (
     DocumentNodeType,
     CollaboratorRole,
     CollaboratorStatus,
+    DocumentImportFormat,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -83,7 +84,9 @@ class DocumentService(BaseService[Document]):
                 f"Create default content by nodejs failed:documentId={document_id},error={e}"
             )
 
-    def create(self, document_in: DocumentCreate) -> DocumentNode:
+    def create(
+        self, document_in: DocumentCreate, *, skip_default_content: bool = False
+    ) -> DocumentNode:
         """创建文档"""
         temp_slug = self._generate_slug()
         while self.get_active_query().filter(Document.slug == temp_slug).first():
@@ -138,10 +141,23 @@ class DocumentService(BaseService[Document]):
             )
         )
         self.db.commit()
-        # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
-        self.create_default_content(document.id)
+        # 这里追加判断是否导入默认内容（如果是走导入则跳过）
+        if not skip_default_content:
+            # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
+            self.create_default_content(document.id)
         # 这里返回节点信息（不返回文档信息）
         return document_node
+
+    def create_quick_document(
+        self, document_in: DocumentCreate
+    ) -> DocumentRouteContext | None:
+        """创建快速文档"""
+        target_document_node = self.create(document_in)
+        if not target_document_node.document_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档创建失败"
+            )
+        return self.get_document_route_context(target_document_node.document_id)
 
     def get_by_id_or_slug(self, identifier: str) -> Document:
         """通过id或短链获取文档"""
@@ -153,6 +169,100 @@ class DocumentService(BaseService[Document]):
             .first()
         )
         return document
+
+    def _import_content_by_nodejs(
+        self,
+        document_id: str,
+        file_bytes: bytes,
+        file_name: str,
+        content_type: str,
+        format: DocumentImportFormat,
+        titleHint: str,
+    ) -> dict:
+        """通过nodejs服务导入文档内容(会返回documentId和title)"""
+        nodejs_service_url = settings.NODEJS_SERVICE_URL
+        url = f"{nodejs_service_url}/document-io/import"
+        headers = {
+            "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+            "X-Request-Id": str(uuid.uuid4()),
+        }
+        files = {
+            "file": (
+                file_name,
+                file_bytes,
+                content_type or "application/octet-stream",
+            ),
+        }
+        payload = {
+            "documentId": document_id,
+            "format": format.value,
+            "titleHint": titleHint,
+        }
+        with httpx.Client(timeout=120.0) as client:
+            response = client.post(url, files=files, data=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Import document by nodejs success:documentId={document_id}")
+            body = response.json()
+            return body.get("data") or body
+
+    def import_document(
+        self,
+        *,
+        user_id: int,
+        knowledge_id: str,
+        parent_id: str | None = None,
+        file_bytes: bytes,
+        file_name: str,
+        content_type: str,
+        format: DocumentImportFormat,
+    ) -> Optional[DocumentNode]:
+        """导入文档（成功返回文档树节点）"""
+        # 文件名作为文档标题（与正文 title 节点一致）
+        placeholder_name = (file_name.rsplit(".", 1)[0] if file_name else "导入文档")[
+            :50
+        ] or "无标题文档"
+        document_node = self.create(
+            DocumentCreate(
+                user_id=user_id,
+                knowledge_id=knowledge_id,
+                name=placeholder_name,
+                # 后续会有更多类型
+                type=DocumentType.WORD,
+                parent_id=parent_id,
+            ),
+            skip_default_content=True,
+        )
+        document_id = document_node.document_id
+
+        try:
+            self._import_content_by_nodejs(
+                document_id,
+                file_bytes,
+                file_name,
+                content_type or "application/octet-stream",
+                format,
+                placeholder_name,
+            )
+            # 与新建文档一致，返回树节点便于前端挂载
+            
+            return document_node
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Import document by nodejs failed:documentId={document_id},error={e}"
+            )
+            try:
+                # 回退删除已经加好的文档数据
+                self.delete_by_id_or_slug(document_id, is_soft_delete=False)
+            except Exception as e:
+                logger.error(
+                    f"Rollback delete document failed:documentId={document_id},error={e}"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="导入文档失败",
+            )
 
     def get_list_by_user_id(self, user_id: int) -> List[Document]:
         """通过用户id获取文档列表"""
@@ -255,6 +365,11 @@ class DocumentService(BaseService[Document]):
         if is_soft_delete:
             document.soft_delete()
         else:
+            # 物理删除(这里会同步删除权限组数据)
+            permission_group_service = PermissionGroupService(self.db)
+            permission_group_service.delete_permission_group_by_resource(
+                CollaborateResourceType.DOCUMENT, document.id
+            )
             self.db.delete(document)
         # 这里同步删除节点
         document_node_service.delete_by_document_id(document.id, auto_commit=False)

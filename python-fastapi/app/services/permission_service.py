@@ -105,7 +105,7 @@ class PermissionService:
         return merged_abilities
 
     def assert_knowledge_ability(
-        self, user_id: int, identifier: str, ability: KnowledgeAbility
+        self, user_id: int, identifier: str, ability: Union[KnowledgeAbility, DocumentAbility]
     ) -> Knowledge:
         """封装一层知识库是否拥有某项能力（用于deps和其他一些场景）"""
         from app.services.knowledge_service import KnowledgeService

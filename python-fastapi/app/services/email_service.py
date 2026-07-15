@@ -57,7 +57,8 @@ class EmailService:
             )
 
         if (
-            not settings.ALIYUN_DM_ACCESS_KEY_ID
+            not settings.ALIYUN_DM_USE_ECS_RAM_ROLE
+            or not settings.ALIYUN_DM_ACCESS_KEY_ID
             or not settings.ALIYUN_DM_ACCESS_KEY_SECRET
             or not settings.ALIYUN_DM_REGION
         ):

@@ -18,6 +18,8 @@ from app.api.v1.endpoints import (
     resource,
 )
 from app.api.v1.endpoints.ai import doubao
+# robot 依赖 Qdrant + embedding，云端向量调试通过后再启用
+from app.api.v1.endpoints.ai import robot
 
 api_router = APIRouter()
 
@@ -35,9 +37,8 @@ api_router.include_router(collect.router, prefix="/collect")
 api_router.include_router(collaborator.router, prefix="/collaborator")
 api_router.include_router(doubao.router, prefix="/ai/doubao")
 api_router.include_router(resource.router, prefix="/resource")
-# robot 依赖 Qdrant + embedding，云端向量调试通过后再启用
-# from app.api.v1.endpoints.ai import robot
-# api_router.include_router(robot.router, prefix="/ai/robot")
+
+api_router.include_router(robot.router, prefix="/ai/robot")
 api_router.include_router(notification.router, prefix="/notification")
 api_router.include_router(internal.router, prefix="/internal")
 api_router.include_router(search.router, prefix="/search")

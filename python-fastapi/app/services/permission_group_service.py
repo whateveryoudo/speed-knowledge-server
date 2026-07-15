@@ -70,3 +70,14 @@ class PermissionGroupService:
         return self.get_multiple_permission_groups_by_resources(
             target_type, [target_id]
         )
+
+    def delete_permission_group_by_resource(
+        self, target_type: CollaborateResourceType, target_id: str
+    ) -> None:
+        """根据资源类型和资源id删除对应的权限组(这里同走一个事务)"""
+        if not target_id:
+            return
+        self.db.query(PermissionGroup).filter(
+            PermissionGroup.target_type == target_type,
+            PermissionGroup.target_id == target_id,
+        ).delete()

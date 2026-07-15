@@ -48,6 +48,7 @@ from app.schemas.knowledge_group_relation import KnowledgeGroupRelationMoveBody
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.common.utils import next_order_index
 from app.models.knowledge_group import KnowledgeGroup
+from app.services.collaborator_service import CollaboratorService
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def get_knowledge_list_mine(
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
 async def get_knowledge_detail(
-    current_user: User| None = Depends(get_optional_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     knowledge: Knowledge = Depends(get_knowledge_or_403),
     db: Session = Depends(get_db),
 ) -> Knowledge:
@@ -157,7 +158,7 @@ async def get_knowledge_index_page(
                 if knowledge_daily_stats_schema
                 else 0
             ),
-            has_collected=bool(collected_record)
+            has_collected=bool(collected_record),
         )
     else:
         raise HTTPException(
@@ -345,3 +346,16 @@ async def delete_knowledge_common_pin(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="常用记录不存在"
         )
+
+
+@router.delete("/{knowledge_id}/leave", response_model=None)
+async def leave_knowledge(
+    knowledge_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """退出知识库"""
+    collaborator_service = CollaboratorService(db)
+    collaborator_service.delete_collaborator_by_resource(
+        current_user.id, CollaborateResourceType.KNOWLEDGE, knowledge_id
+    )

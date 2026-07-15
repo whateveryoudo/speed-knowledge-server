@@ -15,6 +15,7 @@ from .document import (
     DocumentNodeDragAction,
     DocumentNodeType,
     DocumentAbility,
+    DocumentImportFormat,
 )
 from .collaborator import (
     CollaboratorRole,
@@ -57,4 +58,5 @@ __all__ = [
     "NotificationBizType",
     "NotificationListType",
     "BaseSortOrder",
+    "DocumentImportFormat",
 ]

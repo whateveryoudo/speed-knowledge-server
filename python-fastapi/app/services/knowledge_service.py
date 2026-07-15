@@ -181,6 +181,40 @@ class KnowledgeService(BaseService[Knowledge]):
         if last_exec:
             raise last_exec
 
+    def create_knowledge_for_quick_document(self, data: KnowledgeCreate) -> Knowledge:
+        """创建默认知识库(目前提供给直接创建文档使用, 默认知识库的团队和空间是默认的)"""
+
+        if not data.team_id:
+            # 前端未传入team_id
+            from app.services.team_service import TeamService
+
+            team_service = TeamService(self.db)
+            default_team = team_service.get_default_team(data.user_id, data.space_id)
+            if not default_team:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="默认团队不存在"
+                )
+            default_team_id = default_team.id
+        else:
+            default_team_id = data.team_id
+        # 查找当前用户空间下是否存在知识库
+        knowledge = (
+            self.get_active_query()
+            .filter(
+                Knowledge.user_id == data.user_id,
+                Knowledge.team_id == default_team_id,
+                Knowledge.space_id == data.space_id,
+                Knowledge.deleted_at.is_(None),
+            )
+            .first()
+        )
+        if knowledge:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="已有知识库，请选择知识库进行文档创建",
+            )
+        return self.create(data.model_copy(update={"team_id": default_team_id}))
+
     def get_by_id_or_slug(self, identifier: str) -> Knowledge:
         """通过知识库id/短链查询知识库(附带文档数量)"""
         knowledge = (

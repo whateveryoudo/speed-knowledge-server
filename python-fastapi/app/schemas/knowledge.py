@@ -19,7 +19,7 @@ class KnowledgeBase(BaseModel):
     """知识库基础结构"""
 
     user_id: int = Field(..., description="用户ID")
-    icon: str = Field(default="icon-book-0", description="知识库图标")
+    icon: Optional[str] = Field(default="icon-book-0", description="知识库图标")
     name: str = Field(..., description="知识库名称", min_length=1, max_length=50)
     slug: str = Field(..., description="知识库短链", min_length=1, max_length=50)
     team_id: str = Field(..., description="所属团队")
@@ -90,6 +90,7 @@ class KnowledgeCreate(KnowledgeBase):
 
     user_id: Optional[int] = Field(default=None, description="所属用户ID")
     group_id: Optional[str] = Field(default=None, description="所属分组ID")
+    team_id: Optional[str] = Field(default=None, description="所属团队ID")
     slug: Optional[str] = Field(
         default=None, description="知识库短链", min_length=1, max_length=50
     )

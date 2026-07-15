@@ -42,3 +42,10 @@ class DocumentNodeType(str, Enum):
 
     TITLE = "TITLE"  # 目录
     DOC = "DOC"  # 文档节点
+
+class DocumentImportFormat(str, Enum):
+    """文档导入格式"""
+    MARKDOWN = "markdown"  # Markdown
+    WORD = "word"  # WORD
+    EXCEL = "excel"  # EXCEL
+ 

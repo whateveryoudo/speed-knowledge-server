@@ -157,7 +157,7 @@ def get_knowledge_or_403(
 class VertifyKnowledgePermission:
     """验证知识库权限"""
 
-    def __init__(self, ability_key: KnowledgeAbility):
+    def __init__(self, ability_key: Union[KnowledgeAbility, DocumentAbility]):
         self.ability_key = ability_key
 
     def __call__(

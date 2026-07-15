@@ -107,6 +107,7 @@ class DocumentHistoryService:
                 doc_creator=doc_creator,
                 doc_belong_space_id=item.document.knowledge.space_id,
                 doc_belong_team_slug=item.document.knowledge.team.slug,
+                doc_belong_team_name=item.document.knowledge.team.name,
                 doc_belong_knowledge_name=(
                     item.document.knowledge.name
                     if item.document.knowledge

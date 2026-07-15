@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { VectorSyncModule } from './modules/vector-sync/vector-sync.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { DocumentContentModule } from './modules/document-content/document-content.module';
+import { DocumentIOModule } from './modules/document-io/document-io.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -59,6 +60,7 @@ console.log(process.env);
     DocumentContentModule,
     VectorSyncModule,
     NotificationModule,
+    DocumentIOModule,
   ],
   controllers: [AppController],
   providers: [AppService],

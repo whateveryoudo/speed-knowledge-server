@@ -10,7 +10,7 @@ import {
 } from "@nestjs/common";
 import { TiptapTransformer } from "@hocuspocus/transformer";
 import * as Y from "yjs";
-import extensions from "../../tiptap-extends/kit";
+import { knowledgeKit } from "@speed-tiptap-editor/schema";
 import { InternalTokenGuard } from "../common/guards/internal-token.guard";
 import { IdempotencyInterceptor } from "../common/interceptors/idempotency.interceptor";
 import { DocumentService } from "../document/document.service";
@@ -42,7 +42,7 @@ export class DocumentContentController {
         },
       ],
     };
-    const ydoc = TiptapTransformer.toYdoc(defaultJson, "default", extensions);
+    const ydoc = TiptapTransformer.toYdoc(defaultJson, "default", knowledgeKit);
 
     return {
       content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),

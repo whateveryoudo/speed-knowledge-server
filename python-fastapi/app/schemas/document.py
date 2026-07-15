@@ -45,9 +45,10 @@ class DocumentRouteContext(BaseModel):
     space_id: str = Field(..., description="所属空间ID")
     space_domain: Optional[str] = Field(default=None, description="空间域名")
 
+
 class DocumentCreate(BaseModel):
     """创建文档结构"""
-
+    user_id: Optional[int] = Field(default=None, description="所属用户ID")
     name: str = Field(..., description="文档名称", min_length=1, max_length=50)
     knowledge_id: str = Field(..., description="所属知识库ID")
     parent_id: Optional[str] = Field(default=None, description="父节点ID")

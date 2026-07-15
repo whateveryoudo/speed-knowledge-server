@@ -1,12 +1,27 @@
 """文档端点"""
 
-from fastapi import APIRouter, status, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    status,
+    Depends,
+    HTTPException,
+    Query,
+    Form,
+    UploadFile,
+    File,
+)
 from sqlalchemy.orm.session import Session
 from typing import List
-from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
+from app.schemas.document import (
+    DocumentCreate,
+    DocumentUpdate,
+    DocumentResponse,
+    DocumentRouteContext,
+)
 from app.core.deps import (
     get_db,
     VertifyDocumentPermission,
+    VertifyKnowledgePermission,
     get_current_user,
     get_optional_current_user,
     get_document_or_403,
@@ -26,7 +41,13 @@ from app.schemas.document_node import (
 )
 from datetime import datetime
 from app.services.collect_service import CollectService
-from app.common.enums import CollectResourceType, DocumentAbility, DocumentNodeType
+from app.common.enums import (
+    CollectResourceType,
+    DocumentImportFormat,
+    DocumentType,
+    DocumentAbility,
+    DocumentNodeType,
+)
 from app.schemas.user import UserResponse
 from app.models.knowledge import Knowledge
 
@@ -51,6 +72,36 @@ async def create_document(
     return created_document_node
 
 
+@router.post("/{space_id}/default/docs", response_model=DocumentRouteContext)
+async def create_default_document(
+    space_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentRouteContext:
+    """创建默认文档(这里会先创建一个默认知识库，然后创建一个默认文档)"""
+    from app.services.knowledge_service import KnowledgeService
+    from app.schemas.knowledge import KnowledgeCreate
+
+    knowledge_service = KnowledgeService(db)
+    knowledge = knowledge_service.create_knowledge_for_quick_document(
+        KnowledgeCreate(
+            user_id=current_user.id,
+            name="默认知识库",
+            space_id=space_id,
+        )
+    )
+    document_service = DocumentService(db)
+    return document_service.create_quick_document(
+        DocumentCreate(
+            name="无标题文档",
+            knowledge_id=knowledge.id,
+            type=DocumentType.WORD,
+            user_id=current_user.id,
+            parent_id=None,
+        )
+    )
+
+
 @router.get("/{identifier}/document/list", response_model=List[DocumentResponse])
 async def get_document_list_by_knowledge_id(
     knowledge: Knowledge = Depends(get_knowledge_or_403),
@@ -61,6 +112,36 @@ async def get_document_list_by_knowledge_id(
     document_service = DocumentService(db)
     document_list = document_service.get_list_by_knowledge_id(knowledge.id)
     return document_list
+
+
+@router.post(
+    "/{identifier}/import",
+    response_model=DocumentNodeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_document(
+    parent_id: str | None = Form(None),
+    file: UploadFile = File(...),
+    format: DocumentImportFormat = Form(...),
+    knowledge: Knowledge = Depends(
+        VertifyKnowledgePermission(DocumentAbility.DOC_CTEATE)
+    ),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentNodeResponse:
+    """导入文档（返回文档树节点，与新建文档一致）"""
+    document_service = DocumentService(db)
+    file_bytes = await file.read()
+    file_name = file.filename
+    return document_service.import_document(
+        user_id=current_user.id,
+        knowledge_id=knowledge.id,
+        parent_id=parent_id,
+        file_bytes=file_bytes,
+        file_name=file_name or "未命名.docx",
+        content_type=file.content_type or "application/octet-stream",
+        format=format,
+    )
 
 
 @router.get("/{identifier}", response_model=DocumentResponse)

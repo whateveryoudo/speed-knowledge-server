@@ -6,8 +6,7 @@ from typing import Optional
 from app.services.space_member_service import SpaceMemberService
 from app.schemas.space_member import SpaceMemberCreate
 from app.common.enums import SpaceMemberRole
-
-
+from sqlalchemy import func
 class SpaceService(BaseService):
     """空间服务"""
 

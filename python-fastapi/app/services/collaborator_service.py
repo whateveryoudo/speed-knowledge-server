@@ -463,3 +463,25 @@ class CollaboratorService:
             [query_params.target_id],
         )
         return collaborators[0] if collaborators else None
+
+
+    def delete_collaborator_by_resource(
+        self, user_id: int, target_type: CollaborateResourceType, target_id: str
+    ) -> None:
+        """通过资源类型和资源id,用户id删除对应的协作者记录(用于被邀请者主动退出知识库)"""
+        query = self.db.query(Collaborator).filter(
+            Collaborator.user_id == user_id,
+            Collaborator.target_type == target_type.value,
+        )
+        if target_type == CollaborateResourceType.KNOWLEDGE:
+            query = query.filter(Collaborator.knowledge_id == target_id)
+        else:
+            query = query.filter(Collaborator.document_id == target_id)
+        collaborator = query.first()
+        if collaborator is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="协作者不存在"
+            )
+        self.db.delete(collaborator)
+        self.db.commit()
+        return None
