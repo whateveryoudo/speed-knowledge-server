@@ -3,10 +3,14 @@ import mammoth from "mammoth";
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { generateJSON } from "@tiptap/html/server";
 import { knowledgeKit } from "@speed-tiptap-editor/schema";
-export type ImportFormat = "word" | "markdown";
+import sizeOf from "image-size";
+import { AttachmentService } from "../attachment/attachment.service";
+export type ImportFormat = "word" | "markdown" | "speed";
 
 @Injectable()
 export class DocumentIOConverter {
+  constructor(private readonly attachmentService: AttachmentService) {}
+
   private readonly md = new MarkdownIt({
     html: true,
     linkify: true,
@@ -14,18 +18,44 @@ export class DocumentIOConverter {
     breaks: true,
   });
   private ensureTitle(json: any, titleHint: string): any {
-    const text = titleHint.trim() || '无标题文档';
+    const text = titleHint.trim() || "无标题文档";
     // 加入文件名作为标题
     json.content = [
-        {type: "title", content: [{ type: "text", text }]},
-        ...(json.content || []),
-    ]
+      { type: "title", content: [{ type: "text", text }] },
+      ...(json.content || []),
+    ];
     return json;
+  }
+
+  private parseSpeedDocument(content: string) {
+    const text = content.replace(/^\uFEFF/, "");
+    // 解析.speed文件内容
+    const titleMatch = content.match(/<title>(.*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1] : "未命名文档";
+    const html = text
+      .replace(/<!doctype\s+speed>\s*/i, "")
+      .replace(/<title[\s\S]*?<\/title>\s*/g, "")
+      .replace(/(?:<meta\b[^>]*\/?>\s*)+/gi, "")
+      .trim();
+    return { title, html };
+  }
+  private buildSpeedDocument(title: string, html: string) {
+    const safeTitle = String(title || "未命名文档")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+    return `<!doctype speed>
+    <title>${safeTitle}</title>
+    ${html}
+    `;
   }
   async convert(
     buffer: Buffer,
     format: ImportFormat,
     titleHint: string,
+    userId: number,
   ): Promise<any> {
     let html = "";
     if (format === "word") {
@@ -92,13 +122,37 @@ export class DocumentIOConverter {
           },
 
           // 转换选项
-          convertImage: mammoth.images.imgElement((image) => {
-            // TODO:走文件服务地址
-            return image.read("base64").then((imageBuffer) => {
+          convertImage: mammoth.images.imgElement(async (image) => {
+            const imageBuffer = await image.read();
+            const contentType = image.contentType || "image/png";
+            const ext = contentType.split("/")[1] || "png";
+            const { width = 0, height = 0 } = sizeOf(imageBuffer);
+
+            try {
+              console.log("upload start", imageBuffer.length);
+              const attachment = await this.attachmentService.uploadBuffer({
+                buffer: imageBuffer,
+                fileName: `image-${Date.now()}.${ext}`,
+                contentType,
+                userId,
+              });
+              console.log("upload done", attachment.id);
+
               return {
-                src: `data:${image.contentType};base64,${imageBuffer}`,
+                src: `${process.env.PYTHON_SERVER_URL}/api/v1/attachment/preview/${attachment.id}`,
+                width: String(width),
+                height: String(height),
+                "data-original-width": String(width),
+                "data-original-height": String(height),
               };
-            });
+            } catch (error) {
+              console.error("上传图片失败:", error);
+              return {
+                src: `data:${contentType};base64,${imageBuffer.toString("base64")}`,
+                width,
+                height,
+              };
+            }
           }),
 
           // 忽略空段落
@@ -112,13 +166,16 @@ export class DocumentIOConverter {
       html = result.value;
     } else if (format === "markdown") {
       html = this.md.render(buffer.toString("utf-8"));
+    } else if (format === "speed") {
+      // 平台内部的html(其实是tiptap本身的html)
+      html = buffer.toString("utf-8");
+      const parsed = this.parseSpeedDocument(html);
+      html = parsed.html;
+      titleHint = parsed.title; // 这里用解析的title标签覆盖掉titleHint
     } else {
       throw new BadRequestException(`Unsupported format: ${format}`);
     }
     // 调用tiptap内置方法转化为json(这里走自定义的扩展包)
-    return this.ensureTitle(
-      generateJSON(html, knowledgeKit as any),
-      titleHint,
-    );
+    return this.ensureTitle(generateJSON(html, knowledgeKit as any), titleHint);
   }
 }

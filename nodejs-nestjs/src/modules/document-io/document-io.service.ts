@@ -18,9 +18,10 @@ export class DocumentIOService {
     buffer: Buffer;
     format: ImportFormat;
     titleHint: string;
+    userId: number;
   }) {
-    const { documentId, buffer, format, titleHint } = params;
-    const docJson = await this.converter.convert(buffer, format, titleHint);
+    const { documentId, buffer, format, titleHint, userId } = params;
+    const docJson = await this.converter.convert(buffer, format, titleHint, userId);
     // 包一层default
     const ydoc = TiptapTransformer.toYdoc(docJson, 'default', knowledgeKit);
     const nodeJson = JSON.stringify({ default: docJson });

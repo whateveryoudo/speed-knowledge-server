@@ -9,6 +9,7 @@ from fastapi import (
     Form,
     UploadFile,
     File,
+    Request,
 )
 from sqlalchemy.orm.session import Session
 from typing import List
@@ -120,6 +121,7 @@ async def get_document_list_by_knowledge_id(
     status_code=status.HTTP_201_CREATED,
 )
 async def import_document(
+    request: Request,
     parent_id: str | None = Form(None),
     file: UploadFile = File(...),
     format: DocumentImportFormat = Form(...),
@@ -140,7 +142,7 @@ async def import_document(
         file_bytes=file_bytes,
         file_name=file_name or "未命名.docx",
         content_type=file.content_type or "application/octet-stream",
-        format=format,
+        format=format
     )
 
 

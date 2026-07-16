@@ -34,6 +34,7 @@ async def upload_attachment(
     )
     attachment_service = AttachmentService(db)
     attachment = attachment_service.create(metadata, file, current_user)
+    print(f"attachment: {attachment}")
     return attachment
 
 

@@ -25,6 +25,7 @@ export class DocumentIOController {
       documentId: string;
       format: ImportFormat;
       titleHint: string;
+      userId: number;
     },
   ) {
     if (!file?.buffer) {
@@ -39,11 +40,15 @@ export class DocumentIOController {
     if (!body.titleHint) {
       throw new BadRequestException("titleHint is required");
     }
+    if (!body.userId) {
+      throw new BadRequestException("userId is required");
+    }
     const result = await this.documentIOService.importToDocument({
       documentId: body.documentId,
       buffer: file.buffer,
       format: body.format,
       titleHint: body.titleHint,
+      userId: body.userId,
     });
     return {
       success: true,

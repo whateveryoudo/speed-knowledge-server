@@ -178,13 +178,14 @@ class DocumentService(BaseService[Document]):
         content_type: str,
         format: DocumentImportFormat,
         titleHint: str,
+        user_id: int,
     ) -> dict:
         """通过nodejs服务导入文档内容(会返回documentId和title)"""
         nodejs_service_url = settings.NODEJS_SERVICE_URL
         url = f"{nodejs_service_url}/document-io/import"
         headers = {
             "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
-            "X-Request-Id": str(uuid.uuid4()),
+            "X-Request-Id": str(uuid.uuid4())
         }
         files = {
             "file": (
@@ -197,6 +198,8 @@ class DocumentService(BaseService[Document]):
             "documentId": document_id,
             "format": format.value,
             "titleHint": titleHint,
+            # 追加用户id,用于生成附件名称
+            "userId": user_id,
         }
         with httpx.Client(timeout=120.0) as client:
             response = client.post(url, files=files, data=payload, headers=headers)
@@ -242,9 +245,10 @@ class DocumentService(BaseService[Document]):
                 content_type or "application/octet-stream",
                 format,
                 placeholder_name,
+                user_id,
             )
             # 与新建文档一致，返回树节点便于前端挂载
-            
+
             return document_node
         except HTTPException:
             raise
