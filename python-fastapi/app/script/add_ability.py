@@ -21,17 +21,19 @@ def main():
     # parser.add_argument("--ability_key", type=str, required=True)
     # parser.add_argument("--enable", type=bool, required=True)
     # args = parser.parse_args()
-    for groupid in groupids:
-        try:
-            service = PermissionAbilityService(db)
-
+    try:
+        service = PermissionAbilityService(db)
+        for groupid in groupids:
             service.add_permission_ability_by_permission_group_id(
                 permission_group_id=groupid,
                 ability_key=KnowledgeAbility.READ_BOOK,
                 enable=True,
             )
-        finally:
-            db.close()
+    except Exception as e:
+        print(e)
+        db.rollback()
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { MinioService } from "../common/minio/minio.service";
 import { Attachment } from "./entities/attachment.entity";
 import { Repository } from "typeorm";
@@ -38,5 +38,22 @@ export class AttachmentService {
     });
 
     return this.attachmentRepo.save(attachment);
+  }
+
+  async getBufferById(id: string): Promise<{
+    buffer: Buffer;
+    contentType: string;
+  }> {
+    const attachment = await this.attachmentRepo.findOne({ where: { id } });
+    if (!attachment) {
+      throw new NotFoundException("Attachment not found");
+    }
+    return {
+      buffer: await this.minioService.getObject({ 
+        objectName: attachment.objectName,
+        bucketName: attachment.bucketName,
+      }),
+      contentType: attachment.fileType || "image/png",
+    } 
   }
 }

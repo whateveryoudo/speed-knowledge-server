@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from app.common.enums import DocumentNodeType, DocumentNodeDragAction
+from app.common.enums import DocumentNodeType, DocumentNodeDragAction, DocumentType
 
 
 class DocumentNodeBase(BaseModel):
@@ -41,6 +41,7 @@ class DocumentNodeResponse(DocumentNodeBase):
     id: str = Field(..., description="文档树节点ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
+    document_type: Optional[DocumentType] = Field(default=None, description="所属文档类型")
     document_slug: Optional[str] = Field(default=None, description="所属文档短链")
     content_updated_at: Optional[datetime] = Field(
         default=None, description="文档内容更新时间"

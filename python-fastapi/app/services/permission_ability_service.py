@@ -63,15 +63,17 @@ class PermissionAbilityService:
             DocumentAbility.DOC_JOIN: True,
             DocumentAbility.DOC_SHARE: True,
             DocumentAbility.DOC_COMMENT: True,
+            DocumentAbility.DOC_EXPORT: True,
         },
         CollaboratorRole.EDIT: {
             DocumentAbility.DOC_CTEATE: False,
-            DocumentAbility.DOC_READ: False,
+            DocumentAbility.DOC_READ: True,
             DocumentAbility.DOC_EDIT: True,
             DocumentAbility.DOC_DELETE: False,
             DocumentAbility.DOC_JOIN: False,
             DocumentAbility.DOC_SHARE: True,
             DocumentAbility.DOC_COMMENT: False,
+            DocumentAbility.DOC_EXPORT: True,
         },
         CollaboratorRole.READ: {
             DocumentAbility.DOC_CTEATE: False,
@@ -81,6 +83,7 @@ class PermissionAbilityService:
             DocumentAbility.DOC_JOIN: False,
             DocumentAbility.DOC_SHARE: False,
             DocumentAbility.DOC_COMMENT: False,
+            DocumentAbility.DOC_EXPORT:False
         },
     }
 

@@ -3,15 +3,17 @@ import {
   Body,
   Controller,
   Post,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  StreamableFile,
 } from "@nestjs/common";
 import { InternalTokenGuard } from "../common/guards/internal-token.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
-import type { ImportFormat } from "./document-io.converter";
+import type { ImportFormat, ExportFormat } from "./document-io.converter";
 import { DocumentIOService } from "./document-io.service";
-
+import { Response } from "express";
 @Controller("document-io")
 @UseGuards(InternalTokenGuard)
 export class DocumentIOController {
@@ -54,7 +56,36 @@ export class DocumentIOController {
       success: true,
       errCode: 0,
       data: result,
-      errMessage: "ok"
+      errMessage: "ok",
     };
+  }
+
+  @Post("export")
+  async export(
+    @Body()
+    body: {
+      documentId: string;
+      format: ExportFormat;
+      fileName?: string;
+    },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!body.documentId) {
+      throw new BadRequestException("documentId is required");
+    }
+    if (!body.format) {
+      throw new BadRequestException("format is required");
+    }
+    const file = await this.documentIOService.exportDocument({
+      documentId: body.documentId,
+      format: body.format,
+      fileName: body.fileName,
+    });
+    res.set({
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+      "Content-Type": file.contentType,
+    });
+
+    return new StreamableFile(file.buffer);
   }
 }

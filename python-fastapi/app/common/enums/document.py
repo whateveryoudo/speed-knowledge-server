@@ -20,6 +20,7 @@ class DocumentAbility(str, Enum):
     DOC_JOIN = 'doc_join'  # 加入
     DOC_SHARE = 'doc_share'  # 分享
     DOC_COMMENT = 'doc_comment'  # 评论
+    DOC_EXPORT = 'doc_export'  # 导出
 
 
 class DocumentType(str, Enum):
@@ -48,4 +49,11 @@ class DocumentImportFormat(str, Enum):
     MARKDOWN = "markdown"  # Markdown
     WORD = "word"  # WORD
     EXCEL = "excel"  # EXCEL
+    SPEED = "speed"  # SPEED
  
+class DocumentExportFormat(str, Enum):
+    """文档导出格式"""
+    MARKDOWN = "markdown"  # Markdown
+    WORD = "word"  # WORD
+    SPEED = "speed"  # SPEED
+    EXCEL = "excel"  # EXCEL

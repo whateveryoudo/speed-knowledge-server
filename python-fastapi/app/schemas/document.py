@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from datetime import datetime
-from app.common.enums import DocumentType
+from app.common.enums import DocumentType, DocumentExportFormat
 
 
 class DocumentBase(BaseModel):
@@ -66,3 +66,9 @@ class DocumentUpdate(BaseModel):
     trigger: Literal["outer", "editor"] = Field(
         default="outer", description="触发方式", choices=["outer", "editor"]
     )
+
+
+class DocumentExportRequest(BaseModel):
+    """文档导出请求"""
+
+    format: DocumentExportFormat = Field(..., description="导出格式")

@@ -38,6 +38,7 @@ class PermissionService:
         DocumentAbility.DOC_JOIN: "加入文档",
         DocumentAbility.DOC_SHARE: "分享文档",
         DocumentAbility.DOC_COMMENT: "评论文档",
+        DocumentAbility.DOC_EXPORT: "导出文档",
     }
 
     def __init__(self, db: Session):

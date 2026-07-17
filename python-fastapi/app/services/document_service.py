@@ -3,6 +3,7 @@
 from __future__ import annotations
 from app.models.document import Document, DocumentContent
 from fastapi import HTTPException, status
+from fastapi.responses import Response
 from app.schemas.document import (
     DocumentCreate,
     DocumentUpdate,
@@ -31,6 +32,7 @@ from app.common.enums import (
     CollaboratorRole,
     CollaboratorStatus,
     DocumentImportFormat,
+    DocumentExportFormat,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -185,7 +187,7 @@ class DocumentService(BaseService[Document]):
         url = f"{nodejs_service_url}/document-io/import"
         headers = {
             "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
-            "X-Request-Id": str(uuid.uuid4())
+            "X-Request-Id": str(uuid.uuid4()),
         }
         files = {
             "file": (
@@ -207,6 +209,34 @@ class DocumentService(BaseService[Document]):
             logger.info(f"Import document by nodejs success:documentId={document_id}")
             body = response.json()
             return body.get("data") or body
+
+    def _export_content_by_nodejs(
+        self, document_id: str, format: DocumentExportFormat, fileName: str
+    ) -> dict:
+        """通过nodejs服务导出文档内容(会返回文件流)"""
+        nodejs_service_url = settings.NODEJS_SERVICE_URL
+        url = f"{nodejs_service_url}/document-io/export"
+        headers = {
+            "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+            "X-Request-Id": str(uuid.uuid4()),
+        }
+        payload = {
+            "documentId": document_id,
+            "format": format.value,
+            "fileName": fileName,
+        }
+        with httpx.Client(timeout=120.0) as client:
+            response = client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+
+        out_headers = {}
+        if cd := response.headers.get("Content-Disposition"):
+            out_headers["Content-Disposition"] = cd
+        media_type = response.headers.get("Content-Type") or "application/octet-stream"
+
+        return Response(
+            content=response.content, headers=out_headers, media_type=media_type
+        )
 
     def import_document(
         self,
@@ -267,6 +297,18 @@ class DocumentService(BaseService[Document]):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="导入文档失败",
             )
+
+    def export_document(self, document_id: str, format: DocumentExportFormat) -> Response:
+        """导出文档"""
+        document = self.get_by_id_or_slug(document_id)
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
+            )
+        # 文档名作为导出的文件名
+        fileName = f"{document.name}"
+
+        return self._export_content_by_nodejs(document_id, format, fileName)
 
     def get_list_by_user_id(self, user_id: int) -> List[Document]:
         """通过用户id获取文档列表"""

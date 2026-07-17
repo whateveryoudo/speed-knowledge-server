@@ -11,6 +11,7 @@ from fastapi import (
     File,
     Request,
 )
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm.session import Session
 from typing import List
 from app.schemas.document import (
@@ -18,6 +19,7 @@ from app.schemas.document import (
     DocumentUpdate,
     DocumentResponse,
     DocumentRouteContext,
+    DocumentExportRequest,
 )
 from app.core.deps import (
     get_db,
@@ -145,6 +147,18 @@ async def import_document(
         format=format
     )
 
+
+@router.post("/{identifier}/export", response_model=None)
+async def export_document(
+    body: DocumentExportRequest,
+    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_EXPORT)),
+    db: Session = Depends(get_db),
+):
+    """导出文档"""
+    document_service = DocumentService(db)
+    return await run_in_threadpool(
+        document_service.export_document, document.id, body.format
+    )
 
 @router.get("/{identifier}", response_model=DocumentResponse)
 async def get_document_detail(

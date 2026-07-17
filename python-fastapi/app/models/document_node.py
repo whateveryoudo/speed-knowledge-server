@@ -85,5 +85,9 @@ class DocumentNode(Base):
         return self.document.slug if self.document else None
 
     @hybrid_property
+    def document_type(self):
+        return self.document.type if self.document else None
+
+    @hybrid_property
     def content_updated_at(self):
         return self.document.content_updated_at if self.document else None

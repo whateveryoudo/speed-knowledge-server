@@ -57,6 +57,24 @@ async def get_attachment(
         },
     )
 
+@router.get("/public/preview/{attachment_id}")
+async def get_attachment_public(
+    attachment_id: str,
+    db: Session = Depends(get_db),
+):
+    """获取附件(公开，这里是为了导出时预览处理)"""
+    file_info = AttachmentService(db).getStream(attachment_id)
+    if not file_info:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="附件不存在")
+    fallback = urllib.parse.quote(file_info["file_name"].encode('utf-8'))
+    return StreamingResponse(
+        file_info["data_stream"],
+        media_type=file_info["file_type"],
+        headers={
+            "Content-Disposition": f"inline;filename*=UTF-8''{fallback}",
+        },
+    )
+
 
 @router.get("/download/{attachment_id}")
 async def download_attachment(
