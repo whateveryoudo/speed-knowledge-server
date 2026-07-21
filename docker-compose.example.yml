@@ -93,6 +93,7 @@ services:
       MINIO_USE_SSL: "false"
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-app}:${RABBITMQ_DEFAULT_PASS:-app_pass}@rabbitmq:5672
       PYTHON_SERVER_URL: http://app:8010
+      PYTHON_PUBLIC_URL: ${PYTHON_PUBLIC_URL:-change_me}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change_me_internal_token}
     depends_on:
       - db

@@ -150,7 +150,7 @@ export class DocumentIOConverter {
               console.log("upload done", attachment.id);
 
               return {
-                src: `${process.env.PYTHON_SERVER_URL}/api/v1/attachment/preview/${attachment.id}`,
+                src: `${process.env.PYTHON_PUBLIC_URL}/api/v1/attachment/preview/${attachment.id}`,
                 width: String(width),
                 height: String(height),
                 "data-original-width": String(width),
