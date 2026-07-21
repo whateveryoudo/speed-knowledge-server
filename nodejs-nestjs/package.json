@@ -40,7 +40,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@speed-sheet/core": "^0.1.2",
     "@speed-sheet/shared": "^0.1.2",
-    "@speed-tiptap-editor/schema": "file:../../speed-tiptap-editor/packages/schema",
+    "@speed-tiptap-editor/schema": "^2.0.2",
     "@tiptap/core": "^3.0.6",
     "@tiptap/extension-image": "^3.0.0",
     "@tiptap/html": "^3.27.4",

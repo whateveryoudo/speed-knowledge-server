@@ -18,12 +18,12 @@ from app.common.enums import CollectResourceType, DocumentHistoryType
 from app.models.document_edit_history import DocumentEditHistory
 
 
-
 class DocumentHistoryService:
     """文档历史服务"""
 
     def __init__(self, db: Session):
         self.db = db
+
     def get_document_history_list(
         self, query_in: DocumentHistoryQuery
     ) -> PaginationResponse[DocumentHistoryResponse]:
@@ -41,41 +41,38 @@ class DocumentHistoryService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"不支持的历史列表类型: {query_in.history_type.value}",
             )
-      
+
         query = (
             self.db.query(model)
             .join(Document, model.document_id == Document.id)
-            .filter(user_id_field == query_in.user_id, Document.deleted_at.is_(None))
+            .join(Knowledge, Document.knowledge_id == Knowledge.id)
+            .filter(
+                user_id_field == query_in.user_id,
+                Knowledge.deleted_at.is_(None),
+                Document.deleted_at.is_(None),
+            )
             .options(
                 joinedload(model.document),
                 # 预加载知识库信息（通过文档关联）
-                joinedload(model.document).joinedload(
-                    Document.knowledge
-                ).joinedload(Knowledge.team),
+                joinedload(model.document)
+                .joinedload(Document.knowledge)
+                .joinedload(Knowledge.team),
                 # 预加载文档创建者信息
-                joinedload(model.document).joinedload(
-                    Document.user
-                ),
+                joinedload(model.document).joinedload(Document.user),
             )
         )
         filter_conditions = []
 
         if query_in.doc_name:
-            filter_conditions.append(
-                model.document.name.like(f"%{query_in.doc_name}%")
-            )
+            filter_conditions.append(model.document.name.like(f"%{query_in.doc_name}%"))
         if query_in.doc_belong_knowledge_id:
             filter_conditions.append(
                 model.document.knowledge.id == query_in.doc_belong_knowledge_id
             )
         if query_in.doc_type:
-            filter_conditions.append(
-                model.document.type == query_in.doc_type
-            )
+            filter_conditions.append(model.document.type == query_in.doc_type)
         if query_in.doc_creator:
-            filter_conditions.append(
-                model.document.creator == query_in.doc_creator
-            )
+            filter_conditions.append(model.document.creator == query_in.doc_creator)
         if filter_conditions:
             query = query.filter(*filter_conditions)
 
@@ -109,9 +106,7 @@ class DocumentHistoryService:
                 doc_belong_team_slug=item.document.knowledge.team.slug,
                 doc_belong_team_name=item.document.knowledge.team.name,
                 doc_belong_knowledge_name=(
-                    item.document.knowledge.name
-                    if item.document.knowledge
-                    else ""
+                    item.document.knowledge.name if item.document.knowledge else ""
                 ),
                 doc_belong_knowledge_id=item.document.knowledge.id,
                 doc_belong_knowledge_slug=item.document.knowledge.slug,
@@ -124,4 +119,3 @@ class DocumentHistoryService:
             )
             response_items.append(response_item)
         return paginate_response(response_items, total, has_more, query_in)
-                

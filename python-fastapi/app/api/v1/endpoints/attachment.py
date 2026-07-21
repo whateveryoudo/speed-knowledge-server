@@ -111,10 +111,11 @@ async def get_onlyoffice_file_preview(
         file_info, "view", request.query_params.get("access_token")
     )
 
+    # Starlette 1.x: TemplateResponse(request, name, context)
     return template.TemplateResponse(
+        request,
         "onlyoffice_preview.html",
         {
-            "request": request,
             "onlyofficeServerUrl": settings.ONLYOFFICE_SERVER_URL,
             "config": config,
             "fileName": file_info.file_name,

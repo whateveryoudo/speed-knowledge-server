@@ -298,7 +298,9 @@ class DocumentService(BaseService[Document]):
                 detail="导入文档失败",
             )
 
-    def export_document(self, document_id: str, format: DocumentExportFormat) -> Response:
+    def export_document(
+        self, document_id: str, format: DocumentExportFormat
+    ) -> Response:
         """导出文档"""
         document = self.get_by_id_or_slug(document_id)
         if not document:
@@ -396,6 +398,16 @@ class DocumentService(BaseService[Document]):
             .first()
         )
         return document_content.node_json
+
+    def soft_muitiple_delete_by_knowledge_id(self, knowledge_id: str) -> None:
+        """通过知识库id软删除文档"""
+        self.db.query(Document).filter(
+            Document.knowledge_id == knowledge_id, Document.deleted_at.is_(None)
+        ).update(
+            {Document.deleted_at: func.now()},
+            synchronize_session=False,  # bulk update 建议带上
+        )
+        # 注意这里不会去删除节点树信息（到时候回收站恢复后会保留）
 
     def delete_by_id_or_slug(
         self, identifier: str, is_soft_delete: bool = True

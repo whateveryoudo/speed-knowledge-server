@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # 文档更新后 MQ 同步向量索引（需 Qdrant + embedding，默认关闭）
     ENABLE_VECTOR_SYNC: bool = False
 
+    # AI 路由（doubao / robot）；依赖 uv sync --group ai，生产默认关闭
+    ENABLE_AI: bool = False
+
     # onlyoffice配置
     ONLYOFFICE_JWT_SECRET: str
     ONLYOFFICE_SERVER_URL: str

@@ -45,6 +45,7 @@ from app.models.permission_group import PermissionGroup
 from app.models.permission_ability import PermissionAbility
 from app.common.enums import KnowledgeAbility, DocumentAbility
 from app.services.resource_access_service import ResourceAccessService
+from app.services.document_service import DocumentService
 from typing import Union
 
 alphabet = string.ascii_letters + string.digits
@@ -96,7 +97,7 @@ class KnowledgeService(BaseService[Knowledge]):
         super().__init__(db, Knowledge)
         self.permission_service = PermissionService(db)
         self.knowledge_group_relation_service = KnowledgeGroupRelationService(db)
-
+        self.document_service = DocumentService(db)
     def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
         last_exec: IntegrityError | None = None
@@ -436,6 +437,8 @@ class KnowledgeService(BaseService[Knowledge]):
         knowledge = self.get_active_query().filter(Knowledge.id == knowledge_id).first()
         if knowledge:
             knowledge.deleted_at = datetime.now()
+            # 知识库下方文档都要软删除
+            self.document_service.soft_muitiple_delete_by_knowledge_id(knowledge.id)
             self.db.commit()
             return True
         return False
