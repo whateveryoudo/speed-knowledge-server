@@ -58,6 +58,11 @@ main() {
       "${ROOT}/python-fastapi/.env.example" \
       "${ROOT}/python-fastapi/.env" \
       "python-fastapi/.env" || failed=1
+    echo ""
+    check_pair \
+      "${ROOT}/nodejs-nestjs/.env.example" \
+      "${ROOT}/nodejs-nestjs/.env" \
+      "nodejs-nestjs/.env" || failed=1
   fi
 
   if [[ $failed -ne 0 ]]; then

@@ -76,28 +76,28 @@ services:
     image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/nestjs:${NESTJS_IMAGE_TAG:-latest}
     container_name: speed-knowledge-nestjs
     restart: unless-stopped
+    # 业务默认值见 nodejs-nestjs/.env；此处只覆盖 Docker 网络主机名 + 根 .env 共享密钥
+    env_file:
+      - ./nodejs-nestjs/.env
     environment:
       PORT: 3000
       DB_HOST: db
-      DB_PORT: 3306
-      DB_USERNAME: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
       DB_DATABASE: ${MYSQL_DATABASE:-speed-knowledge}
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_DB: 0
-      REDIS_PASSWORD: ""
       JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret}
-      JWT_EXPIRES_IN: 10080s
-      CORS_ORIGIN: "*"
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-speed-knowledge}
+      MINIO_USE_SSL: "false"
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-app}:${RABBITMQ_DEFAULT_PASS:-app_pass}@rabbitmq:5672
-      RABBITMQ_ROUTING_KEY: document.content.updated
-      RABBITMQ_EXCHANGE: speed_knowledge.events
       PYTHON_SERVER_URL: http://app:8010
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change_me_internal_token}
     depends_on:
       - db
       - redis
+      - minio
       - rabbitmq
       - app
   onlyoffice:
