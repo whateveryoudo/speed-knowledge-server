@@ -20,6 +20,9 @@ export class VectorSyncWorker {
     }
     @Cron(CronExpression.EVERY_5_SECONDS)
     async handleCron() {
+        if (!this.rabbitMQPublisher.isEnabled()) {
+            return;
+        }
         if (this.isRunning) {
             return;
         }

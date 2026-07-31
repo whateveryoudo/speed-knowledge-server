@@ -8,14 +8,25 @@ export type DocumentContentUpdatedEvent = {
     content_updated_at: string;
 }
 
+function isRabbitMqEnabled(): boolean {
+    const raw = (process.env.ENABLE_RABBITMQ || 'true').trim().toLowerCase();
+    return raw === 'true' || raw === '1' || raw === 'yes';
+}
+
 @Injectable()
 export class RabbitMQPublisher implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(RabbitMQPublisher.name);
+    private readonly enabled = isRabbitMqEnabled();
 
     private conn: amqplib.ChannelModel | null = null;
     private ch: amqplib.Channel | null = null;
     private readonly routingKey: string = process.env.RABBITMQ_ROUTING_KEY || 'document.content.updated';
     private readonly exchange: string = process.env.RABBITMQ_EXCHANGE || 'speed_knowledge.events';
+
+    isEnabled(): boolean {
+        return this.enabled;
+    }
+
     private async connect() {
         const url = process.env.RABBITMQ_URL;
         if (!url) {
@@ -38,6 +49,10 @@ export class RabbitMQPublisher implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`RabbitMQ connected, exchange: ${this.exchange}`);
     }
     async onModuleInit() {
+        if (!this.enabled) {
+            this.logger.warn('RabbitMQ disabled (ENABLE_RABBITMQ=false), skip connect');
+            return;
+        }
         await this.connect();
     }
     async onModuleDestroy() {
@@ -47,6 +62,10 @@ export class RabbitMQPublisher implements OnModuleInit, OnModuleDestroy {
 
     // 对外提供方法
     async publishDocumentContentUpdated(evt: DocumentContentUpdatedEvent) {
+        if (!this.enabled) {
+            this.logger.debug(`RabbitMQ disabled, skip publish: ${evt.document_id}`);
+            return;
+        }
         if (!this.ch) {
             await this.connect();
         }

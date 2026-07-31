@@ -62,11 +62,12 @@ services:
       - db
       - redis
       - minio
-      - rabbitmq
+  # 默认不启动（省内存）；需要向量同步时: docker compose --profile mq up -d
   rabbitmq:
     image: ${ACR_REGISTRY:-crpi-ewcecvhd15oyzexv.cn-chengdu.personal.cr.aliyuncs.com/speed-knowledge}/rabbitmq-3-management-alpine:latest
     container_name: speed-knowledge-rabbitmq
     restart: unless-stopped
+    profiles: ["mq"]
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-app}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-app_pass}
@@ -91,6 +92,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-speed-knowledge}
       MINIO_USE_SSL: "false"
+      ENABLE_RABBITMQ: ${ENABLE_RABBITMQ:-false}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-app}:${RABBITMQ_DEFAULT_PASS:-app_pass}@rabbitmq:5672
       PYTHON_SERVER_URL: http://app:8010
       PYTHON_PUBLIC_URL: ${PYTHON_PUBLIC_URL:-change_me}
@@ -99,12 +101,12 @@ services:
       - db
       - redis
       - minio
-      - rabbitmq
       - app
   onlyoffice:
     image: onlyoffice/documentserver:latest
     container_name: speed-knowledge-onlyoffice
     restart: unless-stopped
+    profiles: ["onlyoffice"]
     ports:
       - "8080:80"
     environment:

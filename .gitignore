@@ -3,7 +3,7 @@
 .env.local
 .env.*.local
 scripts/deploy.env
-
+.DS_Store
 # 本地 compose（以 docker-compose.example.yml 为模板复制后使用）
 docker-compose.yml
 docker-compose.override.yml
