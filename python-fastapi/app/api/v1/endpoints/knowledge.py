@@ -12,6 +12,7 @@ from app.schemas.knowledge import (
     KnowledgeFullResponse,
     KnowledgeListQuery,
     KnowledgeListMineQuery,
+    KnowledgeVisibilityUpdate,
 )
 from app.core.deps import (
     get_db,
@@ -62,7 +63,7 @@ async def create_knowledge(
     """创建知识库"""
     knowledge_service = KnowledgeService(db)
 
-    knowledge_data = knowledge_in.model_copy(update={"user_id": current_user.id})
+    knowledge_data = knowledge_in.model_copy(update={"creator_id": current_user.id})
     created_knowledge = knowledge_service.create(knowledge_data)
     return created_knowledge.slug
 
@@ -124,7 +125,16 @@ async def get_knowledge_detail(
     # 同时追加当前用户的能力集合
     return knowledge_service.to_wrap_knowledge_response(knowledge, current_user.id)
 
-
+@router.put("/{identifier}/visibility", response_model=None, status_code=status.HTTP_200_OK)
+async def update_knowledge_visibility(
+    identifier: str,
+    body: KnowledgeVisibilityUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> bool:
+    """更新知识库公开范围"""
+    knowledge_service = KnowledgeService(db)
+    return knowledge_service.update_visibility(identifier, body.visibility)
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
     knowledge: Knowledge = Depends(get_knowledge_or_403),

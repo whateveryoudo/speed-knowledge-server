@@ -416,7 +416,7 @@ class CollaboratorService:
         knowledge = (
             self.db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()
         )
-        if knowledge and knowledge.user_id == user_id:
+        if knowledge and knowledge.creator_id == user_id:
             return CollaboratorRole.ADMIN.value
 
         return None

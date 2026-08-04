@@ -18,6 +18,12 @@ from app.common.enums import (
     CollaboratorStatus,
     KnowledgeFromWay,
     CollaboratorSource,
+    SpaceType,
+    SpaceMemberRole,
+    KnowledgeScopeType,
+    KnowledgeVisibility,
+    TeamMemberRole,
+    ResourceRole,
 )
 from typing import List, Optional, Dict
 import secrets
@@ -47,6 +53,11 @@ from app.common.enums import KnowledgeAbility, DocumentAbility
 from app.services.resource_access_service import ResourceAccessService
 from app.services.document_service import DocumentService
 from typing import Union
+from app.services.resource_grant_service import ResourceGrantService
+from app.models.space import Space
+from app.models.space_member import SpaceMember
+from app.models.team import Team
+from app.models.team_member import TeamMember
 
 alphabet = string.ascii_letters + string.digits
 
@@ -65,15 +76,100 @@ class KnowledgeService(BaseService[Knowledge]):
         "name": Knowledge.name,
     }
 
+    def __init__(self, db: Session) -> None:
+        super().__init__(db, Knowledge)
+        self.permission_service = PermissionService(db)
+        self.knowledge_group_relation_service = KnowledgeGroupRelationService(db)
+        self.document_service = DocumentService(db)
+        self.resource_grant_service = ResourceGrantService(db)
+
+    def _validate_knowledge_container_access(
+        self,
+        *,
+        creator_id: int,
+        space_id: str,
+        team_id: Optional[str],
+    ) -> Space:
+        """验证知识库容器(会有拦截判断)"""
+        space = (
+            self.db.query(Space)
+            .filter(Space.id == space_id, Space.deleted_at.is_(None))
+            .first()
+        )
+        if not space:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"
+            )
+        if space.type == SpaceType.PERSONAL:
+            if space.owner_id != creator_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail="无权限访问个人空间"
+                )
+            if team_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="个人空间不能归属团队",
+                )
+            return space
+        space_member = (
+            self.db.query(SpaceMember)
+            .filter(
+                SpaceMember.space_id == space_id,
+                SpaceMember.user_id == creator_id,
+                SpaceMember.deleted_at.is_(None),
+            )
+            .first()
+        )
+        if not space_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="不是空间成员"
+            )
+        if team_id is None:
+            if space_member.role == SpaceMemberRole.EXTERNAL:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="外部联系人不能在公共区创建知识库",
+                )
+            return space
+        team = (
+            self.db.query(Team)
+            .filter(
+                Team.id == team_id, Team.space_id == space_id, Team.deleted_at.is_(None)
+            )
+            .first()
+        )
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="团队不存在或不属于当前空间",
+            )
+        team_member = (
+            self.db.query(TeamMember)
+            .filter(
+                TeamMember.team_id == team_id,
+                TeamMember.user_id == creator_id,
+                TeamMember.deleted_at.is_(None),
+            )
+            .first()
+        )
+        if not team_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="不是团队成员"
+            )
+        if team_member.role == TeamMemberRole.READONLY:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="团队只读成员不能创建知识库",
+            )
+        return space
+
     def to_wrap_knowledge_response_for_guest(
         self, knowledge: Knowledge
     ) -> KnowledgeResponse:
         """包装知识库响应(游客访问)"""
         ability = self.permission_service.get_guest_readonly_abilities()
         return KnowledgeResponse.model_validate(knowledge).model_copy(
-            update={
-                "ability": ability,
-            }
+            update={"ability": ability}
         )
 
     def to_wrap_knowledge_response(
@@ -93,13 +189,19 @@ class KnowledgeService(BaseService[Knowledge]):
         """生成知识库短链"""
         return "".join(secrets.choice(alphabet) for _ in range(6))
 
-    def __init__(self, db: Session) -> None:
-        super().__init__(db, Knowledge)
-        self.permission_service = PermissionService(db)
-        self.knowledge_group_relation_service = KnowledgeGroupRelationService(db)
-        self.document_service = DocumentService(db)
     def create(self, knowledge_in: KnowledgeCreate) -> Knowledge:
         """创建知识库"""
+        if knowledge_in.creator_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="creator_id is required"
+            )
+        # 获取space空间
+        space = self._validate_knowledge_container_access(
+            creator_id=knowledge_in.creator_id,
+            space_id=knowledge_in.space_id,
+            team_id=knowledge_in.team_id,
+        )
+
         last_exec: IntegrityError | None = None
         for _ in range(3):
             try:
@@ -108,18 +210,22 @@ class KnowledgeService(BaseService[Knowledge]):
                     self.get_active_query().filter(Knowledge.slug == temp_slug).first()
                 ):
                     temp_slug = self._generate_slug()
-                # 默认isPublic为False
                 knowledge = Knowledge(
-                    user_id=knowledge_in.user_id,
+                    creator_id=knowledge_in.creator_id,
                     name=knowledge_in.name,
                     team_id=knowledge_in.team_id,
                     icon=knowledge_in.icon,
                     slug=temp_slug,
-                    space_id=knowledge_in.space_id,
+                    space_id=space.id,
                     description=knowledge_in.description,
                 )
                 self.db.add(knowledge)
                 self.db.flush()
+                # 插入授权
+                self.resource_grant_service.create_default_knowledge_grants(
+                    knowledge=knowledge,
+                    creator_id=knowledge_in.creator_id,
+                )
                 group_id = knowledge_in.group_id
                 if not group_id:
                     from app.services.knowledge_group_service import (
@@ -127,28 +233,32 @@ class KnowledgeService(BaseService[Knowledge]):
                     )
 
                     default_group = KnowledgeGroupService(self.db).get_default_group(
-                        knowledge_in.user_id
+                        knowledge_in.creator_id
                     )
                     group_id = default_group.id
                 self.knowledge_group_relation_service.create(
                     KnowledgeGroupRelationCreate(
-                        user_id=knowledge_in.user_id,
+                        user_id=knowledge_in.creator_id,
                         knowledge_id=knowledge.id,
                         group_id=group_id,
                     ),
                     commit=False,
                 )
                 # 追加默认协作者
-                collaborator_service = CollaboratorService(self.db)
-                collaborator_service.join_default_collaborator(
-                    CollaboratorCreate(
-                        user_id=knowledge_in.user_id,
-                        knowledge_id=knowledge.id,
-                        target_type=CollaborateResourceType.KNOWLEDGE,
-                    )
-                )
-                # 创建默认权限组(追加3个角色权限)
-                for role in CollaboratorRole:
+                # collaborator_service = CollaboratorService(self.db)
+                # collaborator_service.join_default_collaborator(
+                #     CollaboratorCreate(
+                #         user_id=knowledge_in.creator_id,
+                #         knowledge_id=knowledge.id,
+                #         target_type=CollaborateResourceType.KNOWLEDGE,
+                #     )
+                # )
+                # 创建默认权限组(追加3个角色权限,这里选取3个类别，NONE不追加)
+                for role in (
+                    ResourceRole.READ,
+                    ResourceRole.EDIT,
+                    ResourceRole.ADMIN,
+                ):
                     permission_group_service = PermissionGroupService(self.db)
                     permission_group_service.create_permission_group(
                         # 权限组名称: 知识库名称(知识库短链)-角色名称
@@ -162,7 +272,7 @@ class KnowledgeService(BaseService[Knowledge]):
                 # 默认添加为常用知识库
                 common_pin_service = KnowledgeCommonPinService(self.db)
                 common_pin_service.create(
-                    knowledge.id, knowledge_in.user_id, commit=False
+                    knowledge.id, knowledge_in.creator_id, commit=False
                 )
 
                 self.db.commit()
@@ -183,29 +293,31 @@ class KnowledgeService(BaseService[Knowledge]):
             raise last_exec
 
     def create_knowledge_for_quick_document(self, data: KnowledgeCreate) -> Knowledge:
-        """创建默认知识库(目前提供给直接创建文档使用, 默认知识库的团队和空间是默认的)"""
+        """创建默认知识库(这里不再走统一创建默认团队的逻辑)"""
+        if data.creator_id is None:
+            raise ValueError("create_id is required")
+        # 这里不默认创建团队
+        # if not data.team_id:
 
-        if not data.team_id:
-            # 前端未传入team_id
-            from app.services.team_service import TeamService
+        #     # 前端未传入team_id
+        #     from app.services.team_service import TeamService
 
-            team_service = TeamService(self.db)
-            default_team = team_service.get_default_team(data.user_id, data.space_id)
-            if not default_team:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="默认团队不存在"
-                )
-            default_team_id = default_team.id
-        else:
-            default_team_id = data.team_id
+        #     team_service = TeamService(self.db)
+        #     default_team = team_service.get_default_team(data.user_id, data.space_id)
+        #     if not default_team:
+        #         raise HTTPException(
+        #             status_code=status.HTTP_404_NOT_FOUND, detail="默认团队不存在"
+        #         )
+        #     default_team_id = default_team.id
+        # else:
+        #     default_team_id = data.team_id
         # 查找当前用户空间下是否存在知识库
         knowledge = (
             self.get_active_query()
             .filter(
-                Knowledge.user_id == data.user_id,
-                Knowledge.team_id == default_team_id,
+                Knowledge.creator_id == data.creator_id,
                 Knowledge.space_id == data.space_id,
-                Knowledge.deleted_at.is_(None),
+                Knowledge.team_id.is_(None),
             )
             .first()
         )
@@ -214,7 +326,7 @@ class KnowledgeService(BaseService[Knowledge]):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="已有知识库，请选择知识库进行文档创建",
             )
-        return self.create(data.model_copy(update={"team_id": default_team_id}))
+        return self.create(data.model_copy(update={"team_id": None}))
 
     def get_by_id_or_slug(self, identifier: str) -> Knowledge:
         """通过知识库id/短链查询知识库(附带文档数量)"""
@@ -233,6 +345,41 @@ class KnowledgeService(BaseService[Knowledge]):
             )
             knowledge.items_count = items_count
         return knowledge
+
+    def _validate_visibility(
+        self, *, knowledge: Knowledge, visibility: KnowledgeVisibility
+    ) -> None:
+        """空间模式仅支持空间成员可见"""
+        if visibility == KnowledgeVisibility.SPACE:
+            if knowledge.space.type != SpaceType.ORGANIZATION:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="个人空间不能设置为空间成员可见",
+                )
+            if knowledge.team_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="团队知识库不能设置为空间成员可见",
+                )
+
+    def update_visibility(
+        self, *, knowledge: Knowledge, visibility: KnowledgeVisibility
+    ) -> bool:
+        """更新可见范围"""
+        self._validate_visibility(knowledge=knowledge, visibility=visibility)
+        old_visibility = KnowledgeVisibility(knowledge.visibility)
+        if old_visibility == visibility:
+            return True
+        knowledge.visibility = visibility.value
+        # 更新可见范围授权
+        self.resource_grant_service.sync_knowledge_visibility_grants(
+            knowledge=knowledge,
+            old_visibility=old_visibility,
+            new_visibility=visibility,
+            operator_id=knowledge.creator_id,
+        )
+        self.db.commit()
+        return True
 
     def _build_personal_query(self, query_in: KnowledgeListQuery):
         """个人知识库查询条件"""
@@ -443,33 +590,74 @@ class KnowledgeService(BaseService[Knowledge]):
             return True
         return False
 
+    def _resolve_scope_type(self, knowledge: Knowledge) -> KnowledgeScopeType:
+        """获取知识库范围类型"""
+        if knowledge.team_id is not None:
+            return KnowledgeScopeType.TEAM
+        elif knowledge.space.type == SpaceType.PERSONAL:
+            return KnowledgeScopeType.PERSONAL
+        else:
+            return KnowledgeScopeType.SPACE
+
+    def _resolve_scope_slug(self, knowledge: Knowledge) -> str:
+        """获取知识库范围短链"""
+        if knowledge.team_id is not None:
+            if not knowledge.team:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
+                )
+            return knowledge.team.slug
+        elif knowledge.space.type == SpaceType.PERSONAL:
+            if not knowledge.creator:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="无创建者用户名"
+                )
+            return knowledge.creator.username
+        else:
+            if not knowledge.space.public_area_slug:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="空间公共区域短链不存在",
+                )
+            return knowledge.space.public_area_slug
+
     def get_knowledge_route_context(self, knowledge_id: str) -> KnowledgeRouteContext:
         """获取文档路由上下文(主要是和当前文档访问相关)"""
         knowledge_full_info = (
             self.get_active_query()
             .filter(Knowledge.id == knowledge_id)
-            .first()
-            .options(joinedload(Knowledge.team).joinedload(Knowledge.space))
+            .options(
+                joinedload(Knowledge.creator),
+                joinedload(Knowledge.team),
+                joinedload(Knowledge.space),
+            )
             .first()
         )
         if not knowledge_full_info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
             )
-        team = knowledge_full_info.team if knowledge_full_info else None
-        if not team:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
-            )
+        # 去掉必填判断
+        # team = knowledge_full_info.team if knowledge_full_info else None
+        # if not team:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
+        #     )
         return KnowledgeRouteContext(
             knowledge_id=knowledge_full_info.id,
             knowledge_name=knowledge_full_info.name,
             knowledge_slug=knowledge_full_info.slug,
-            team_id=knowledge_full_info.team_id,
-            team_name=knowledge_full_info.team.name,
-            team_slug=knowledge_full_info.team.slug,
+            scope_type=self._resolve_scope_type(knowledge_full_info),
+            team_id=knowledge_full_info.team_id if knowledge_full_info.team else None,
+            team_name=(
+                knowledge_full_info.team.name if knowledge_full_info.team else None
+            ),
+            team_slug=(
+                knowledge_full_info.team.slug if knowledge_full_info.team else None
+            ),
             space_id=knowledge_full_info.space_id,
             space_domain=knowledge_full_info.space.domain,
+            scope_slug=self._resolve_scope_slug(knowledge_full_info),
         )
 
     def get_knowledge_route_context_multiple(
@@ -480,6 +668,7 @@ class KnowledgeService(BaseService[Knowledge]):
             self.get_active_query()
             .filter(Knowledge.id.in_(knowledge_ids))
             .options(
+                joinedload(Knowledge.creator),
                 joinedload(Knowledge.team),
                 joinedload(Knowledge.space),
             )
@@ -490,11 +679,19 @@ class KnowledgeService(BaseService[Knowledge]):
                 knowledge_id=knowledge_full_info.id,
                 knowledge_name=knowledge_full_info.name,
                 knowledge_slug=knowledge_full_info.slug,
-                team_id=knowledge_full_info.team_id,
-                team_name=knowledge_full_info.team.name,
-                team_slug=knowledge_full_info.team.slug,
+                scope_type=self._resolve_scope_type(knowledge_full_info),
+                team_id=(
+                    knowledge_full_info.team_id if knowledge_full_info.team else None
+                ),
+                team_name=(
+                    knowledge_full_info.team.name if knowledge_full_info.team else None
+                ),
+                team_slug=(
+                    knowledge_full_info.team.slug if knowledge_full_info.team else None
+                ),
                 space_id=knowledge_full_info.space_id,
                 space_domain=knowledge_full_info.space.domain,
+                scope_slug=self._resolve_scope_slug(knowledge_full_info),
             )
             for knowledge_full_info in knowledge_full_infos
         }

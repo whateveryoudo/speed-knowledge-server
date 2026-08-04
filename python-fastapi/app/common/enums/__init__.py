@@ -8,6 +8,8 @@ from .knowledge import (
     KnowledgeGroupStyle,
     KnowledgeFromWay,
     KnowledgeAbility,
+    KnowledgeVisibility,
+    KnowledgeScopeType,
 )
 from .document import (
     DocumentHistoryType,
@@ -28,6 +30,15 @@ from .collaborator import (
 )
 from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
 from .notification import NotificationBizType, NotificationListType
+from .resource_grant import (
+    ResourceType,
+    PrincipalType,
+    PrincipalRole,
+    ResourceRole,
+    GrantSource,
+)
+from .resource_access_request import AccessRequestStatus
+
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -42,6 +53,8 @@ __all__ = [
     "KnowledgeGroupStyle",
     "KnowledgeFromWay",
     "KnowledgeAbility",
+    "KnowledgeVisibility",
+    "KnowledgeScopeType",
     "CollaboratorRole",
     "collaborator_role_name",
     "CollaboratorStatus",
@@ -61,4 +74,10 @@ __all__ = [
     "BaseSortOrder",
     "DocumentImportFormat",
     "DocumentExportFormat",
+    "ResourceType",
+    "PrincipalType",
+    "PrincipalRole",
+    "ResourceRole",
+    "GrantSource",
+    "AccessRequestStatus",
 ]

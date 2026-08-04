@@ -57,3 +57,16 @@ class KnowledgeFromWay(str, Enum):
 
     OWN = "own"  # 个人知识库
     COLLABORATION = "collaboration"  # 协同知识库
+
+
+class KnowledgeVisibility(str, Enum):
+    """知识库可见类别（移除已有的is_public）"""
+    PRIVATE = "private"  # 私有
+    SPACE = "space"  # 空间可见
+    PUBLIC = "public"  # 公开
+
+class KnowledgeScopeType(str, Enum):
+    """知识库范围类型"""
+    PERSONAL = "personal"  # 个人知识库
+    SPACE = "space"  # 空间知识库
+    TEAM = "team"  # 团队知识库

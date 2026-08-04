@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import unique
 import uuid
 from sqlalchemy import Column, String, DateTime, Enum, JSON, func, ForeignKey, Integer
 from app.db.base import Base
@@ -33,6 +34,7 @@ class Space(SoftDeleteMixin, Base):
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
+    public_area_slug = Column(String(64), unique=True, nullable=True, comment="公共区域短链")
     updated_at = Column(
         DateTime,
         nullable=False,

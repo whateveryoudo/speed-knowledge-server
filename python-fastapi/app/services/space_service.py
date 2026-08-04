@@ -5,8 +5,12 @@ from app.services.base_service import BaseService
 from typing import Optional
 from app.services.space_member_service import SpaceMemberService
 from app.schemas.space_member import SpaceMemberCreate
-from app.common.enums import SpaceMemberRole
+from app.common.enums import SpaceMemberRole, SpaceType
 from sqlalchemy import func
+import secrets
+import string
+
+
 class SpaceService(BaseService):
     """空间服务"""
 
@@ -16,11 +20,24 @@ class SpaceService(BaseService):
     def get_space_by_user_id(self, user_id: int):
         return self.get_active_query().filter(Space.owner_id == user_id).first()
 
+    def _generate_public_area_slug(self, space_domain: str) -> str:
+        suffix = "".join(
+            secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6)
+        )
+        return f"org-wiki-{space_domain}-{suffix}"
+
     def get_space_by_domin(self, domin: str):
         return self.get_active_query().filter(Space.domain == domin).first()
 
     def create_space(self, space_create: SpaceCreate):
-        space_row = Space(**space_create.model_dump())
+        public_area_slug = None
+        if space_create.type == SpaceType.ORGANIZATION:
+            if not space_create.domain:
+                raise ValueError("组织空间域名不能为空")
+            public_area_slug = self._generate_public_area_slug(space_create.domain)
+        space_row = Space(
+            **space_create.model_dump(), public_area_slug=public_area_slug
+        )
         self.db.add(space_row)
         self.db.flush()
         self.db.commit()
@@ -33,11 +50,13 @@ class SpaceService(BaseService):
         self.db.flush()
         # 追加默认成员
         space_member_service = SpaceMemberService(self.db)
-        space_member_service.add_member(SpaceMemberCreate(
-            space_id=space_row.id,
-            user_id=space_row.owner_id,
-            role=SpaceMemberRole.OWNER,
-        ))
+        space_member_service.add_member(
+            SpaceMemberCreate(
+                space_id=space_row.id,
+                user_id=space_row.owner_id,
+                role=SpaceMemberRole.OWNER,
+            )
+        )
         self.db.refresh(space_row)
         return space_row
 

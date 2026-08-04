@@ -97,19 +97,23 @@ class DocumentHistoryService:
                 update_datetime = item.viewed_datetime
             else:
                 update_datetime = item.edited_datetime
+            knowledge = item.document.knowledge
+            if not knowledge:
+                continue
+            team = knowledge.team if knowledge else None
             response_item = DocumentHistoryResponse(
                 id=item.id,
                 doc_id=item.document_id,
                 update_datetime=update_datetime,
                 doc_creator=doc_creator,
-                doc_belong_space_id=item.document.knowledge.space_id,
-                doc_belong_team_slug=item.document.knowledge.team.slug,
-                doc_belong_team_name=item.document.knowledge.team.name,
+                doc_belong_space_id=knowledge.space_id,
+                doc_belong_team_slug=team.slug if team else None,
+                doc_belong_team_name=team.name if team else None,
                 doc_belong_knowledge_name=(
-                    item.document.knowledge.name if item.document.knowledge else ""
+                    knowledge.name if knowledge else ""
                 ),
-                doc_belong_knowledge_id=item.document.knowledge.id,
-                doc_belong_knowledge_slug=item.document.knowledge.slug,
+                doc_belong_knowledge_id=knowledge.id,
+                doc_belong_knowledge_slug=knowledge.slug,
                 doc_name=item.document.name,
                 doc_type=item.document.type,
                 doc_slug=item.document.slug,

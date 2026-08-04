@@ -5,6 +5,7 @@ from app.db.base import Base
 from sqlalchemy.orm import relationship
 from app.core.mixins import SoftDeleteMixin
 
+
 class User(Base, SoftDeleteMixin):
     """用户表
 
@@ -19,13 +20,34 @@ class User(Base, SoftDeleteMixin):
     username = Column[str](String(255), unique=True, index=True, nullable=False)
     password = Column[str](String(255), nullable=False)
     nickname = Column[str](String(255), nullable=True)  # 昵称，可选，不唯一
-    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False)
+    created_at = Column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
 
     documents = relationship("Document", back_populates="user", cascade="all, delete")
     collects = relationship("Collect", back_populates="user", cascade="all, delete")
     collaborators = relationship("Collaborator", back_populates="user")
     space_members = relationship("SpaceMember", back_populates="user")
     team_members = relationship("TeamMember", back_populates="user")
-    knowledge_group_relations = relationship("KnowledgeGroupRelation", back_populates="user", cascade="all, delete")
-    knowledge_common_pins = relationship("KnowledgeCommonPin", back_populates="user", cascade="all, delete")
+    knowledge_group_relations = relationship(
+        "KnowledgeGroupRelation", back_populates="user", cascade="all, delete"
+    )
+    knowledge_common_pins = relationship(
+        "KnowledgeCommonPin", back_populates="user", cascade="all, delete"
+    )
+    access_requests = relationship(
+        "ResourceAccessRequest",
+        foreign_keys="ResourceAccessRequest.applicant_user_id",
+        back_populates="applicant"
+    )
+    reviewed_access_requests = relationship(
+        "ResourceAccessRequest",
+        foreign_keys="ResourceAccessRequest.reviewed_by",
+        back_populates="reviewed_user"
+    )

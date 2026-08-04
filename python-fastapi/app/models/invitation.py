@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
 from datetime import datetime
 import uuid
 from app.common.enums import CollaboratorRole, InvitationStatus, CollaborateResourceType
+from sqlalchemy.orm import relationship
 
 
 class Invitation(Base):
@@ -76,3 +77,5 @@ class Invitation(Base):
         server_onupdate=func.current_timestamp(),
         comment="更新时间",
     )
+
+    access_requests = relationship("ResourceAccessRequest", back_populates="invitation")

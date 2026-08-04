@@ -2,54 +2,44 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
-from app.common.enums import InvitationStatus, CollaboratorRole, CollaborateResourceType
-from app.schemas.collaborator import CollaboratorValidInfo
+from enum import Enum
+from app.common.enums import ResourceType, ResourceRole
 
 
-class InvitationBase(BaseModel):
-    """邀请基础结构(知识库/文档)"""
+class InvitationJoinState(str, Enum):
+    """通过邀请加入资源后的状态。"""
+
+    APPROVAL_REQUIRED = "approval_required"
+    PENDING = "pending"
+    EFFECTIVE = "effective"
+
+
+class InvitationJoinRequest(BaseModel):
+    """通过邀请加入资源后的请求结构"""
 
     token: Optional[str] = Field(default=None, description="邀请token")
-    status: Optional[InvitationStatus] = Field(default=None, description="状态")
-    role: Optional[CollaboratorRole] = Field(default=None, description="角色")
-    need_approval: Optional[int] = Field(default=None, description="是否需要审批")
-
-
-class InvitationResponse(InvitationBase):
-    """邀请响应结构(知识库/文档)"""
-
-    id: str = Field(..., description="主键")
-    created_at: datetime = Field(..., description="创建时间")
-    updated_at: datetime = Field(..., description="更新时间")
-
-    class Config:
-        from_attributes = True
-
-
-class InvitationValidInfo(BaseModel):
-    """邀请信息状态(知识库/文档)"""
-
-    status: InvitationStatus = Field(..., description="状态")
-    role: CollaboratorRole = Field(..., description="角色")
-    knowledge_id: Optional[str] = Field(default=None, description="知识库id")
-    document_id: Optional[str] = Field(default=None, description="文档id")
-    knowledge_name: Optional[str] = Field(default=None, description="知识库名称")
-    document_name: Optional[str] = Field(default=None, description="文档名称")
-    invitate_type: CollaborateResourceType = Field(..., description="资源类型")
-    need_approval: Optional[int] = Field(default=None, description="是否需要审批")
-
-    class Config:
-        from_attributes = True
-
-
-class InvitationValidResponse(BaseModel):
-    """邀请信息响应结构(知识库/文档)"""
-
-    invitation: InvitationValidInfo = Field(..., description="邀请链接校验信息")
-    collaborator: Optional[CollaboratorValidInfo] = Field(
-        default=None, description="协作者校验信息"
+    submit_request: bool = Field(
+        default=False,
+        description="是否确认提交加入申请:false为首次进入,true为开启审批需要提交申请",
+    )
+    apply_message: Optional[str] = Field(
+        default=None, max_length=500, description="申请加入原因"
     )
 
-    class Config:
-        from_attributes = True
+
+class InvitationJoinResponse(BaseModel):
+    """邀请响应结构"""
+
+    state: InvitationJoinState = Field(..., description="状态")
+    invitation_id: str = Field(default=None, description="邀请ID")
+    resource_type: ResourceType = Field(..., description="资源类型")
+    resource_id: str = Field(..., description="资源ID")
+    resource_name: str = Field(..., description="资源名称")
+
+    offered_role: ResourceRole = Field(..., description="资源角色")
+    need_approval: bool = Field(default=False, description="是否需要审批")
+    effective_role: Optional[ResourceRole] = Field(
+        default=None, description="实际加入资源后的角色"
+    )
+    request_id: Optional[str] = Field(default=None, description="申请ID")
+    grant_id: Optional[str] = Field(default=None, description="授权ID")

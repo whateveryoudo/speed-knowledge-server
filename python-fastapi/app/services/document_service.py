@@ -33,6 +33,7 @@ from app.common.enums import (
     CollaboratorStatus,
     DocumentImportFormat,
     DocumentExportFormat,
+    SpaceType,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -434,6 +435,43 @@ class DocumentService(BaseService[Document]):
         self.db.commit()
         return None
 
+    def _build_document_path(
+        self, *, scope_slug: str, knowledge_slug: str, document_slug: str
+    ) -> str:
+        """构建文档路径"""
+        return (
+            f"/{scope_slug}"
+            f"/knowledge/{knowledge_slug}"
+            f"/document/{document_slug}"
+        )
+
+    def _build_space_origin(self, *, space_domain: Optional[str]) -> str:
+        if space_domain:
+            return f"{settings.PUBLIC_SCHEME}://{space_domain}.{settings.PUBLIC_ROOT_DOMAIN}"
+        return f"{settings.PUBLIC_SCHEME}://{settings.PUBLIC_ROOT_DOMAIN}"
+
+    def _resolve_document_scope_slug(self, *, knowledge: Knowledge) -> str:
+        """获取文档短链"""
+        if knowledge.team_id is not None:
+            if not knowledge.team:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
+                )
+            return knowledge.team.slug
+        elif knowledge.space.type == SpaceType.PERSONAL:
+            if not knowledge.creator:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="无创建者用户名"
+                )
+            return knowledge.creator.username
+        else:
+            if not knowledge.space.public_area_slug:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="空间公共区域短链不存在",
+                )
+            return knowledge.space.public_area_slug
+
     def resolve_document_links_batch(self, document_ids: list[str]) -> dict[str, str]:
         """批量获取文档相关链接(一次join)"""
         print("document_ids", document_ids)
@@ -444,28 +482,44 @@ class DocumentService(BaseService[Document]):
                 Knowledge.slug.label("knowledge_slug"),
                 Team.slug.label("team_slug"),
                 Space.domain.label("space_domain"),
+                Space.type.label("space_type"),
+                Space.public_area_slug.label("public_area_slug"),
+                User.username.label("creator_username"),
             )
             .join(Knowledge, Document.knowledge_id == Knowledge.id)
             .join(Space, Knowledge.space_id == Space.id)
-            .join(Team, Knowledge.team_id == Team.id)
+            .outerjoin(Team, Knowledge.team_id == Team.id)
             .filter(Document.deleted_at.is_(None))
+            .join(User, Knowledge.creator_id == User.id)
             .filter(Document.id.in_(document_ids))
             .all()
         )
         result: dict[str, str] = {}
-        for r in rows:
-            # 构建文档相关链接(个人空间不存在domin)
-            result[r.document_id] = (
-                f"http://{r.space_domain or settings.DOMAIN}/{r.team_slug or ''}/knowledge/{r.knowledge_slug or ''}/document/{r.document_slug or ''}"
+        for row in rows:
+            if row.team_slug:
+                scope_slug = row.team_slug
+            elif row.space_type == SpaceType.PERSONAL.value:
+                scope_slug = row.creator_username
+            else:
+                scope_slug = row.public_area_slug
+            path = self._build_document_path(
+                scope_slug=scope_slug,
+                knowledge_slug=row.knowledge_slug,
+                document_slug=row.document_slug,
             )
+            origin = self._build_space_origin(space_domain=row.space_domain)
+            # 构建文档相关链接
+            result[row.document_id] = f"{origin}{path}"
         return result
 
     def get_document_route_context(self, document_id: str) -> DocumentRouteContext:
         """获取文档路由上下文(主要是和当前文档访问相关)"""
+
         document_full_info = (
             self.get_active_query()
             .filter(Document.id == document_id)
             .options(
+                joinedload(Document.knowledge).joinedload(Document.knowledge.creator),
                 joinedload(Document.knowledge).joinedload(Document.knowledge.space),
                 joinedload(Document.knowledge).joinedload(Document.knowledge.team),
             )
@@ -476,23 +530,25 @@ class DocumentService(BaseService[Document]):
                 status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
             )
         knowledge = document_full_info.knowledge
-        team = knowledge.team if knowledge else None
-        if not knowledge or not team:
+        if not knowledge:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="知识库或团队不存在"
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
             )
+        team = knowledge.team
+
         return DocumentRouteContext(
             document_id=document_full_info.id,
             document_name=document_full_info.name,
             document_slug=document_full_info.slug,
-            knowledge_id=document_full_info.knowledge_id,
-            knowledge_name=document_full_info.knowledge.name,
-            knowledge_slug=document_full_info.knowledge.slug,
-            team_id=document_full_info.knowledge.team_id,
-            team_name=document_full_info.knowledge.team.name,
-            team_slug=document_full_info.knowledge.team.slug,
-            space_id=document_full_info.knowledge.space_id,
-            space_domain=document_full_info.knowledge.space.domain,
+            knowledge_id=knowledge.id,
+            knowledge_name=knowledge.name,
+            knowledge_slug=knowledge.slug,
+            team_id=team.id if team else None,
+            team_name=team.name if team else None,
+            team_slug=team.slug if team else None,
+            space_id=knowledge.space_id,
+            space_domain=knowledge.space.domain,
+            scope_slug=self._resolve_document_scope_slug(knowledge=knowledge),
         )
 
     def get_document_route_context_multiple(
@@ -505,6 +561,7 @@ class DocumentService(BaseService[Document]):
             self.get_active_query()
             .filter(Document.id.in_(document_ids))
             .options(
+                joinedload(Document.knowledge).joinedload(Knowledge.creator),
                 joinedload(Document.knowledge).joinedload(Knowledge.space),
                 joinedload(Document.knowledge).joinedload(Knowledge.team),
             )
@@ -515,20 +572,21 @@ class DocumentService(BaseService[Document]):
             knowledge = info.knowledge
             team = knowledge.team if knowledge else None
 
-            if not knowledge or not team:
+            if not knowledge:
                 continue
             result[info.id] = DocumentRouteContext(
                 document_id=info.id,
                 document_name=info.name,
                 document_slug=info.slug,
                 knowledge_id=info.knowledge_id,
-                knowledge_name=info.knowledge.name,
-                knowledge_slug=info.knowledge.slug,
-                team_id=info.knowledge.team_id,
-                team_name=info.knowledge.team.name,
-                team_slug=info.knowledge.team.slug,
-                space_id=info.knowledge.space_id,
-                space_domain=info.knowledge.space.domain,
+                knowledge_name=knowledge.name,
+                knowledge_slug=knowledge.slug,
+                team_id=team.id if team else None,
+                team_name=team.name if team else None,
+                team_slug=team.slug if team else None,
+                space_id=knowledge.space_id,
+                space_domain=knowledge.space.domain,
+                scope_slug=self._resolve_document_scope_slug(knowledge=knowledge),
             )
         return result
 

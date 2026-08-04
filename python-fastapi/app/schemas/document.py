@@ -39,11 +39,12 @@ class DocumentRouteContext(BaseModel):
     knowledge_id: str = Field(..., description="所属知识库ID")
     knowledge_name: str = Field(..., description="知识库名称")
     knowledge_slug: str = Field(..., description="知识库短链")
-    team_id: str = Field(..., description="所属团队ID")
-    team_name: str = Field(..., description="团队名称")
-    team_slug: str = Field(..., description="团队短链")
+    team_id: Optional[str] = Field(default=None, description="所属团队ID")
+    team_name: Optional[str] = Field(default=None, description="团队名称")
+    team_slug: Optional[str] = Field(default=None, description="团队短链")
     space_id: str = Field(..., description="所属空间ID")
     space_domain: Optional[str] = Field(default=None, description="空间域名")
+    scope_slug: str = Field(..., description="替代之前的team_slug")
 
 
 class DocumentCreate(BaseModel):

@@ -4,12 +4,18 @@ from fastapi import HTTPException, status
 from typing import Optional, Dict, Union, List
 from sqlalchemy.orm import Session
 from app.models.document import Document
-from app.common.enums import CollaboratorRole, collaborator_role_name
+from app.common.enums import CollaboratorRole, SpaceMemberRole, collaborator_role_name
 from app.services.collaborator_service import CollaboratorService
 from app.services.document_service import DocumentService
 from app.schemas.collaborator import QueryPermissionGroupParams
 from app.services.permission_ability_service import PermissionAbilityService
-from app.common.enums import CollaborateResourceType, KnowledgeAbility, DocumentAbility
+from app.common.enums import (
+    CollaborateResourceType,
+    SpaceType,
+    KnowledgeAbility,
+    DocumentAbility,
+    KnowledgeVisibility,
+)
 from app.services.permission_group_service import PermissionGroupService
 from app.models.permission_group import PermissionGroup
 
@@ -18,6 +24,7 @@ from app.models.collaborator import Collaborator
 from collections import defaultdict
 from app.models.permission_ability import PermissionAbility
 from app.models.knowledge import Knowledge
+from app.models.space_member import SpaceMember
 
 
 class PermissionService:
@@ -106,7 +113,10 @@ class PermissionService:
         return merged_abilities
 
     def assert_knowledge_ability(
-        self, user_id: int, identifier: str, ability: Union[KnowledgeAbility, DocumentAbility]
+        self,
+        user_id: int,
+        identifier: str,
+        ability: Union[KnowledgeAbility, DocumentAbility],
     ) -> Knowledge:
         """封装一层知识库是否拥有某项能力（用于deps和其他一些场景）"""
         from app.services.knowledge_service import KnowledgeService
@@ -175,7 +185,9 @@ class PermissionService:
             status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的资源类型"
         )
 
-    def assert_knowledge_readable(self, user_id: int | None, identifier: str) -> Knowledge:
+    def assert_knowledge_readable(
+        self, user_id: int | None, identifier: str
+    ) -> Knowledge:
         """知识库是否可读（含 is_public）"""
         from app.services.knowledge_service import KnowledgeService
 
@@ -192,7 +204,9 @@ class PermissionService:
             )
         return knowledge
 
-    def assert_document_readable(self, user_id: int | None, identifier: str) -> Document:
+    def assert_document_readable(
+        self, user_id: int | None, identifier: str
+    ) -> Document:
         """封装一层文档是否可读（用于deps和其他一些场景）"""
         from app.services.document_service import DocumentService
 
@@ -204,16 +218,34 @@ class PermissionService:
             raise HTTPException(status_code=403, detail="你无权访问此文档")
         return document
 
-    def can_read_knowledge(
-        self, user_id: int | None, knowledge_id: str, is_public: bool
-    ) -> bool:
+    def can_read_knowledge(self, user_id: int | None, knowledge: Knowledge) -> bool:
         """知识库是否可读（这里增加了公开知识库访问）"""
-        if is_public:
+        if knowledge.visibility == KnowledgeVisibility.PUBLIC.value:
             return True
         if user_id is None:
             return False
-        role = self.get_user_role_in_knowledge(user_id, knowledge_id)
-        return role is not None
+        if (
+            knowledge.visibility == KnowledgeVisibility.SPACE.value
+            and knowledge.team_id is None
+            and knowledge.space.type == SpaceType.ORGANIZATION
+        ):
+            # 公共区
+            space_member = (
+                self.db.query(SpaceMember)
+                .filter(
+                    SpaceMember.space_id == knowledge.space_id,
+                    SpaceMember.user_id == user_id,
+                    SpaceMember.deleted_at.is_(None),
+                    SpaceMember.role != SpaceMemberRole.EXTERNAL,
+                )
+                .first()
+            )
+            if space_member:
+                return True
+
+        return self.collaborator_service.check_user_has_knowledge_access(
+            user_id=user_id, knowledge_id=knowledge.id
+        )
 
     def can_edit_document(self, user_id: int, document: Document) -> bool:
         # 如果是创建者

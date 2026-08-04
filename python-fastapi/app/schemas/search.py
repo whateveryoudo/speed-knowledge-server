@@ -1,4 +1,4 @@
-from app.common.enums.search import SearchContextType, SearchVisibilityType
+from app.common.enums.search import SearchContextType, KnowledgeVisibility, SearchVisibilityType
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Union
 
@@ -22,7 +22,7 @@ class SearchKnowledgeItem(BaseModel):
     name: str = Field(..., description="知识库名称")
     slug: str = Field(..., description="知识库slug")
     team_slug: Optional[str] = Field(None, description="团队slug")
-    is_public: bool = Field(..., description="是否公开")
+    visibility: KnowledgeVisibility = Field(..., description="可见范围")
 
 
 class SearchDocumentItem(BaseModel):

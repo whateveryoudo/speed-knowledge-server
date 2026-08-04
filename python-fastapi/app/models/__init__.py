@@ -26,6 +26,8 @@ from .notification import Notification
 from .knowledge_common_pin import KnowledgeCommonPin
 from .knowledge_group_relation import KnowledgeGroupRelation
 from .resource_access_setting import ResourceAccessSetting
+from .resource_grant import ResourceGrant
+from .resource_access_request import ResourceAccessRequest
 __all__ = [
     "User",
     "Space",
@@ -53,5 +55,7 @@ __all__ = [
     "Notification",
     "KnowledgeCommonPin",
     "KnowledgeGroupRelation",
-    "ResourceAccessSetting"
+    "ResourceAccessSetting",
+    "ResourceGrant",
+    "ResourceAccessRequest",
 ]

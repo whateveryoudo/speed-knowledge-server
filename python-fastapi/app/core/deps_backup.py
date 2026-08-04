@@ -97,7 +97,7 @@ def get_document_or_403(
     document = document_service.get_by_id_or_slug(identifier)
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
-    
+
     permission_service = PermissionService(db)
     if not permission_service.can_read_document(current_user.id, document):
         raise HTTPException(
@@ -120,9 +120,7 @@ def get_knowledge_or_403(
         )
 
     permission_service = PermissionService(db)
-    if not permission_service.can_read_knowledge(
-        current_user.id, target_knowledge.id, target_knowledge.is_public
-    ):
+    if not permission_service.can_read_knowledge(current_user.id, target_knowledge):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="你无权访问此知识库"
         )

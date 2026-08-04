@@ -7,7 +7,7 @@ class SpaceType(str, Enum):
     """空间类型"""
 
     PERSONAL = "personal"  # 个人空间
-    TEAM = "team"  # 团队空间
+    ORGANIZATION = "organization"  # 组织空间
 
 
 class SpaceMemberRole(str, Enum):

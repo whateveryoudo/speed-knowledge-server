@@ -16,4 +16,4 @@ class TeamMemberRole(str, Enum):
     OWNER = "owner"  # 所有者(团队创建者，拥有所有权限)
     ADMIN = "admin"  # 管理员(拥有管理权限,不能删除团队)
     MEMBER = "member"  # 成员(有限的权限)
-    EXTERNAL = "external"  # 外部成员（只能查看自己所在的团队知识库文档）
+    READONLY = "readonly"  # 只读成员(只能查看知识库文档)

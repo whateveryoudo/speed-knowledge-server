@@ -88,9 +88,10 @@ async def create_default_document(
     knowledge_service = KnowledgeService(db)
     knowledge = knowledge_service.create_knowledge_for_quick_document(
         KnowledgeCreate(
-            user_id=current_user.id,
+            creator_id=current_user.id,
             name="默认知识库",
             space_id=space_id,
+            team_id=None,
         )
     )
     document_service = DocumentService(db)

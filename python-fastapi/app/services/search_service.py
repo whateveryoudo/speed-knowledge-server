@@ -15,7 +15,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 from app.models.document import Document
 from app.models.collaborator import Collaborator
-from app.common.enums import CollaboratorStatus, CollaborateResourceType
+from app.common.enums import CollaboratorStatus, CollaborateResourceType, KnowledgeVisibility
 from app.services.permission_service import PermissionService
 
 
@@ -49,7 +49,7 @@ class SearchService:
             name=row.name,
             slug=row.slug,
             team_slug=row.team.slug if row.team else None,
-            is_public=bool(row.is_public),
+            visibility=row.visibility,
         )
 
     def _search_knowledge_by_title(
@@ -72,7 +72,7 @@ class SearchService:
 
         # 如果是公开知识库（仅查询公开知识库）
         if visibility == SearchVisibilityType.PUBLIC:
-            query = query.filter(Knowledge.is_public.is_(True))
+            query = query.filter(Knowledge.visibility == KnowledgeVisibility.PUBLIC.value)
         else:
             # 根据用户id查询协同表中符合的知识库
             accessible_ids = self._get_collaborator_knowledge_ids(user_id)
