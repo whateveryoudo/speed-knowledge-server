@@ -11,7 +11,7 @@ from .knowledge_group import KnowledgeGroup
 from .attachment import Attachment
 from .document import Document, DocumentContent
 from .document_node import DocumentNode
-from .invitation import Invitation
+from .resource_invitation import ResourceInvitation
 from .collaborator import Collaborator
 from .knowledge_daily_stats import KnowledgeDailyStats
 from .collect import Collect
@@ -41,7 +41,7 @@ __all__ = [
     "Document",
     "DocumentContent",
     "DocumentNode",
-    "Invitation",
+    "ResourceInvitation",
     "Collaborator",
     "KnowledgeDailyStats",
     "Collect",

@@ -2,7 +2,6 @@
 
 from app.db.session import SessionLocal  # 名字看你项目，通常叫 SessionLocal
 from app.services.permission_ability_service import PermissionAbilityService
-import argparse
 from app.common.enums import KnowledgeAbility
 
 
@@ -27,8 +26,9 @@ def main():
             service.add_permission_ability_by_permission_group_id(
                 permission_group_id=groupid,
                 ability_key=KnowledgeAbility.READ_BOOK,
-                enable=True,
+                enabled=True,
             )
+        db.commit()
     except Exception as e:
         print(e)
         db.rollback()

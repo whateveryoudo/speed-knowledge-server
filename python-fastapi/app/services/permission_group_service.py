@@ -1,7 +1,6 @@
-from typing import List
 from sqlalchemy.orm import Session
 from app.common.enums import (
-    CollaborateResourceType,
+    PermissionScopeType,
 )
 from app.schemas.permission_group import (
     PermissionGroupCreate,
@@ -9,6 +8,7 @@ from app.schemas.permission_group import (
 from app.models.permission_group import PermissionGroup
 from app.services.permission_ability_service import PermissionAbilityService
 from app.schemas.permission_ability import PermissionAbilityCreateByRole
+from app.repositories.permission_group_repository import PermissionGroupRepository
 
 
 class PermissionGroupService:
@@ -16,68 +16,42 @@ class PermissionGroupService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.permission_group_repository = PermissionGroupRepository(db)
+        self.ability_service = PermissionAbilityService(db)
 
     def create_permission_group(
         self, permission_group_in: PermissionGroupCreate
     ) -> PermissionGroup:
         """创建权限组"""
-        permission_group = PermissionGroup(**permission_group_in.model_dump())
+        permission_group = PermissionGroup(
+            name=permission_group_in.name,
+            role_key=permission_group_in.role_key,
+            scope_type=permission_group_in.scope_type.value,
+            scope_id= str(permission_group_in.scope_id),
+        )
 
-        self.db.add(permission_group)
-        self.db.flush()
+        self.permission_group_repository.add(permission_group)
+        self.permission_group_repository.flush()
         # 增加权限组的时候需要同步增加对应的权限能力
-        permission_ability_service = PermissionAbilityService(self.db)
-        permission_ability_service.create_permission_ability_by_role(
+        self.ability_service.create_permission_abilities_by_role(
             PermissionAbilityCreateByRole(
                 permission_group_id=permission_group.id,
-                role=permission_group_in.role,
-                target_type=permission_group_in.target_type,
+                role_key=permission_group_in.role_key,
+                scope_type=permission_group_in.scope_type,
             )
         )
-        self.db.commit()
         return permission_group
 
-    def get_permission_group_by_id(self, permission_group_id: str):
+    def get_permission_group_by_id(
+        self, permission_group_id: str
+    ) -> PermissionGroup | None:
         """根据ID获取权限组"""
-        return (
-            self.db.query(PermissionGroup)
-            .filter(PermissionGroup.id == permission_group_id)
-            .first()
-        )
+        return self.permission_group_repository.get_by_id(permission_group_id)
 
-    def get_multiple_permission_groups_by_resources(
-        self, target_type: CollaborateResourceType, target_ids: List[str]
-    ) -> List[PermissionGroup]:
-        """根据资源类型和资源id列表,批量查找对应的权限组"""
-        if not target_ids:
-            return []
-        return (
-            self.db.query(PermissionGroup)
-            .filter(
-                PermissionGroup.target_type == target_type,
-                PermissionGroup.target_id.in_(target_ids),
-            )
-            .all()
+    def delete_permission_group_by_scope(
+        self, scope_type: PermissionScopeType, scope_id: str
+    ) -> int:
+        """根据作用域类型和作用域id删除对应的权限组(这里同走一个事务)"""
+        return self.permission_group_repository.delete_by_scope(
+            scope_type=scope_type, scope_id=scope_id
         )
-
-    def get_permission_groups_by_resource(
-        self, target_type: CollaborateResourceType, target_id: str
-    ) -> List[PermissionGroup]:
-        """根据资源类型和资源id查找对应的权限组(多条)"""
-        if not target_id:
-            return []
-        # 这里直接复用批量查询逻辑
-        return self.get_multiple_permission_groups_by_resources(
-            target_type, [target_id]
-        )
-
-    def delete_permission_group_by_resource(
-        self, target_type: CollaborateResourceType, target_id: str
-    ) -> None:
-        """根据资源类型和资源id删除对应的权限组(这里同走一个事务)"""
-        if not target_id:
-            return
-        self.db.query(PermissionGroup).filter(
-            PermissionGroup.target_type == target_type,
-            PermissionGroup.target_id == target_id,
-        ).delete()

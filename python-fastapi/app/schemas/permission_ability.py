@@ -1,8 +1,8 @@
 """权限能力结构"""
 from pydantic import BaseModel, Field
-from typing import Optional, Union
+from typing import Union
 from datetime import datetime
-from app.common.enums import KnowledgeAbility, DocumentAbility, CollaboratorRole,CollaborateResourceType
+from app.common.enums import KnowledgeAbility, DocumentAbility,PermissionScopeType
 
 
 class PermissionAbilityBase(BaseModel):
@@ -14,14 +14,13 @@ class PermissionAbilityBase(BaseModel):
 
 class PermissionAbilityCreateByRole(BaseModel):
     """创建权限能力结构(注意:这里需要根据角色创建对应的权限能力,不是单条创建)"""
-    role: CollaboratorRole = Field(..., description="角色")
+    role_key: str = Field(..., description="作用域内的角色标识")
     permission_group_id: str = Field(..., description="权限组ID")
-    target_type: CollaborateResourceType = Field(..., description="目标类型")
+    scope_type: PermissionScopeType = Field(..., description="作用域类型")
 
-class PermissionAbilityUpdate(PermissionAbilityBase):
+class PermissionAbilityUpdate(BaseModel):
     """更新权限能力结构"""
-    enabled: Optional[bool] = Field(..., description="是否启用")
-    ability_key: Optional[Union[KnowledgeAbility, DocumentAbility]] = Field(..., description="能力键")
+    enabled: bool = Field(..., description="是否启用")
 
 class PermissionAbilityResponse(PermissionAbilityBase):
     """权限能力响应结构"""

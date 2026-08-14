@@ -1,38 +1,42 @@
-from typing import Union
 from sqlalchemy import (
     Column,
-    Integer,
     String,
     DateTime,
     ForeignKey,
     func,
     Boolean,
     text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from app.common.enums import KnowledgeAbility, DocumentAbility
 from uuid import uuid4
 
 
 class PermissionAbility(Base):
-    """权限能力模型(用于关联权限组和能力)"""
+    """权限组中的单项能力配置"""
 
     __tablename__ = "permission_abilities"
+    __table_args__ = (
+        UniqueConstraint(
+            "permission_group_id", "ability_key", name="uq_permission_ability_group_key"
+        ),
+    )
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     permission_group_id = Column(
         String(36),
         ForeignKey("permission_groups.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
         comment="权限组ID",
     )
-    ability_key = Column[Union[KnowledgeAbility, DocumentAbility]](
-        String(30), nullable=False, comment="能力键"
-    )
-    enable = Column(
+    ability_key = Column(String(50), nullable=False, comment="能力键")
+    enabled = Column(
         Boolean, nullable=False, server_default=text("0"), comment="是否启用"
     )
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_onupdate=func.now(), server_default=func.now()
+    )
 
-    permission_group = relationship("PermissionGroup", back_populates="abilities", cascade="all, delete")
+    permission_group = relationship("PermissionGroup", back_populates="abilities")

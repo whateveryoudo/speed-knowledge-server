@@ -17,7 +17,7 @@ from app.schemas.knowledge import (
 from app.core.deps import (
     get_db,
     get_current_user,
-    VertifyKnowledgePermission,
+    VerifyKnowledgePermission,
     get_knowledge_or_403,
     get_optional_current_user,
 )
@@ -83,21 +83,6 @@ async def get_knowledge_list(
     return knowledge_list
 
 
-@router.put(
-    "/{identifier}/toggle-public", response_model=bool, status_code=status.HTTP_200_OK
-)
-async def toggle_knowledge_public(
-    identifier: str,
-    knowledge: Knowledge = Depends(
-        VertifyKnowledgePermission(KnowledgeAbility.MODIFY_BOOK_PERMISSION)
-    ),
-    db: Session = Depends(get_db),
-) -> bool:
-    """切换知识库公开状态"""
-    knowledge_service = KnowledgeService(db)
-    return knowledge_service.toggle_public(identifier)
-
-
 @router.post("/mine/list", response_model=PaginationResponse)
 async def get_knowledge_list_mine(
     query_in: KnowledgeListMineQuery,
@@ -125,16 +110,23 @@ async def get_knowledge_detail(
     # 同时追加当前用户的能力集合
     return knowledge_service.to_wrap_knowledge_response(knowledge, current_user.id)
 
-@router.put("/{identifier}/visibility", response_model=None, status_code=status.HTTP_200_OK)
+
+@router.put(
+    "/{identifier}/visibility", response_model=None, status_code=status.HTTP_200_OK
+)
 async def update_knowledge_visibility(
-    identifier: str,
     body: KnowledgeVisibilityUpdate,
     current_user: User = Depends(get_current_user),
+    knowledge: Knowledge = Depends(
+        VerifyKnowledgePermission(KnowledgeAbility.MODIFY_BOOK_PERMISSION)
+    ),
     db: Session = Depends(get_db),
 ) -> bool:
     """更新知识库公开范围"""
     knowledge_service = KnowledgeService(db)
-    return knowledge_service.update_visibility(identifier, body.visibility)
+    return knowledge_service.update_visibility(knowledge=knowledge, visibility=body.visibility)
+
+
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
 async def get_knowledge_index_page(
     knowledge: Knowledge = Depends(get_knowledge_or_403),
@@ -286,7 +278,7 @@ async def get_document_tree(
 @router.delete("/{identifier}", response_model=None, status_code=status.HTTP_200_OK)
 async def delete_knowledge(
     knowledge: Knowledge = Depends(
-        VertifyKnowledgePermission(KnowledgeAbility.DELETE_BOOK)
+        VerifyKnowledgePermission(KnowledgeAbility.DELETE_BOOK)
     ),
     db: Session = Depends(get_db),
 ) -> bool:

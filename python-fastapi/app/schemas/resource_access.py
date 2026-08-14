@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field
-from app.common.enums import CollaborateResourceType
+from app.common.enums import ResourceType
 from datetime import datetime
 
 
 class BaseResourceAccess(BaseModel):
     target_id: str = Field(..., description="目标ID")
-    target_type: CollaborateResourceType = Field(..., description="目标类型")
+    target_type: ResourceType = Field(..., description="目标类型")
 
 
 class ResourceAccessCreate(BaseResourceAccess):

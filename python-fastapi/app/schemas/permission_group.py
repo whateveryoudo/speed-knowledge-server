@@ -3,22 +3,20 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from app.common.enums import CollaboratorRole, CollaborateResourceType, collaborator_role_name
+from app.common.enums import PermissionScopeType
 
 
 class PermissionGroupBase(BaseModel):
     """权限组基础结构"""
 
     name: str = Field(..., description="权限组名称")
-    role: CollaboratorRole = Field(..., description="角色")
-    target_type: CollaborateResourceType = Field(..., description="目标类型")
-    target_id: str = Field(..., description="目标ID")
+    role_key: str = Field(..., description="作用域内的角色标识")
+    scope_type: PermissionScopeType = Field(..., description="作用域类型")
+    scope_id: str = Field(..., description="作用域ID")
 
 
 class PermissionGroupCreate(PermissionGroupBase):
     """创建权限组结构"""
-
-    model_config = {"use_enum_values": True}
     pass
 
 
@@ -34,6 +32,9 @@ class PermissionGroupResponse(PermissionGroupBase):
 
 
 class PermissionGroupUpdate(BaseModel):
-    role: Optional[CollaboratorRole] = Field(..., description="角色")
-    target_type: Optional[CollaborateResourceType] = Field(..., description="目标类型")
-    target_id: Optional[str] = Field(..., description="目标ID")
+    name: Optional[str] = Field(
+        default=None, min_length=1, max_length=100, description="权限组名称"
+    )
+    role_key: Optional[str] = Field(
+        default=None, min_length=1, max_length=30, description="作用域内的角色标识"
+    )

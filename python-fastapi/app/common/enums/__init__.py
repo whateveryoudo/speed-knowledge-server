@@ -20,25 +20,17 @@ from .document import (
     DocumentImportFormat,
     DocumentExportFormat,
 )
-from .collaborator import (
-    CollaboratorRole,
-    collaborator_role_name,
-    CollaboratorStatus,
-    CollaboratorSource,
-    InvitationStatus,
-    CollaborateResourceType,
-)
+from .invitation import InvitationStatus
+from .resource import ResourceType, ResourceRole, resource_role_name
 from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
 from .notification import NotificationBizType, NotificationListType
 from .resource_grant import (
-    ResourceType,
     PrincipalType,
     PrincipalRole,
-    ResourceRole,
     GrantSource,
 )
 from .resource_access_request import AccessRequestStatus
-
+from .permission import PermissionScopeType
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -55,11 +47,11 @@ __all__ = [
     "KnowledgeAbility",
     "KnowledgeVisibility",
     "KnowledgeScopeType",
-    "CollaboratorRole",
-    "collaborator_role_name",
-    "CollaboratorStatus",
-    "CollaboratorSource",
-    "CollaborateResourceType",
+    "ResourceRole",
+    "resource_role_name",
+    "AccessRequestStatus",
+    "GrantSource",
+    "ResourceType",
     "InvitationStatus",
     "DocumentHistoryType",
     "DocumentType",
@@ -74,10 +66,7 @@ __all__ = [
     "BaseSortOrder",
     "DocumentImportFormat",
     "DocumentExportFormat",
-    "ResourceType",
     "PrincipalType",
     "PrincipalRole",
-    "ResourceRole",
-    "GrantSource",
-    "AccessRequestStatus",
+    "PermissionScopeType",
 ]

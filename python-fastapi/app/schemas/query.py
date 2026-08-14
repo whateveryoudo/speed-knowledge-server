@@ -13,8 +13,8 @@ class SortRule(BaseModel):
 class Pagination(BaseModel):
     """基础分页查询结构"""
 
-    page: int = Field(..., description="页码")
-    page_size: int = Field(..., description="每页条数")
+    page: int = Field(default=1,ge=1, description="页码")
+    page_size: int = Field(default=10,ge=1,le=100, description="每页条数")
 
 
 class BasePaginationQuery(Pagination):

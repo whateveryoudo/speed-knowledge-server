@@ -1,22 +1,28 @@
-from QwenPaw.tests.unit.agents.context.test_scroll_manager import user
 from app.models.resource_grant import ResourceGrant
+from collections import defaultdict
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException
 from app.models.knowledge import Knowledge
 from app.models.document import Document
-from app.common.enums.resource_grant import (
+from app.common.enums import (
     PrincipalType,
     PrincipalRole,
     ResourceType,
     GrantSource,
     ResourceRole,
+    KnowledgeVisibility,
+    SpaceType,
 )
-from app.common.enums.knowledge import KnowledgeVisibility
 from app.models.team_member import TeamMember
 from app.models.space_member import SpaceMember
-from app.common.enums.space import SpaceType
+from app.repositories.resource_grant_repository import ResourceGrantRepository
+from app.common.utils import is_duplicate_on
 
 
 class ResourceGrantService:
+    GRANT_UNIQUE_CONSTRAINT = "uniq_resource_grant"
+
     ROLE_PRIORITY = {
         ResourceRole.ADMIN: 30,
         ResourceRole.EDIT: 20,
@@ -42,12 +48,100 @@ class ResourceGrantService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.grant_repository = ResourceGrantRepository(db)
 
     def get_highest_role(self, roles: list[ResourceRole]) -> ResourceRole | None:
         """获取最高角色"""
         if not roles:
             return None
         return max(roles, key=lambda x: self.ROLE_PRIORITY[x])
+
+    def resolve_multiple_granted_knowledge_roles(
+        self, *, user_id: int, knowledges: list[Knowledge]
+    ) -> dict[str, ResourceRole | None]:
+        """批量获取知识库的最终角色"""
+        if not knowledges:
+            return {}
+        knowledge_ids = [knowledge.id for knowledge in knowledges]
+        grants = self.grant_repository.list_by_resources(
+            resource_type=ResourceType.KNOWLEDGE,
+            resource_ids=knowledge_ids,
+        )
+        # 理解下difaultdict（访问不存在的key会自动创建一个空的list,否则直接append回提示KeyError）
+        grants_by_resource: dict[str, list[ResourceGrant]] = defaultdict(list)
+        for grant in grants:
+            grants_by_resource[grant.resource_id].append(grant)
+        team_ids = {
+            knowledge.team_id
+            for knowledge in knowledges
+            if knowledge.team_id is not None
+        }
+        space_ids = {knowledge.space_id for knowledge in knowledges}
+        team_members: list[TeamMember] = []
+        space_members: list[SpaceMember] = []
+        if team_ids:
+            team_members = (
+                self.db.query(TeamMember)
+                .filter(
+                    TeamMember.team_id.in_(team_ids),
+                    TeamMember.user_id == user_id,
+                )
+                .all()
+            )
+        if space_ids:
+            space_members = (
+                self.db.query(SpaceMember)
+                .filter(
+                    SpaceMember.space_id.in_(space_ids),
+                    SpaceMember.user_id == user_id,
+                )
+                .all()
+            )
+
+        team_role_by_team_id = {
+            member.team_id: member.role.value for member in team_members
+        }
+
+        space_role_by_space_id = {
+            member.space_id: member.role.value for member in space_members
+        }
+        user_id_value = str(user_id)
+        result: dict[str, ResourceRole | None] = {}
+        for knowledge in knowledges:
+            merged_roles: list[ResourceRole] = []
+            if knowledge.visibility == KnowledgeVisibility.PUBLIC.value:
+                merged_roles.append(ResourceRole.READ)
+            team_role = team_role_by_team_id.get(knowledge.team_id)
+            space_role = space_role_by_space_id.get(knowledge.space_id)
+            for grant in grants_by_resource.get(knowledge.id, []):
+                # 用户直接授权
+                if (
+                    grant.principal_type == PrincipalType.USER.value
+                    and grant.principal_role == PrincipalRole.NONE.value
+                    and grant.principal_id == user_id_value
+                ):
+                    merged_roles.append(ResourceRole(grant.resource_role))
+                    continue
+                # 团队角色继承
+                if (
+                    knowledge.team_id is not None
+                    and team_role is not None
+                    and grant.principal_type == PrincipalType.TEAM_ROLE.value
+                    and grant.principal_id == str(knowledge.team_id)
+                    and grant.principal_role == team_role
+                ):
+                    merged_roles.append(ResourceRole(grant.resource_role))
+                    continue
+                # 空间角色继承
+                if (
+                    space_role is not None
+                    and grant.principal_type == PrincipalType.SPACE_ROLE.value
+                    and grant.principal_id == str(knowledge.space_id)
+                    and grant.principal_role == space_role
+                ):
+                    merged_roles.append(ResourceRole(grant.resource_role))
+            result[knowledge.id] = self.get_highest_role(merged_roles)
+        return result
 
     def resolve_effective_role(
         self,
@@ -58,16 +152,12 @@ class ResourceGrantService:
         team_id: str | None,
         space_id: str,
         is_public: bool,
-    ) -> ResourceRole:
+    ) -> ResourceRole | None:
         """计算用户对一个知识库的最终资源角色。"""
         # 获取当前资源的所有授权
-        grants = (
-            self.db.query(ResourceGrant)
-            .filter(
-                ResourceGrant.resource_type == resource_type.value,
-                ResourceGrant.resource_id == resource_id,
-            )
-            .all()
+        grants = self.grant_repository.list_by_resource(
+            resource_type=resource_type,
+            resource_id=resource_id,
         )
         matched_grants: list[ResourceRole] = []
         # 计算最终角色
@@ -103,7 +193,7 @@ class ResourceGrantService:
                 )
                 .first()
             )
-            if team_member is None:
+            if team_member is not None:
                 team_member_role = (
                     team_member.role.value
                     if hasattr(team_member.role, "value")
@@ -129,7 +219,7 @@ class ResourceGrantService:
                 )
                 .first()
             )
-            if space_member is None:
+            if space_member is not None:
                 space_member_role = (
                     space_member.role.value
                     if hasattr(space_member.role, "value")
@@ -153,7 +243,7 @@ class ResourceGrantService:
             resource_id=knowledge.id,
             team_id=knowledge.team_id,
             space_id=knowledge.space_id,
-            is_public=False,
+            is_public=(knowledge.visibility == KnowledgeVisibility.PUBLIC.value),
         )
 
     def resolve_granted_document_role(
@@ -169,7 +259,7 @@ class ResourceGrantService:
             resource_id=document.id,
             team_id=document.knowledge.team_id,
             space_id=document.knowledge.space_id,
-            is_public=False,
+            is_public=document.is_public,
         )
 
     def role_covers(
@@ -202,28 +292,32 @@ class ResourceGrantService:
         source: GrantSource,
         created_by: int | None,
     ) -> ResourceGrant | None:
-        """更新/创建授权"""
+        """更新/创建授权
+        1、已存在授权直接更新，接受最后提交生效（修改目前没加乐观锁）
+        2、不存在则创建新的授权
+        3、并发授权相同主体时，由数据库唯一性拦截
+        4、并发冲突返回409，不修改另一个事务创建的授权
+
+        """
 
         self._validate_principal_role(principal_type, principal_role)
         principal_id_value = str(principal_id)
-        grant = (
-            self.db.query(ResourceGrant)
-            .filter(
-                ResourceGrant.resource_type == resource_type.value,
-                ResourceGrant.resource_id == resource_id,
-                ResourceGrant.principal_type == principal_type.value,
-                ResourceGrant.principal_id == principal_id_value,
-                ResourceGrant.principal_role == principal_role.value,
-            )
-            .first()
+        grant = self.grant_repository.get_by_principal(
+            resource_type=resource_type,
+            resource_id=resource_id,
+            principal_type=principal_type,
+            principal_id=principal_id_value,
+            principal_role=principal_role,
+            for_update=True,
         )
         if resource_role == ResourceRole.NONE:
             if grant is not None:
-                self.db.delete(grant)
-                self.db.flush()
+                self.grant_repository.delete(grant)
+                self.grant_repository.flush()
             return None
 
         if grant is None:
+            # 这里在新增的时候增加了冲突处理
             grant = ResourceGrant(
                 resource_type=resource_type.value,
                 resource_id=resource_id,
@@ -234,12 +328,24 @@ class ResourceGrantService:
                 source=source.value,
                 created_by=created_by,
             )
-            self.db.add(grant)
+            # 增加冲突处理
+            try:
+                with self.db.begin_nested():
+                    self.grant_repository.add(grant)
+                    self.grant_repository.flush()
+            except IntegrityError as exc:
+                if is_duplicate_on(exc, self.GRANT_UNIQUE_CONSTRAINT):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="该主体的授权已被其他操作创建，请刷新后重试",
+                    )
+                raise
+
         else:
             grant.resource_role = resource_role.value
             grant.source = source.value
             grant.created_by = created_by
-        self.db.flush()
+            self.grant_repository.flush()
         # 这里不commit
         return grant
 
@@ -247,7 +353,7 @@ class ResourceGrantService:
         self, *, knowledge: Knowledge, creator_id: int
     ) -> ResourceGrant:
         """创建创建者授权"""
-        return self.upsert_grant(
+        grant = self.upsert_grant(
             resource_type=ResourceType.KNOWLEDGE,
             resource_id=knowledge.id,
             principal_type=PrincipalType.USER,
@@ -257,6 +363,9 @@ class ResourceGrantService:
             source=GrantSource.CREATOR,
             created_by=creator_id,
         )
+        if grant is None:
+            raise RuntimeError(f"创建者默认授权不能为空")
+        return grant
 
     def create_team_grant(
         self, *, knowledge: Knowledge, created_by: int
@@ -271,8 +380,9 @@ class ResourceGrantService:
             PrincipalRole.MEMBER: ResourceRole.EDIT,
             PrincipalRole.READONLY: ResourceRole.READ,
         }
-        return [
-            self.upsert_grant(
+        grants: list[ResourceGrant] = []
+        for principal_role, resource_role in mappings.items():
+            grant = self.upsert_grant(
                 resource_type=ResourceType.KNOWLEDGE,
                 resource_id=knowledge.id,
                 principal_type=PrincipalType.TEAM_ROLE,
@@ -282,8 +392,10 @@ class ResourceGrantService:
                 source=GrantSource.DEFAULT_POLICY,
                 created_by=created_by,
             )
-            for principal_role, resource_role in mappings.items()
-        ]
+            if grant is None:
+                raise RuntimeError(f"团队管理员默认授权不能为空")
+            grants.append(grant)
+        return grants
 
     # 这里对空间授权，拆分成两个方法
     def create_space_admin_grant(
@@ -313,7 +425,7 @@ class ResourceGrantService:
 
     def create_space_member_visibility_grant(
         self, *, knowledge: Knowledge, created_by: int
-    ) -> list[ResourceGrant]:
+    ) -> ResourceGrant:
         """创建空间成员授权"""
         grant = self.upsert_grant(
             resource_type=ResourceType.KNOWLEDGE,
@@ -328,29 +440,6 @@ class ResourceGrantService:
         if grant is None:
             raise RuntimeError(f"空间成员默认授权不能为空")
         return grant
-
-    def create_space_grant(
-        self, *, knowledge: Knowledge, created_by: int
-    ) -> list[ResourceGrant]:
-        """创建空间授权"""
-        mappings = {
-            PrincipalRole.OWNER: ResourceRole.ADMIN,
-            PrincipalRole.ADMIN: ResourceRole.ADMIN,
-            PrincipalRole.MEMBER: ResourceRole.EDIT,
-        }
-        return [
-            self.upsert_grant(
-                resource_type=ResourceType.KNOWLEDGE,
-                resource_id=knowledge.id,
-                principal_type=PrincipalType.SPACE_ROLE,
-                principal_id=knowledge.space_id,
-                principal_role=principal_role,
-                resource_role=resource_role,
-                source=GrantSource.DEFAULT_POLICY,
-                created_by=created_by,
-            )
-            for principal_role, resource_role in mappings.items()
-        ]
 
     def create_default_knowledge_grants(
         self, *, knowledge: Knowledge, creator_id: int
@@ -384,7 +473,7 @@ class ResourceGrantService:
         )
         # 仅当空间成员可见才继承空间角色
         if knowledge.visibility == KnowledgeVisibility.SPACE.value:
-            grants.extend(
+            grants.append(
                 self.create_space_member_visibility_grant(
                     knowledge=knowledge,
                     created_by=creator_id,
@@ -394,14 +483,15 @@ class ResourceGrantService:
 
     def delete_space_member_visibility_grant(self, *, knowledge: Knowledge) -> None:
         """删除空间成员授权"""
-        self.db.query(ResourceGrant).filter(
-            ResourceGrant.resource_type == ResourceType.KNOWLEDGE.value,
-            ResourceGrant.resource_id == knowledge.id,
-            ResourceGrant.principal_type == PrincipalType.SPACE_ROLE.value,
-            ResourceGrant.principal_id == knowledge.space.id,
-            ResourceGrant.principal_role == PrincipalRole.MEMBER.value,
-        ).delete(synchronize_session=False)
-        self.db.flush()
+        self.grant_repository.delete_by_principal(
+            resource_type=ResourceType.KNOWLEDGE,
+            resource_id=knowledge.id,
+            principal_type=PrincipalType.SPACE_ROLE,
+            principal_id=knowledge.space_id,
+            principal_role=PrincipalRole.MEMBER,
+        )
+
+        self.grant_repository.flush()
 
     def sync_knowledge_visibility_grants(
         self,
@@ -417,7 +507,8 @@ class ResourceGrantService:
         )
         if not is_space_public_area:
             return
-
+        if old_visibility == new_visibility:
+            return
         # space -> private/public,需要空间成员的已有授权
         if old_visibility == KnowledgeVisibility.SPACE:
             self.delete_space_member_visibility_grant(knowledge=knowledge)

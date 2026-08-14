@@ -12,18 +12,15 @@ from app.schemas.permission_group import PermissionGroupCreate
 from app.models.document import Document
 from app.services.permission_service import PermissionService
 from app.common.enums import (
-    CollaboratorRole,
-    CollaborateResourceType,
-    collaborator_role_name,
-    CollaboratorStatus,
-    KnowledgeFromWay,
-    CollaboratorSource,
+    ResourceRole,
+    ResourceType,
+    resource_role_name,
     SpaceType,
     SpaceMemberRole,
     KnowledgeScopeType,
     KnowledgeVisibility,
     TeamMemberRole,
-    ResourceRole,
+    PermissionScopeType,
 )
 from typing import List, Optional, Dict
 import secrets
@@ -58,6 +55,7 @@ from app.models.space import Space
 from app.models.space_member import SpaceMember
 from app.models.team import Team
 from app.models.team_member import TeamMember
+from app.repositories.knowledge_repository import KnowledgeRepository
 
 alphabet = string.ascii_letters + string.digits
 
@@ -79,6 +77,7 @@ class KnowledgeService(BaseService[Knowledge]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Knowledge)
         self.permission_service = PermissionService(db)
+        self.knowledge_repository = KnowledgeRepository(db)
         self.knowledge_group_relation_service = KnowledgeGroupRelationService(db)
         self.document_service = DocumentService(db)
         self.resource_grant_service = ResourceGrantService(db)
@@ -176,8 +175,10 @@ class KnowledgeService(BaseService[Knowledge]):
         self, knowledge: Knowledge, user_id: int
     ) -> KnowledgeResponse:
         """包装知识库响应(追加一些其他参数)"""
-        ability = self.permission_service.get_permission_ability_by_resource(
-            user_id, CollaborateResourceType.KNOWLEDGE, knowledge.id
+        ability = self.permission_service.get_effective_abilities(
+            user_id=user_id,
+            resource_type=ResourceType.KNOWLEDGE,
+            resource_id=knowledge.id,
         )
         return KnowledgeResponse.model_validate(knowledge).model_copy(
             update={
@@ -263,10 +264,10 @@ class KnowledgeService(BaseService[Knowledge]):
                     permission_group_service.create_permission_group(
                         # 权限组名称: 知识库名称(知识库短链)-角色名称
                         PermissionGroupCreate(
-                            name=f"{knowledge.name}({knowledge.slug})-{collaborator_role_name[role.value]}",
-                            role=role,
-                            target_type=CollaborateResourceType.KNOWLEDGE,
-                            target_id=knowledge.id,
+                            name=f"{knowledge.name}({knowledge.slug})-{resource_role_name[role.value]}",
+                            role_key=role.value,
+                            scope_type=PermissionScopeType.KNOWLEDGE,
+                            scope_id=knowledge.id,
                         )
                     )
                 # 默认添加为常用知识库
@@ -441,7 +442,7 @@ class KnowledgeService(BaseService[Knowledge]):
                         PermissionGroup.role == Collaborator.role,
                         PermissionAbility.permission_group_id == PermissionGroup.id,
                         PermissionAbility.ability_key == ability_key,
-                        PermissionAbility.enable.is_(True),
+                        PermissionAbility.enabled.is_(True),
                     )
                 )
             )
@@ -532,8 +533,8 @@ class KnowledgeService(BaseService[Knowledge]):
         knowledge_ids = [row.knowledge_id for row in rows]
         # 批量拿回权限能力
         ability_map = (
-            self.permission_service.get_multiple_permission_ability_by_resources(
-                query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=query_in.user_id, knowledge_ids=knowledge_ids
             )
         )
 
@@ -559,8 +560,8 @@ class KnowledgeService(BaseService[Knowledge]):
         knowledge_ids = [row.knowledge_id for row in rows]
         # 批量拿回权限能力
         ability_map = (
-            self.permission_service.get_multiple_permission_ability_by_resources(
-                query_in.user_id, CollaborateResourceType.KNOWLEDGE, knowledge_ids
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=query_in.user_id, knowledge_ids=knowledge_ids
             )
         )
         # 组装成和get_list_by_user_id一样的响应结构

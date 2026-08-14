@@ -1,7 +1,7 @@
 """依赖注入"""
 
 from fastapi import Depends, HTTPException, status, Query, Request, Header
-from typing import Generator, Union, Optional
+from typing import Generator, Union
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -81,6 +81,7 @@ def get_optional_current_user(
         return None
     return _resolve_user_from_token(credentials.credentials, db)
 
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
@@ -110,10 +111,10 @@ def get_current_user_from_query(
     return user
 
 
-class VertifyDocumentPermission:
+class VerifyDocumentPermission:
     """验证文档权限（strict，走 ability，不认公开只读）"""
 
-    def __init__(self, ability_key: Union[KnowledgeAbility, DocumentAbility]):
+    def __init__(self, ability_key: DocumentAbility):
         self.ability_key = ability_key
 
     def __call__(
@@ -122,11 +123,6 @@ class VertifyDocumentPermission:
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> Document:
-        if not isinstance(self.ability_key, DocumentAbility):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="文档权限校验能力类型不匹配",
-            )
         return PermissionService(db).assert_document_ability(
             current_user.id, identifier, self.ability_key
         )
@@ -139,7 +135,7 @@ def get_document_or_403(
 ) -> Document:
     """获取文档或返回403(这里改成了直接使用PermissionService的assert_document_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
     return PermissionService(db).assert_document_readable(
-        current_user.id if current_user and current_user.id else None, identifier
+        current_user.id if current_user is not None else None, identifier
     )
 
 
@@ -150,11 +146,11 @@ def get_knowledge_or_403(
 ) -> Knowledge:
     """获取知识库或返回403(这里改成了直接使用PermissionService的assert_knowledge_readable方法，不仅仅通过权限值判断，考虑了公开的场景)"""
     return PermissionService(db).assert_knowledge_readable(
-        current_user.id if current_user and current_user.id else None, identifier
+        current_user.id if current_user is not None else None, identifier
     )
 
 
-class VertifyKnowledgePermission:
+class VerifyKnowledgePermission:
     """验证知识库权限"""
 
     def __init__(self, ability_key: Union[KnowledgeAbility, DocumentAbility]):
@@ -165,14 +161,14 @@ class VertifyKnowledgePermission:
         identifier: str,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
-    ) -> Optional[Knowledge]:
+    ) -> Knowledge:
         """验证资源权限"""
         return PermissionService(db).assert_knowledge_ability(
             current_user.id, identifier, self.ability_key
         )
 
 
-# def vertify_knowledge_manage_permission(
+# def Verify_knowledge_manage_permission(
 #     identifier: str,
 #     current_user: User = Depends(get_current_user),
 #     db: Session = Depends(get_db),

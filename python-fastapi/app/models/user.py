@@ -44,10 +44,15 @@ class User(Base, SoftDeleteMixin):
     access_requests = relationship(
         "ResourceAccessRequest",
         foreign_keys="ResourceAccessRequest.applicant_user_id",
-        back_populates="applicant"
+        back_populates="applicant",
     )
     reviewed_access_requests = relationship(
         "ResourceAccessRequest",
         foreign_keys="ResourceAccessRequest.reviewed_by",
-        back_populates="reviewed_user"
+        back_populates="reviewed_user",
+    )
+    created_resource_invitations = relationship(
+        "ResourceInvitation",
+        foreign_keys="ResourceInvitation.inviter_id",
+        back_populates="inviter",
     )

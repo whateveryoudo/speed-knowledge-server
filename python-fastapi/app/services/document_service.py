@@ -29,11 +29,13 @@ from app.common.enums import (
     CollaborateResourceType,
     DocumentType,
     DocumentNodeType,
-    CollaboratorRole,
     CollaboratorStatus,
     DocumentImportFormat,
     DocumentExportFormat,
     SpaceType,
+    PermissionScopeType,
+    ResourceRole,
+    resource_role_name,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -115,15 +117,19 @@ class DocumentService(BaseService[Document]):
         )
 
         # 创建默认权限组(追加3个角色权限)
-        for role in CollaboratorRole:
+        for role in (
+            ResourceRole.ADMIN,
+            ResourceRole.EDIT,
+            ResourceRole.READ,
+        ):
             permission_group_service = PermissionGroupService(self.db)
             permission_group_service.create_permission_group(
                 # 权限组名称: 文档名称(文档短链)-角色名称
                 PermissionGroupCreate(
-                    name=f"{document.name}({document.slug})-{collaborator_role_name[role.value]}",
-                    role=role,
-                    target_type=CollaborateResourceType.DOCUMENT,
-                    target_id=document.id,
+                    name=f"{document.name}({document.slug})-{resource_role_name[role.value]}",
+                    role_key=role.value,
+                    scope_type=PermissionScopeType.DOCUMENT,
+                    scope_id=document.id,
                 )
             )
         # 调用节点更新
@@ -440,9 +446,7 @@ class DocumentService(BaseService[Document]):
     ) -> str:
         """构建文档路径"""
         return (
-            f"/{scope_slug}"
-            f"/knowledge/{knowledge_slug}"
-            f"/document/{document_slug}"
+            f"/{scope_slug}" f"/knowledge/{knowledge_slug}" f"/document/{document_slug}"
         )
 
     def _build_space_origin(self, *, space_domain: Optional[str]) -> str:

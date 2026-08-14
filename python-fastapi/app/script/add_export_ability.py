@@ -1,14 +1,14 @@
 from app.models.permission_group import PermissionGroup
 from app.models.permission_ability import PermissionAbility
 from app.db.session import SessionLocal
-from app.common.enums import DocumentAbility, CollaboratorRole
+from app.common.enums import DocumentAbility, ResourceRole
 
 
 def main():
     ENABLE_BY_ROLE = {
-        CollaboratorRole.ADMIN: True,
-        CollaboratorRole.EDIT: True,
-        CollaboratorRole.READ: False,
+        ResourceRole.ADMIN.value: True,
+        ResourceRole.EDIT.value: True,
+        ResourceRole.READ.value: False,
     }
     db = SessionLocal()
     groups = db.query(PermissionGroup).all()
@@ -25,11 +25,11 @@ def main():
             if exists:
                 continue
             # 获取校色的能力值
-            enable = ENABLE_BY_ROLE[group.role]
+            enabled = ENABLE_BY_ROLE[group.role_key]
             ability = PermissionAbility(
                 permission_group_id=group.id,
                 ability_key=DocumentAbility.DOC_EXPORT.value,
-                enable=enable,
+                enabled=enabled,
             )
             db.add(ability)
         db.commit()

@@ -23,8 +23,8 @@ from app.schemas.document import (
 )
 from app.core.deps import (
     get_db,
-    VertifyDocumentPermission,
-    VertifyKnowledgePermission,
+    VerifyDocumentPermission,
+    VerifyKnowledgePermission,
     get_current_user,
     get_optional_current_user,
     get_document_or_403,
@@ -129,7 +129,7 @@ async def import_document(
     file: UploadFile = File(...),
     format: DocumentImportFormat = Form(...),
     knowledge: Knowledge = Depends(
-        VertifyKnowledgePermission(DocumentAbility.DOC_CTEATE)
+        VerifyKnowledgePermission(DocumentAbility.DOC_CTEATE)
     ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -152,7 +152,7 @@ async def import_document(
 @router.post("/{identifier}/export", response_model=None)
 async def export_document(
     body: DocumentExportRequest,
-    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_EXPORT)),
+    document: Document = Depends(VerifyDocumentPermission(DocumentAbility.DOC_EXPORT)),
     db: Session = Depends(get_db),
 ):
     """导出文档"""
@@ -184,7 +184,7 @@ async def get_document_detail(
 async def update_document(
     identifier: str,
     document_in: DocumentUpdate,
-    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_EDIT)),
+    document: Document = Depends(VerifyDocumentPermission(DocumentAbility.DOC_EDIT)),
     db: Session = Depends(get_db),
 ) -> Document:
     """更新文档"""
@@ -218,7 +218,7 @@ async def get_document_content(
 
 @router.delete("/{identifier}", response_model=None)
 async def delete_document(
-    document: Document = Depends(VertifyDocumentPermission(DocumentAbility.DOC_DELETE)),
+    document: Document = Depends(VerifyDocumentPermission(DocumentAbility.DOC_DELETE)),
     db: Session = Depends(get_db),
 ) -> None:
     """删除文档"""
