@@ -1,6 +1,7 @@
 from app.models.team import Team
 from app.schemas.team import TeamCreate, TeamUpdate
 from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
 from app.services.base_service import BaseService
 from datetime import datetime
 import secrets
@@ -26,12 +27,13 @@ class TeamService(BaseService):
 
     def get_team(self, team_id: str):
         return self.get_active_query().filter(Team.id == team_id).first()
-
+    def _slug_exists(self, slug: str):
+        return self.get_all_query().filter(Team.slug == slug).first() is not None
     def create_team(self, team_create: TeamCreate):
         # 排除members
         print(team_create)
         temp_slug = self._generate_slug()
-        while self.get_active_query().filter(Team.slug == temp_slug).first():
+        while self._slug_exists(temp_slug):
             temp_slug = self._generate_slug()
         team_row = Team(**team_create.model_dump(exclude={"members"}), slug=temp_slug)
         self.db.add(team_row)
@@ -76,15 +78,19 @@ class TeamService(BaseService):
         return team_row
 
     def update_team(self, team_update: TeamUpdate):
-        self.db.query(Team).filter(Team.id == team_update.id).update(
+        self.get_active_query().filter(Team.id == team_update.id).update(
             team_update.model_dump()
         )
         self.db.commit()
         return True
 
     def delete_team(self, team_id: str):
-        self.db.query(Team).filter(Team.id == team_id).update(
-            {"deleted_at": datetime.now()}
-        )
+
+        team = self.get_active_query().filter(Team.id == team_id)
+        if team.is_default:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="默认团队不能删除"
+            )
+        team.soft_delete()
         self.db.commit()
         return True

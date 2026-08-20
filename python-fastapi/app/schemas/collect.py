@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
-from app.common.enums import CollectResourceType, DocumentType
+from app.common.enums import ResourceType, DocumentType
 from datetime import datetime
 from typing import Optional
 
 
 class CollectBase(BaseModel):
     identifier: str = Field(..., description="收藏标识")
-    resource_type: CollectResourceType = Field(..., description="收藏类型")
+    resource_type: ResourceType = Field(..., description="收藏类型")
 
 
 class CollectCreate(CollectBase):
@@ -18,7 +18,7 @@ class CollectCreate(CollectBase):
 class CollectSearch(BaseModel):
     """收藏搜索结构"""
 
-    resource_type: Optional[CollectResourceType] = Field(
+    resource_type: Optional[ResourceType] = Field(
         default=None, description="收藏类型，不传表示全部"
     )
     keyword: Optional[str] = Field(default=None, description="关键词")
@@ -65,9 +65,9 @@ class CollectListItemResponse(BaseModel):
     """收藏列表项"""
 
     id: str = Field(..., description="收藏ID")
-    resource_type: CollectResourceType = Field(..., description="收藏类型")
+    resource_type: ResourceType = Field(..., description="收藏资源类型")
     identifier: str = Field(..., description="取消收藏用的资源ID")
     created_at: datetime = Field(..., description="收藏时间")
-    team: CollectTeamBrief
+    team: Optional[CollectTeamBrief] = Field(None, description="团队简要信息")
     knowledge: CollectKnowledgeBrief
     document: Optional[CollectDocumentBrief] = Field(None, description="文档简要信息")

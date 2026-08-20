@@ -1,6 +1,6 @@
 from .space import SpaceType, SpaceMemberRole
 from .team import TeamVisibility, TeamMemberRole
-from .common import AIAction, AIActionPromptDict, CollectResourceType, BaseSortOrder
+from .common import AIAction, AIActionPromptDict, BaseSortOrder
 from .knowledge import (
     KnowledgeIndexPageLayout,
     KnowledgeIndexPageSort,
@@ -14,6 +14,7 @@ from .knowledge import (
 from .document import (
     DocumentHistoryType,
     DocumentType,
+    DocumentVisibility,
     DocumentNodeDragAction,
     DocumentNodeType,
     DocumentAbility,
@@ -38,7 +39,6 @@ __all__ = [
     "TeamMemberRole",
     "AIAction",
     "AIActionPromptDict",
-    "CollectResourceType",
     "KnowledgeIndexPageLayout",
     "KnowledgeIndexPageSort",
     "KnowledgeGroupType",
@@ -55,6 +55,7 @@ __all__ = [
     "InvitationStatus",
     "DocumentHistoryType",
     "DocumentType",
+    "DocumentVisibility",
     "DocumentNodeDragAction",
     "DocumentNodeType",
     "DocumentAbility",

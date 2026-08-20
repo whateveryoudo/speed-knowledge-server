@@ -32,9 +32,3 @@ AIActionPromptDict = {
     AIAction.CUSTOM: "请处理以下文本：",
 }
 
-
-class CollectResourceType(str, Enum):
-    """收藏资源类型"""
-
-    KNOWLEDGE = "knowledge"  # 知识库
-    DOCUMENT = "document"  # 文档

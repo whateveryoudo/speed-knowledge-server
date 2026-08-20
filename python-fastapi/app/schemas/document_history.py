@@ -25,6 +25,7 @@ class DocumentHistoryQuery(DocumentHistoryQueryBase):
 class DocumentHistoryResponse(DocumentHistoryQueryBase):
     """文档历史响应结构（这里会组合一些用户信息和文档信息）"""
     id: str = Field(..., description="主键")
+    doc_id: str = Field(..., description="文档ID")
     doc_slug: str = Field(..., description="文档短链")
     doc_is_collected: bool = Field(..., description="是否已收藏")
     update_datetime: datetime = Field(..., description="更新时间")

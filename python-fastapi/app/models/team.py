@@ -1,8 +1,8 @@
 from app.db.base import Base
-from app.core.mixins import SoftDeleteMixin
 from sqlalchemy import Column, String, DateTime, Integer, Enum, Boolean, func, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app.common.enums import TeamVisibility
+from app.core.mixins import SoftDeleteMixin
 import uuid
 
 class Team(SoftDeleteMixin, Base):

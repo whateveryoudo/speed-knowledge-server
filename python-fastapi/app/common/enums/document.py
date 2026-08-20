@@ -13,7 +13,7 @@ class DocumentHistoryType(str, Enum):
 
 class DocumentAbility(str, Enum):
     """角色能力"""
-    DOC_CTEATE = 'doc_create'  # 创建
+    DOC_CREATE = 'doc_create'  # 创建
     DOC_READ = 'doc_read'  # 只读
     DOC_EDIT = 'doc_edit'  # 编辑
     DOC_DELETE = 'doc_delete'  # 删除
@@ -22,6 +22,12 @@ class DocumentAbility(str, Enum):
     DOC_COMMENT = 'doc_comment'  # 评论
     DOC_EXPORT = 'doc_export'  # 导出
 
+class DocumentVisibility(str, Enum):
+    """文档可见范围"""
+    INHERIT = "inherit"  # 继承知识库可见范围
+    SPACE = "space"  # 空间内部成员可访问
+    PUBLIC = "public"  # 互联网公开
+    PRIVATE = "private"  # 不继承知识库的空间/公开范围
 
 class DocumentType(str, Enum):
     """文档类型"""

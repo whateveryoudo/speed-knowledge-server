@@ -20,6 +20,7 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentRouteContext,
     DocumentExportRequest,
+    DocumentVisibilityUpdate,
 )
 from app.core.deps import (
     get_db,
@@ -45,11 +46,10 @@ from app.schemas.document_node import (
 from datetime import datetime
 from app.services.collect_service import CollectService
 from app.common.enums import (
-    CollectResourceType,
+    ResourceType,
     DocumentImportFormat,
     DocumentType,
-    DocumentAbility,
-    DocumentNodeType,
+    DocumentAbility
 )
 from app.schemas.user import UserResponse
 from app.models.knowledge import Knowledge
@@ -114,7 +114,9 @@ async def get_document_list_by_knowledge_id(
 ) -> List[DocumentResponse]:
     """获取知识库下的文档列表"""
     document_service = DocumentService(db)
-    document_list = document_service.get_list_by_knowledge_id(knowledge.id)
+    document_list = document_service.get_list_by_knowledge_id(
+        knowledge_id=knowledge.id, user_id=current_user.id
+    )
     return document_list
 
 
@@ -129,7 +131,7 @@ async def import_document(
     file: UploadFile = File(...),
     format: DocumentImportFormat = Form(...),
     knowledge: Knowledge = Depends(
-        VerifyKnowledgePermission(DocumentAbility.DOC_CTEATE)
+        VerifyKnowledgePermission(DocumentAbility.DOC_CREATE)
     ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -145,7 +147,7 @@ async def import_document(
         file_bytes=file_bytes,
         file_name=file_name or "未命名.docx",
         content_type=file.content_type or "application/octet-stream",
-        format=format
+        format=format,
     )
 
 
@@ -161,6 +163,7 @@ async def export_document(
         document_service.export_document, document.id, body.format
     )
 
+
 @router.get("/{identifier}", response_model=DocumentResponse)
 async def get_document_detail(
     document: Document = Depends(get_document_or_403),
@@ -171,7 +174,7 @@ async def get_document_detail(
     if current_user and current_user.id:
         collect_service = CollectService(db)
         collected_record = collect_service.check_is_collected(
-            current_user.id, document.id, CollectResourceType.DOCUMENT
+            current_user.id, document.id, ResourceType.DOCUMENT
         )
     else:
         collected_record = None
@@ -226,15 +229,31 @@ async def delete_document(
     return document_service.delete_by_id_or_slug(document.id)
 
 
-@router.get("/{document_id}/context-users", response_model=List[UserResponse])
+@router.get("/{identifier}/context-users", response_model=List[UserResponse])
 async def get_context_users(
-    document_id: str,
-    keyword: str = Query(None),
+    keyword: str | None = Query(None),
+    document: Document = Depends(VerifyDocumentPermission(DocumentAbility.DOC_READ)),
     db: Session = Depends(get_db),
 ) -> List[UserResponse]:
     """获取文档上下文用户列表"""
     document_service = DocumentService(db)
-    return document_service.get_context_users(document_id, keyword)
+    return document_service.get_context_users(document_id=document.id, keyword=keyword)
+
+
+@router.patch("/{identifier}/visibility", response_model=bool)
+async def update_document_visibility(
+    document_visibility_in: DocumentVisibilityUpdate,
+    document: Document = Depends(VerifyDocumentPermission(DocumentAbility.DOC_SHARE)),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> bool:
+    """更新文档可见范围"""
+    document_service = DocumentService(db)
+    return document_service.update_visibility(
+        document=document,
+        visibility=document_visibility_in.visibility,
+        operator_id=current_user.id,
+    )
 
 
 @node_router.post(

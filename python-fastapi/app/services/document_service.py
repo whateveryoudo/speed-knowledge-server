@@ -13,33 +13,32 @@ from app.schemas.document_node import DocumentNodeCreate
 from typing import List, Literal, Optional
 from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
+from app.services.resource_grant_service import ResourceGrantService
 from app.models.document_node import DocumentNode
-from app.services.collaborator_service import CollaboratorService
-from app.schemas.collaborator import CollaboratorCreate
 from app.models.user import User
-from app.models.collaborator import Collaborator
 from app.core.config import settings
 import secrets
 import string
 import httpx
 import logging
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_
 from app.services.base_service import BaseService
+from app.services.permission_service import PermissionService
 from app.common.enums import (
-    CollaborateResourceType,
     DocumentType,
     DocumentNodeType,
-    CollaboratorStatus,
     DocumentImportFormat,
     DocumentExportFormat,
     SpaceType,
     PermissionScopeType,
     ResourceRole,
+    ResourceType,
+    DocumentVisibility,
     resource_role_name,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
-from app.common.enums import collaborator_role_name
+from app.repositories.document_repository import DocumentRepository
 from app.models.knowledge import Knowledge
 from app.models.space import Space
 from app.models.team import Team
@@ -59,6 +58,9 @@ class DocumentService(BaseService[Document]):
 
     def __init__(self, db: Session):
         super().__init__(db, Document)
+        self.resource_grant_service = ResourceGrantService(db)
+        self.permission_service = PermissionService(db)
+        self.document_repository = DocumentRepository(db)
 
     def create_default_content(self, document_id: str):
         """构建 document_content：调用 Node create-default（按 document_base.type 写 word/sheet）"""
@@ -93,6 +95,9 @@ class DocumentService(BaseService[Document]):
         self, document_in: DocumentCreate, *, skip_default_content: bool = False
     ) -> DocumentNode:
         """创建文档"""
+        # 创建文档创建者授权
+        if document_in.user_id is None:
+            raise ValueError("文档创建者用户id不能为空")
         temp_slug = self._generate_slug()
         while self.get_active_query().filter(Document.slug == temp_slug).first():
             temp_slug = self._generate_slug()
@@ -106,16 +111,10 @@ class DocumentService(BaseService[Document]):
         )
         self.db.add(document)
         self.db.flush()
-        # 追加默认协作者
-        collaborator_service = CollaboratorService(self.db)
-        collaborator_service.join_default_collaborator(
-            CollaboratorCreate(
-                user_id=document_in.user_id,
-                document_id=document.id,
-                target_type=CollaborateResourceType.DOCUMENT,
-            )
+        self.resource_grant_service.create_document_creator_grant(
+            document=document,
+            creator_id=document_in.user_id,
         )
-
         # 创建默认权限组(追加3个角色权限)
         for role in (
             ResourceRole.ADMIN,
@@ -255,7 +254,7 @@ class DocumentService(BaseService[Document]):
         file_name: str,
         content_type: str,
         format: DocumentImportFormat,
-    ) -> Optional[DocumentNode]:
+    ) -> DocumentNode:
         """导入文档（成功返回文档树节点）"""
         # 文件名作为文档标题（与正文 title 节点一致）
         placeholder_name = (file_name.rsplit(".", 1)[0] if file_name else "导入文档")[
@@ -323,10 +322,15 @@ class DocumentService(BaseService[Document]):
         """通过用户id获取文档列表"""
         return self.db.query(Document).filter(Document.user_id == user_id).all()
 
-    def get_list_by_knowledge_id(self, knowledge_id: str) -> List[Document]:
+    def get_list_by_knowledge_id(
+        self, *, knowledge_id: str, user_id: int
+    ) -> List[Document]:
         """通过知识库id获取文档列表"""
-        return (
-            self.db.query(Document).filter(Document.knowledge_id == knowledge_id).all()
+        documents = self.document_repository.list_active_by_knowledge(
+            knowledge_id=knowledge_id
+        )
+        return self.permission_service.filter_readable_documents(
+            user_id=user_id, documents=documents
         )
 
     def _sync_title_by_nodejs(self, document_id: str, new_title: str):
@@ -432,8 +436,13 @@ class DocumentService(BaseService[Document]):
         else:
             # 物理删除(这里会同步删除权限组数据)
             permission_group_service = PermissionGroupService(self.db)
-            permission_group_service.delete_permission_group_by_resource(
-                CollaborateResourceType.DOCUMENT, document.id
+            permission_group_service.delete_permission_group_by_scope(
+                scope_type=PermissionScopeType.DOCUMENT,
+                scope_id=document.id,
+            )
+            self.resource_grant_service.delete_resource_grants(
+                resource_type=ResourceType.DOCUMENT,
+                resource_id=document.id,
             )
             self.db.delete(document)
         # 这里同步删除节点
@@ -594,36 +603,63 @@ class DocumentService(BaseService[Document]):
             )
         return result
 
+    def update_visibility(
+        self,
+        document: Document,
+        visibility: DocumentVisibility,
+        operator_id: int,
+    ) -> bool:
+        """更新文档可见范围"""
+        knowledge = document.knowledge
+        if knowledge is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档所属知识库不存在"
+            )
+        if (
+            visibility == DocumentVisibility.SPACE
+            and knowledge.space.type != SpaceType.ORGANIZATION
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="个人空间不能设置为空间成员可见",
+            )
+        old_visibility = DocumentVisibility(document.visibility)
+        if old_visibility == visibility:
+            return True
+        document.visibility = visibility.value
+        self.resource_grant_service.sync_document_visibility_policy_grants(
+            document=document,
+            old_visibility=old_visibility,
+            new_visibility=visibility,
+            operator_id=operator_id,
+        )
+        self.db.commit()
+        return True
+
     def get_context_users(
-        self, document_id: str, keyword: str | None = None
+        self, *, document_id: str, keyword: str | None = None
     ) -> List[User]:
         """查询当前文档下可访问的用户列表"""
-        document = self.get_by_id_or_slug(document_id)
-        rows = (
-            self.db.query(User)
-            .join(Collaborator, User.id == Collaborator.user_id)
-            .filter(
-                User.deleted_at.is_(None),
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                or_(
-                    and_(
-                        Collaborator.document_id == document.id,
-                        Collaborator.target_type == CollaborateResourceType.DOCUMENT,
-                    ),
-                    and_(
-                        Collaborator.knowledge_id == document.knowledge_id,
-                        Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
-                    ),
-                ),
+        document = self.document_repository.get_active_by_id_or_slug(document_id)
+        if document is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
             )
-            .distinct(User.id)
+        user_ids = self.resource_grant_service.list_document_context_user_ids(
+            document=document
+        )
+        if not user_ids:
+            return []
+        query = self.db.query(User).filter(
+            User.id.in_(user_ids), User.deleted_at.is_(None)
         )
 
         if keyword:
-            rows = rows.filter(
+            normalized_keyword = keyword.lower().strip()
+            query = query.filter(
                 or_(
-                    User.username.ilike(f"%{keyword}%"),
-                    User.nickname.ilike(f"%{keyword}%"),
+                    User.username.ilike(f"%{normalized_keyword}%"),
+                    User.nickname.ilike(f"%{normalized_keyword}%"),
                 )
             )
-        return rows.all()
+        return query.all()

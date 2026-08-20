@@ -1,4 +1,5 @@
 from app.models.space import Space
+from fastapi import HTTPException, status
 from app.schemas.space import SpaceCreate, SpaceUpdate
 from sqlalchemy.orm import Session
 from app.services.base_service import BaseService
@@ -67,10 +68,11 @@ class SpaceService(BaseService):
         self.db.refresh(space_update)
         return space_update
 
-    def delete_space(self, space_id: str):
-        self.db.query(Space).filter(Space.id == space_id).update(
-            {"deleted_at": func.now()}
-        )
+    def delete_space(self, space_id: str) -> bool:
+        space = self.get_active_query().filter(Space.id == space_id).first()
+        if space is None:
+            return False
+        space.soft_delete()
         self.db.commit()
         return True
 

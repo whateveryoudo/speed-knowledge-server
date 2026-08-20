@@ -1,9 +1,7 @@
-from datetime import datetime
-from enum import unique
+from app.core.mixins import SoftDeleteMixin
 import uuid
 from sqlalchemy import Column, String, DateTime, Enum, JSON, func, ForeignKey, Integer
 from app.db.base import Base
-from app.core.mixins import SoftDeleteMixin
 from app.common.enums import SpaceType
 from app.schemas.attachment import default_attachment_item
 from sqlalchemy.orm import relationship

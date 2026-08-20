@@ -1,5 +1,4 @@
 from app.models.collect import Collect
-from app.common.enums import CollectResourceType
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
@@ -17,7 +16,7 @@ from app.schemas.notification import NotificationResponse, NotificationSearch
 from app.services.document_service import DocumentService
 from app.services.knowledge_service import KnowledgeService
 from datetime import datetime
-from app.common.enums import NotificationBizType, CollaborateResourceType
+from app.common.enums import NotificationBizType, ResourceType
 from app.models.knowledge import Knowledge
 from app.services.collaborator_service import CollaboratorService
 from app.schemas.collaborator import CollaboratorResponse
@@ -118,7 +117,7 @@ class NotificationService:
                     else:
                         merged_payload["collaborator"] = None
                     # 区分内容
-                    if collaborator.target_type == CollaborateResourceType.DOCUMENT:
+                    if collaborator.target_type == ResourceType.DOCUMENT:
                         document_route_contexts = (
                             self.document_service.get_document_route_context_multiple(
                                 document_ids
@@ -131,7 +130,7 @@ class NotificationService:
                                 merged_payload["document_route"] = (
                                     route_context.model_dump()
                                 )
-                    elif collaborator.target_type == CollaborateResourceType.KNOWLEDGE:
+                    elif collaborator.target_type == ResourceType.KNOWLEDGE:
                         knowledge_route_contexts = (
                             self.knowledge_service.get_knowledge_route_context_multiple(
                                 knowledge_ids

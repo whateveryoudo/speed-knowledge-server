@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.resource_grant import ResourceGrant
 from app.repositories.base_repository import BaseRepository
 from typing import Sequence
+from sqlalchemy import and_, or_
 from app.common.enums import ResourceType, PrincipalType, PrincipalRole
 
 
@@ -71,6 +72,35 @@ class ResourceGrantRepository(BaseRepository[ResourceGrant]):
             )
             .all()
         )
+
+    def list_resource_ids_by_principals(
+        self,
+        *,
+        resource_type: ResourceType,
+        principals: Sequence[tuple[PrincipalType, int | str, PrincipalRole]],
+    ) -> list[str]:
+        """获取主体的资源ID列表"""
+        if not principals:
+            return []
+        principal_conditions = [
+            and_(
+                ResourceGrant.principal_type == principal_type.value,
+                ResourceGrant.principal_role == principal_role.value,
+                ResourceGrant.principal_id == str(principal_id),
+            )
+            for (principal_type, principal_id, principal_role) in principals
+        ]
+        rows = (
+            self.all_query()
+            .with_entities(ResourceGrant.resource_id)
+            .filter(
+                ResourceGrant.resource_type == resource_type.value,
+                or_(*principal_conditions),
+            )
+            .distinct()
+            .all()
+        )
+        return [resource_id for (resource_id,) in rows]
 
     def list_direct_user_grants(
         self, *, resource_type: ResourceType, resource_id: str

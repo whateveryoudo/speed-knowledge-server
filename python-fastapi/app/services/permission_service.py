@@ -1,4 +1,5 @@
 """权限能力聚合服务"""
+
 from typing import TypeAlias
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from app.common.enums import (
     DocumentAbility,
     KnowledgeVisibility,
     PermissionScopeType,
+    DocumentVisibility,
 )
 
 from app.models.permission_ability import PermissionAbility
@@ -29,7 +31,6 @@ class PermissionService:
 
     DEFAULT_ABILITY_NAME_DICT = {
         KnowledgeAbility.CREATE_BOOK: "创建知识库",
-        KnowledgeAbility.COLLECT_BOOK: "收藏知识库",
         KnowledgeAbility.CREATE_BOOK_COLLABORATOR: "创建知识库协作者",
         KnowledgeAbility.EXPORT_BOOK: "导出知识库",
         KnowledgeAbility.READ_BOOK: "访问知识库",
@@ -37,7 +38,7 @@ class PermissionService:
         KnowledgeAbility.MODIFY_BOOK_SETTING: "修改知识库设置",
         KnowledgeAbility.SHARE_BOOK: "分享知识库",
         KnowledgeAbility.MODIFY_BOOK_PERMISSION: "修改知识库权限",
-        DocumentAbility.DOC_CTEATE: "创建文档",
+        DocumentAbility.DOC_CREATE: "创建文档",
         DocumentAbility.DOC_READ: "访问文档",
         DocumentAbility.DOC_EDIT: "编辑文档",
         DocumentAbility.DOC_DELETE: "删除文档",
@@ -57,11 +58,17 @@ class PermissionService:
         self.resource_grant_service = ResourceGrantService(db)
 
     def get_effective_knowledge_abilities(
-        self, *, user_id: int, knowledge: Knowledge
+        self,
+        *,
+        user_id: int,
+        knowledge: Knowledge,
+        include_visibility_scope: bool = True,
     ) -> AbilityMap:
         """获取用户在知识库中的有效能力"""
         role = self.resource_grant_service.resolve_granted_knowledge_role(
-            user_id=user_id, knowledge=knowledge
+            user_id=user_id,
+            knowledge=knowledge,
+            include_visibility_scope=include_visibility_scope,
         )
         if role is None:
             return {}
@@ -78,23 +85,29 @@ class PermissionService:
         self, *, user_id: int, document: Document
     ) -> AbilityMap:
         """获取用户在文档中的有效能力"""
-        knowledge_abilities = self.get_effective_knowledge_abilities(
-            user_id=user_id, knowledge=document.knowledge
+
+        include_parent_visibility_scope = (
+            document.visibility == DocumentVisibility.INHERIT.value
         )
 
+        knowledge_abilities = self.get_effective_knowledge_abilities(
+            user_id=user_id,
+            knowledge=document.knowledge,
+            include_visibility_scope=include_parent_visibility_scope,
+        )
+        document_abilities: AbilityMap = {}
         document_role = self.resource_grant_service.resolve_granted_document_role(
             user_id=user_id, document=document
         )
-        if document_role is None:
-            return knowledge_abilities
-        document_group = self.permission_group_repository.get_by_scope_role(
-            scope_type=PermissionScopeType.DOCUMENT,
-            scope_id=document.id,
-            role_key=document_role.value,
-        )
-        if document_group is None:
-            return knowledge_abilities
-        document_abilities = self._build_ability_dict(document_group.abilities)
+
+        if document_role is not None:
+            document_group = self.permission_group_repository.get_by_scope_role(
+                scope_type=PermissionScopeType.DOCUMENT,
+                scope_id=document.id,
+                role_key=document_role.value,
+            )
+            if document_group is not None:
+                document_abilities = self._build_ability_dict(document_group.abilities)
         # 合并知识库和文档的能力
         return self._merge_ability_maps(knowledge_abilities, document_abilities)
 
@@ -160,21 +173,8 @@ class PermissionService:
             )
             return
         if target_type == ResourceType.DOCUMENT:
-            abilities = self.get_effective_abilities(
-                user_id=user_id,
-                resource_type=target_type,
-                resource_id=target_id,
-            )
-            can_share = bool(abilities.get(DocumentAbility.DOC_SHARE, False))
-            can_manage_knowledge = bool(
-                abilities.get(KnowledgeAbility.MODIFY_BOOK_PERMISSION, False)
-            )
-            if can_share and can_manage_knowledge:
-                return
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="你无权管理该文档的访问配置",
-            )
+            self.assert_document_ability(user_id, target_id, DocumentAbility.DOC_SHARE)
+            return
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的资源类型"
         )
@@ -209,6 +209,19 @@ class PermissionService:
             raise HTTPException(status_code=403, detail="你无权访问此文档")
         return document
 
+    def assert_resource_readable(
+        self, *, user_id: int, resource_type: ResourceType, identifier: str
+    ) -> None:
+        """资源是否可读"""
+        if resource_type == ResourceType.KNOWLEDGE:
+            self.assert_knowledge_readable(user_id, identifier)
+        elif resource_type == ResourceType.DOCUMENT:
+            self.assert_document_readable(user_id, identifier)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的资源类型"
+            )
+
     def can_read_knowledge(self, user_id: int | None, knowledge: Knowledge) -> bool:
         """知识库是否可读（这里增加了公开知识库访问）"""
         if knowledge.visibility == KnowledgeVisibility.PUBLIC.value:
@@ -223,21 +236,19 @@ class PermissionService:
         )
 
     def can_read_document(self, user_id: int | None, document: Document) -> bool:
-        if document.is_public:
-            return True
-        if document.knowledge.visibility == KnowledgeVisibility.PUBLIC.value:
+        """判断用户是否可读取文档"""
+        if document.visibility == DocumentVisibility.PUBLIC.value:
             return True
         if user_id is None:
-            return False
-        # 如果是创建者
-        if document.user_id == user_id:
-            return True
-        return self.has_resource_ability(
-            user_id=user_id,
-            resource_type=ResourceType.DOCUMENT,
-            resource_id=document.id,
-            ability=DocumentAbility.DOC_READ,
+            # 只有inherit且知识库公开时才运行游客访问
+            return (
+                document.visibility == DocumentVisibility.INHERIT.value
+                and document.knowledge.visibility == KnowledgeVisibility.PUBLIC.value
+            )
+        abilities = self.get_effective_document_abilities(
+            user_id=user_id, document=document
         )
+        return bool(abilities.get(DocumentAbility.DOC_READ, False))
 
     @staticmethod
     def _build_ability_dict(abilities: list[PermissionAbility]) -> AbilityMap:
@@ -344,3 +355,47 @@ class PermissionService:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="不支持的资源类型",
             )
+
+    def resolve_multiple_document_readabilities(
+        self, *, user_id: int | None, documents: list[Document]
+    ) -> dict[str, bool]:
+        """批量解析文档是否可读，目前先试用循环单条，后续替换为批量获取和能力查询"""
+        return {
+            document.id: self.can_read_document(user_id, document)
+            for document in documents
+        }
+
+    def filter_readable_documents(
+        self, *, user_id: int | None, documents: list[Document]
+    ) -> list[Document]:
+        """过滤出用户可读的文档"""
+        readability_by_id = self.resolve_multiple_document_readabilities(
+            user_id=user_id, documents=documents
+        )
+        return [
+            document
+            for document in documents
+            if readability_by_id.get(document.id, False)
+        ]
+
+    def resolve_multiple_knowledge_readabilities(
+        self, *, user_id: int | None, knowledges: list[Knowledge]
+    ) -> dict[str, bool]:
+        """批量解析知识库是否可读，目前先试用循环单条，后续替换为批量获取和能力查询"""
+        return {
+            knowledge.id: self.can_read_knowledge(user_id, knowledge)
+            for knowledge in knowledges
+        }
+
+    def filter_readable_knowledges(
+        self, *, user_id: int | None, knowledges: list[Knowledge]
+    ) -> list[Knowledge]:
+        """过滤出用户可读的知识库"""
+        readability_by_id = self.resolve_multiple_knowledge_readabilities(
+            user_id=user_id, knowledges=knowledges
+        )
+        return [
+            knowledge
+            for knowledge in knowledges
+            if readability_by_id.get(knowledge.id, False)
+        ]

@@ -34,10 +34,9 @@ from app.services.collect_service import CollectService
 from app.services.permission_service import PermissionService
 from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
 from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
-
+from app.models.document_node import DocumentNode
 from app.common.enums import (
-    CollectResourceType,
-    CollaborateResourceType,
+    ResourceType,
     KnowledgeAbility,
 )
 from app.schemas.knowledge_group import (
@@ -49,7 +48,6 @@ from app.schemas.knowledge_group_relation import KnowledgeGroupRelationMoveBody
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.common.utils import next_order_index
 from app.models.knowledge_group import KnowledgeGroup
-from app.services.collaborator_service import CollaboratorService
 
 router = APIRouter()
 
@@ -68,32 +66,30 @@ async def create_knowledge(
     return created_knowledge.slug
 
 
-@router.post("/list", response_model=PaginationResponse)
+@router.post("/list", response_model=PaginationResponse[KnowledgeResponse])
 async def get_knowledge_list(
     query_in: KnowledgeListQuery,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> PaginationResponse:
+) -> PaginationResponse[KnowledgeResponse]:
     """获取知识库列表(这里主要是用于 知识库列表区分（我的/被邀请的）)"""
     knowledge_service = KnowledgeService(db)
 
     knowledge_list = knowledge_service.get_list_by_user_id(
-        query_in.model_copy(update={"user_id": current_user.id})
+        user_id=current_user.id, query_in=query_in
     )
     return knowledge_list
 
 
-@router.post("/mine/list", response_model=PaginationResponse)
+@router.post("/mine/list", response_model=PaginationResponse[KnowledgeResponse])
 async def get_knowledge_list_mine(
     query_in: KnowledgeListMineQuery,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> PaginationResponse:
+) -> PaginationResponse[KnowledgeResponse]:
     """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
     knowledge_service = KnowledgeService(db)
-    return knowledge_service.get_list_mine(
-        query_in.model_copy(update={"user_id": current_user.id})
-    )
+    return knowledge_service.get_list_mine(user_id=current_user.id, query_in=query_in)
 
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
@@ -124,7 +120,10 @@ async def update_knowledge_visibility(
 ) -> bool:
     """更新知识库公开范围"""
     knowledge_service = KnowledgeService(db)
-    return knowledge_service.update_visibility(knowledge=knowledge, visibility=body.visibility)
+    return knowledge_service.update_visibility(
+        knowledge=knowledge,
+        visibility=body.visibility,
+    )
 
 
 @router.get("/{identifier}/index-page", response_model=KnowledgeIndexPageResponse)
@@ -148,7 +147,7 @@ async def get_knowledge_index_page(
         )
         if current_user and current_user.id:
             collected_record = collect_service.check_is_collected(
-                current_user.id, knowledge.id, CollectResourceType.KNOWLEDGE
+                current_user.id, knowledge.id, ResourceType.KNOWLEDGE
             )
         else:
             collected_record = None
@@ -267,11 +266,14 @@ async def get_document_tree(
     knowledge: Knowledge = Depends(get_knowledge_or_403),
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
-) -> List[DocumentNodeResponse]:
+) -> List[DocumentNode]:
     """获取知识库的文档树"""
     document_tree_service = DocumentNodeService(db)
-    document_tree = document_tree_service.get_document_tree_nodes(knowledge.id)
-    print("取到了文档树", document_tree)
+    document_tree = document_tree_service.get_document_tree_nodes(
+        knowledge_id=knowledge.id,
+        user_id=current_user.id if current_user is not None else None,
+    )
+    # 这里pydance会自动按照schema定义提取
     return document_tree
 
 
@@ -350,14 +352,21 @@ async def delete_knowledge_common_pin(
         )
 
 
-@router.delete("/{knowledge_id}/leave", response_model=None)
+@router.delete(
+    "/{knowledge_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT
+)
 async def leave_knowledge(
     knowledge_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
-    """退出知识库"""
-    collaborator_service = CollaboratorService(db)
-    collaborator_service.delete_collaborator_by_resource(
-        current_user.id, CollaborateResourceType.KNOWLEDGE, knowledge_id
-    )
+    """退出知识库的直接协作关系"""
+    service = KnowledgeService(db)
+    try:
+        service.leave_direct_collaboration(
+            knowledge_id=knowledge_id, user_id=current_user.id
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise

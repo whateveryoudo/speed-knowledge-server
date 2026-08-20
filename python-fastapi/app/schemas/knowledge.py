@@ -61,10 +61,9 @@ class KnowledgeListQuery(BasePaginationQuery):
 class KnowledgeListMineQuery(BasePaginationQuery):
     """我的知识库列表查询结构(继承自基础分页查询结构)"""
 
-    user_id: Optional[int] = Field(None, description="用户ID，由 endpoint 注入")
     keyword: Optional[str] = Field(None, description="关键词")
     abilities: Optional[List[Union[KnowledgeAbility, DocumentAbility]]] = Field(
-        None, description="权限能力过滤，不传则不过滤"
+        None, description="要求知识库具备的全部能力"
     )
 
 
@@ -76,8 +75,7 @@ class KnowledgeResponse(KnowledgeBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     team: Optional[TeamResponse] = Field(default=None, description="所属团队")
-    source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源")
-    collaborator_id: Optional[str] = Field(default=None, description="协同者ID")
+    source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源：自己创建的、参与协同的")
     ability: Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]] = Field(
         default=None, description="知识库权限能力"
     )

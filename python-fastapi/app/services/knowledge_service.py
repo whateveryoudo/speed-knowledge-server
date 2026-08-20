@@ -3,13 +3,9 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
-from app.models.collaborator import Collaborator
-from sqlalchemy import or_, and_, exists
-from app.schemas.collaborator import CollaboratorCreate
-from app.services.collaborator_service import CollaboratorService
+from sqlalchemy import or_
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
-from app.models.document import Document
 from app.services.permission_service import PermissionService
 from app.common.enums import (
     ResourceRole,
@@ -21,8 +17,9 @@ from app.common.enums import (
     KnowledgeVisibility,
     TeamMemberRole,
     PermissionScopeType,
+    KnowledgeFromWay,
 )
-from typing import List, Optional, Dict
+from typing import List, Optional
 import secrets
 import string
 from datetime import datetime
@@ -44,10 +41,7 @@ from app.common.utils import is_duplicate_entry, is_slug_duplicate
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.schemas.knowledge_group_relation import KnowledgeGroupRelationCreate
 from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
-from app.models.permission_group import PermissionGroup
-from app.models.permission_ability import PermissionAbility
 from app.common.enums import KnowledgeAbility, DocumentAbility
-from app.services.resource_access_service import ResourceAccessService
 from app.services.document_service import DocumentService
 from typing import Union
 from app.services.resource_grant_service import ResourceGrantService
@@ -55,6 +49,7 @@ from app.models.space import Space
 from app.models.space_member import SpaceMember
 from app.models.team import Team
 from app.models.team_member import TeamMember
+from app.models.document import Document
 from app.repositories.knowledge_repository import KnowledgeRepository
 
 alphabet = string.ascii_letters + string.digits
@@ -92,7 +87,7 @@ class KnowledgeService(BaseService[Knowledge]):
         """验证知识库容器(会有拦截判断)"""
         space = (
             self.db.query(Space)
-            .filter(Space.id == space_id, Space.deleted_at.is_(None))
+            .filter(Space.id == space_id)
             .first()
         )
         if not space:
@@ -112,11 +107,7 @@ class KnowledgeService(BaseService[Knowledge]):
             return space
         space_member = (
             self.db.query(SpaceMember)
-            .filter(
-                SpaceMember.space_id == space_id,
-                SpaceMember.user_id == creator_id,
-                SpaceMember.deleted_at.is_(None),
-            )
+            .filter(SpaceMember.space_id == space_id, SpaceMember.user_id == creator_id)
             .first()
         )
         if not space_member:
@@ -133,7 +124,7 @@ class KnowledgeService(BaseService[Knowledge]):
         team = (
             self.db.query(Team)
             .filter(
-                Team.id == team_id, Team.space_id == space_id, Team.deleted_at.is_(None)
+                Team.id == team_id, Team.space_id == space_id
             )
             .first()
         )
@@ -144,11 +135,7 @@ class KnowledgeService(BaseService[Knowledge]):
             )
         team_member = (
             self.db.query(TeamMember)
-            .filter(
-                TeamMember.team_id == team_id,
-                TeamMember.user_id == creator_id,
-                TeamMember.deleted_at.is_(None),
-            )
+            .filter(TeamMember.team_id == team_id, TeamMember.user_id == creator_id)
             .first()
         )
         if not team_member:
@@ -245,15 +232,6 @@ class KnowledgeService(BaseService[Knowledge]):
                     ),
                     commit=False,
                 )
-                # 追加默认协作者
-                # collaborator_service = CollaboratorService(self.db)
-                # collaborator_service.join_default_collaborator(
-                #     CollaboratorCreate(
-                #         user_id=knowledge_in.creator_id,
-                #         knowledge_id=knowledge.id,
-                #         target_type=CollaborateResourceType.KNOWLEDGE,
-                #     )
-                # )
                 # 创建默认权限组(追加3个角色权限,这里选取3个类别，NONE不追加)
                 for role in (
                     ResourceRole.READ,
@@ -351,20 +329,17 @@ class KnowledgeService(BaseService[Knowledge]):
         self, *, knowledge: Knowledge, visibility: KnowledgeVisibility
     ) -> None:
         """空间模式仅支持空间成员可见"""
-        if visibility == KnowledgeVisibility.SPACE:
-            if knowledge.space.type != SpaceType.ORGANIZATION:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="个人空间不能设置为空间成员可见",
-                )
-            if knowledge.team_id is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="团队知识库不能设置为空间成员可见",
-                )
+        if (
+            visibility == KnowledgeVisibility.SPACE
+            and knowledge.space.type != SpaceType.ORGANIZATION
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="个人空间不能设置为空间成员可见",
+            )
 
     def update_visibility(
-        self, *, knowledge: Knowledge, visibility: KnowledgeVisibility
+        self, *, knowledge: Knowledge, visibility: KnowledgeVisibility, operator_id: int
     ) -> bool:
         """更新可见范围"""
         self._validate_visibility(knowledge=knowledge, visibility=visibility)
@@ -373,37 +348,20 @@ class KnowledgeService(BaseService[Knowledge]):
             return True
         knowledge.visibility = visibility.value
         # 更新可见范围授权
-        self.resource_grant_service.sync_knowledge_visibility_grants(
+        self.resource_grant_service.sync_knowledge_visibility_policy_grants(
             knowledge=knowledge,
             old_visibility=old_visibility,
             new_visibility=visibility,
-            operator_id=knowledge.creator_id,
+            operator_id=operator_id,
         )
         self.db.commit()
         return True
 
-    def _build_personal_query(self, query_in: KnowledgeListQuery):
-        """个人知识库查询条件"""
-        return (
-            self.db.query(Collaborator)
-            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
-            .filter(
-                Collaborator.user_id == query_in.user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
-                Collaborator.source == CollaboratorSource.CREATOR.value,
-                Knowledge.deleted_at.is_(None),
-            )
-            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
+    def _build_owned_query(self, *, user_id: int):
+        """自己创建的知识库查询条件"""
+        return self.knowledge_repository.active_list_query().filter(
+            Knowledge.creator_id == user_id,
         )
-
-    def _apply_filters(self, query, query_in: KnowledgeListQuery):
-        """筛选条件追加(可以处理更多参数)"""
-        if query_in.keyword:
-            keyword = query_in.keyword.strip()
-            if keyword:
-                query = query.filter(Knowledge.name.ilike(f"%{keyword}%"))
-        return query
 
     def _apply_sorter(self, query, sorts: List[SortRule]):
         """排序追加(这里是多维度排序)"""
@@ -425,96 +383,89 @@ class KnowledgeService(BaseService[Knowledge]):
         return query.order_by(*order_clauses)
 
     def _apply_abilities_filter(
-        self, query, abilities: List[Union[KnowledgeAbility, DocumentAbility]]
+        self,
+        query,
+        user_id: int,
+        abilities: List[Union[KnowledgeAbility, DocumentAbility]] | None,
     ):
-        """权限能力过滤"""
+        """按照用户的最终能力筛选知识库"""
         if not abilities:
             return query
-
-        for ability in abilities:
-            ability_key = ability.value if hasattr(ability, "value") else ability
-            query = query.filter(
-                exists().where(
-                    and_(
-                        PermissionGroup.target_id == Knowledge.id,
-                        PermissionGroup.target_type
-                        == CollaborateResourceType.KNOWLEDGE.value,
-                        PermissionGroup.role == Collaborator.role,
-                        PermissionAbility.permission_group_id == PermissionGroup.id,
-                        PermissionAbility.ability_key == ability_key,
-                        PermissionAbility.enabled.is_(True),
-                    )
-                )
+        candidate_rows = query.with_entities(Knowledge.id).all()
+        candidate_ids = [knowledge_id for (knowledge_id,) in candidate_rows]
+        if not candidate_ids:
+            return query.filter(Knowledge.id.in_([]))
+        ability_map = (
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=user_id, knowledge_ids=candidate_ids
             )
+        )
+        allowed_ids = [
+            knowledge_id
+            for knowledge_id in candidate_ids
+            if all(
+                ability_map.get(knowledge_id, {}).get(ability, False)
+                for ability in abilities
+            )
+        ]
+        return query.filter(Knowledge.id.in_(allowed_ids))
+
+    def _apply_filters(
+        self, query, query_in: KnowledgeListQuery | KnowledgeListMineQuery
+    ):
+        """筛选条件追加(可以处理更多参数)"""
+        if query_in.keyword:
+            keyword = query_in.keyword.strip()
+            if keyword:
+                query = query.filter(Knowledge.name.ilike(f"%{keyword}%"))
         return query
 
-    def _build_mine_query(self, query_in: KnowledgeListMineQuery):
-        """我的知识库查询条件"""
-        return (
-            self.db.query(Collaborator)
-            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
-            .filter(
-                Collaborator.user_id == query_in.user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
-                Knowledge.deleted_at.is_(None),
-            )
-            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
+    def _build_mine_query(self, *, user_id: int):
+        """用户创建或者通过其他授权参与的全部知识库"""
+        accessible_ids = self.resource_grant_service.list_user_accessible_knowledge_ids(
+            user_id=user_id
+        )
+        return self.knowledge_repository.active_list_query().filter(
+            or_(
+                Knowledge.creator_id == user_id,
+                Knowledge.id.in_(accessible_ids),
+            ),
         )
 
-    def _build_collaborate_query(self, query_in: KnowledgeListQuery):
-        """邀请协作知识库查询条件"""
-        return (
-            self.db.query(Collaborator)
-            .join(Knowledge, Collaborator.knowledge_id == Knowledge.id)
-            .filter(
-                Collaborator.user_id == query_in.user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE,
-                Collaborator.source != CollaboratorSource.CREATOR.value,
-                Knowledge.deleted_at.is_(None),
-            )
-            .options(joinedload(Collaborator.knowledge).joinedload(Knowledge.team))
+    def _build_collaboration_query(self, *, user_id: int):
+        """用户通过直接、团队、空间授权参与的知识库"""
+        accessible_ids = self.resource_grant_service.list_user_accessible_knowledge_ids(
+            user_id=user_id
         )
-
-    def toggle_public(self, identifier: str) -> bool:
-        """切换知识库公开状态"""
-        knowledge = (
-            self.get_active_query()
-            .filter(
-                or_(Knowledge.id == identifier, Knowledge.slug == identifier),
-            )
-            .first()
+        return self.knowledge_repository.active_list_query().filter(
+            Knowledge.id.in_(accessible_ids), Knowledge.creator_id != user_id
         )
-        if knowledge:
-            knowledge.is_public = not knowledge.is_public
-            # 默认不开启高级密码保护
-            self.db.commit()
-            return True
-        return False
 
     def _to_response(
         self,
+        *,
+        user_id: int,
         knowledge: Knowledge,
-        collaborator_id: str,
-        scope: KnowledgeFromWay,
-        ability_map: Optional[Dict[str, Dict]] = None,
+        ability_map: dict[str, dict],
     ) -> KnowledgeResponse:
         """转换为响应结构"""
+        source = (
+            KnowledgeFromWay.OWN
+            if knowledge.creator_id == user_id
+            else KnowledgeFromWay.COLLABORATION
+        )
         return KnowledgeResponse.model_validate(knowledge).model_copy(
-            update={
-                "ability": ability_map.get(knowledge.id, {}),
-                "source": scope,
-                "collaborator_id": collaborator_id,
-            }
+            update={"ability": ability_map.get(knowledge.id, {}), "source": source}
         )
 
-    def get_list_by_user_id(self, query_in: KnowledgeListQuery) -> PaginationResponse:
+    def get_list_by_user_id(
+        self, *, user_id: int, query_in: KnowledgeListQuery
+    ) -> PaginationResponse:
         """分类查询知识库列表（个人/邀请协作）"""
-        if query_in.scope == KnowledgeFromWay.OWN or not query_in.scope:
-            query = self._build_personal_query(query_in)
+        if query_in.scope == KnowledgeFromWay.OWN:
+            query = self._build_owned_query(user_id=user_id)
         elif query_in.scope == KnowledgeFromWay.COLLABORATION:
-            query = self._build_collaborate_query(query_in)
+            query = self._build_collaboration_query(user_id=user_id)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="scope参数错误"
@@ -530,26 +481,34 @@ class KnowledgeService(BaseService[Knowledge]):
 
         # 数据补充（权限）
 
-        knowledge_ids = [row.knowledge_id for row in rows]
+        knowledge_ids = [knowledge.id for knowledge in rows]
         # 批量拿回权限能力
         ability_map = (
             self.permission_service.get_multiple_effective_knowledge_abilities(
-                user_id=query_in.user_id, knowledge_ids=knowledge_ids
+                user_id=user_id, knowledge_ids=knowledge_ids
             )
         )
 
         items = [
-            self._to_response(row.knowledge, row.id, query_in.scope, ability_map)
-            for row in rows
+            self._to_response(
+                knowledge=knowledge,
+                user_id=user_id,
+                ability_map=ability_map,
+            )
+            for knowledge in rows
         ]
 
         return paginate_response(items, total, has_more, query_in)
 
-    def get_list_mine(self, query_in: KnowledgeListMineQuery) -> PaginationResponse:
+    def get_list_mine(
+        self, *, user_id: int, query_in: KnowledgeListMineQuery
+    ) -> PaginationResponse:
         """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
-        query = self._build_mine_query(query_in)
-        query = self._apply_abilities_filter(query, query_in.abilities)
+        query = self._build_mine_query(user_id=user_id)
         query = self._apply_filters(query, query_in)
+        query = self._apply_abilities_filter(
+            query, user_id=user_id, abilities=query_in.abilities
+        )
         query = self._apply_sorter(query, query_in.sorts)
 
         rows, total, has_more = paginate_query(
@@ -557,26 +516,21 @@ class KnowledgeService(BaseService[Knowledge]):
         )
 
         # 数据补充（权限）
-        knowledge_ids = [row.knowledge_id for row in rows]
+        knowledge_ids = [knowledge.id for knowledge in rows]
         # 批量拿回权限能力
         ability_map = (
             self.permission_service.get_multiple_effective_knowledge_abilities(
-                user_id=query_in.user_id, knowledge_ids=knowledge_ids
+                user_id=user_id, knowledge_ids=knowledge_ids
             )
         )
         # 组装成和get_list_by_user_id一样的响应结构
         items = [
             self._to_response(
-                row.knowledge,
-                row.id,
-                (
-                    KnowledgeFromWay.OWN
-                    if row.source == CollaboratorSource.CREATOR.value
-                    else KnowledgeFromWay.COLLABORATION
-                ),
-                ability_map,
+                knowledge=knowledge,
+                user_id=user_id,
+                ability_map=ability_map,
             )
-            for row in rows
+            for knowledge in rows
         ]
         return paginate_response(items, total, has_more, query_in)
 
@@ -590,6 +544,28 @@ class KnowledgeService(BaseService[Knowledge]):
             self.db.commit()
             return True
         return False
+
+    def leave_direct_collaboration(self, *, knowledge_id: str, user_id: int) -> None:
+        """移除用户对知识库的直接授权"""
+        knowledge = self.knowledge_repository.get_active_by_id(knowledge_id)
+        if not knowledge:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
+            )
+        if knowledge.creator_id == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不能移除自己的直接授权"
+            )
+        deleted_count = self.resource_grant_service.delete_direct_user_grant(
+            resource_type=ResourceType.KNOWLEDGE,
+            resource_id=knowledge_id,
+            user_id=user_id,
+        )
+        if deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="非直接授权，无法单独退出(可能来自团队/空间授权)",
+            )
 
     def _resolve_scope_type(self, knowledge: Knowledge) -> KnowledgeScopeType:
         """获取知识库范围类型"""

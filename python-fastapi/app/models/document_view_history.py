@@ -41,7 +41,13 @@ class DocumentViewHistory(Base):
     viewed_user_id = Column[int](
         Integer, ForeignKey("user.id"), index=True, nullable=False, comment="浏览的用户"
     )
-    viewed_datetime = Column[datetime](DateTime, nullable=True, comment="浏览时间")
+    viewed_datetime = Column[datetime](
+        DateTime,
+        nullable=False,
+        default=func.now(),
+        server_default=func.current_timestamp(),
+        comment="浏览时间",
+    )
     created_at = Column[datetime](
         DateTime,
         nullable=False,

@@ -8,15 +8,14 @@ from app.schemas.search import (
     SearchKnowledgeItem,
     SearchDocumentItem,
 )
-from app.services.knowledge_service import KnowledgeService
 from sqlalchemy.orm.session import Session
 from app.models.knowledge import Knowledge
 from sqlalchemy.orm import joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from app.models.document import Document
-from app.models.collaborator import Collaborator
-from app.common.enums import CollaboratorStatus, CollaborateResourceType, KnowledgeVisibility
+from app.common.enums import KnowledgeVisibility, DocumentVisibility
 from app.services.permission_service import PermissionService
+from app.services.resource_grant_service import ResourceGrantService
 
 
 class SearchService:
@@ -25,22 +24,8 @@ class SearchService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.knowledge_service = KnowledgeService(db)
-
-    def _get_collaborator_knowledge_ids(self, user_id: int) -> List[int]:
-        """根据用户id查询协同表中符合的知识库id集合"""
-        return [
-            row.knowledge_id
-            for row in self.db.query(Collaborator)
-            .filter(
-                Collaborator.user_id == user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED.value,
-                Collaborator.target_type == CollaborateResourceType.KNOWLEDGE.value,
-                Collaborator.knowledge_id.isnot(None),
-            )
-            .distinct()
-            .all()
-        ]
+        self.resource_grant_service = ResourceGrantService(db)
+        self.permission_service = PermissionService(db)
 
     def _to_knowledge_item(self, row: Knowledge) -> SearchKnowledgeItem:
         """将知识库对象转换为搜索知识库项"""
@@ -72,33 +57,23 @@ class SearchService:
 
         # 如果是公开知识库（仅查询公开知识库）
         if visibility == SearchVisibilityType.PUBLIC:
-            query = query.filter(Knowledge.visibility == KnowledgeVisibility.PUBLIC.value)
+            query = query.filter(
+                Knowledge.visibility == KnowledgeVisibility.PUBLIC.value
+            )
         else:
             # 根据用户id查询协同表中符合的知识库
-            accessible_ids = self._get_collaborator_knowledge_ids(user_id)
-            print(f"accessible_ids: {accessible_ids}")
-            if not accessible_ids:
+            accessible_knowledge_ids = (
+                self.resource_grant_service.list_user_accessible_knowledge_ids(
+                    user_id=user_id
+                )
+            )
+            if not accessible_knowledge_ids:
                 return []
-            query = query.filter(Knowledge.id.in_(accessible_ids))
+            query = query.filter(Knowledge.id.in_(accessible_knowledge_ids))
 
         rows = query.order_by(Knowledge.updated_at.desc()).limit(limit).all()
         # 对结果进行处理
         return [self._to_knowledge_item(row) for row in rows]
-
-    def   _get_collaborator_document_ids(self, user_id: int) -> List[int]:
-        """根据用户id查询协同表中符合的文档id集合"""
-        return [
-            row.document_id
-            for row in self.db.query(Collaborator)
-            .filter(
-                Collaborator.user_id == user_id,
-                Collaborator.status == CollaboratorStatus.ACCEPTED,
-                Collaborator.target_type == CollaborateResourceType.DOCUMENT,
-                Collaborator.document_id.isnot(None),
-            )
-            .distinct()
-            .all()
-        ]
 
     def _to_document_item(self, row: Document) -> SearchDocumentItem:
         """将文档对象转换为搜索文档项"""
@@ -131,30 +106,46 @@ class SearchService:
                 Document.name.ilike(f"%{keyword}%"),
             )
         )
-        print(f"user_id: {user_id}")
-        print(f"keyword: {keyword}")
         if visibility == SearchVisibilityType.PUBLIC:
             query = query.filter(
-                or_(Document.is_public.is_(True), Knowledge.is_public.is_(True))
+                or_(
+                    Document.visibility == DocumentVisibility.PUBLIC.value,
+                    and_(
+                        Document.visibility == DocumentVisibility.INHERIT.value,
+                        Knowledge.visibility == KnowledgeVisibility.PUBLIC.value,
+                    ),
+                )
             )
         else:
             # 注意：这里有点特别的，需要整合两部分系统（因为系统含有知识库邀请和文档邀请（如果仅被邀请知识库，他也有所有文档的权限（会带有继承）））
             conditions = []
-            accessible_kb_ids = self._get_collaborator_knowledge_ids(user_id)
-            if accessible_kb_ids:
-                conditions.append(Document.knowledge_id.in_(accessible_kb_ids))
-
-            accessible_doc_ids = self._get_collaborator_document_ids(user_id)
-            if accessible_doc_ids:
-                conditions.append(Document.id.in_(accessible_doc_ids))
+            accessible_knowledge_ids = (
+                self.resource_grant_service.list_user_accessible_knowledge_ids(
+                    user_id=user_id
+                )
+            )
+            if accessible_knowledge_ids:
+                conditions.append(Document.knowledge_id.in_(accessible_knowledge_ids))
+            # 这里命名不使用accessible（区分含义，这里只是命中文档Resourcegrant的文档资源id,不包含通过知识库继承的文档）
+            document_grant_ids = (
+                self.resource_grant_service.list_user_granted_document_ids(
+                    user_id=user_id
+                )
+            )
+            if document_grant_ids:
+                conditions.append(Document.id.in_(document_grant_ids))
             if not conditions:
                 # 如果没有资源，则不进行搜索
                 return []
             query = query.filter(or_(*conditions))
-
-        rows = query.order_by(Document.updated_at.desc()).limit(limit).all()
+        candidate_limit = limit * 5
+        rows = query.order_by(Document.updated_at.desc()).limit(candidate_limit).all()
+        if visibility != SearchVisibilityType.PUBLIC:
+            rows = self.permission_service.filter_readable_documents(
+                user_id=user_id, documents=rows
+            )
         # 对结果进行处理
-        return [self._to_document_item(row) for row in rows]
+        return [self._to_document_item(row) for row in rows[:limit]]
 
     def _search_global(
         self, user_id: int, keyword: str, visibility: SearchVisibilityType
@@ -182,15 +173,13 @@ class SearchService:
 
     def _assert_knowledge_readable(self, user_id: int, knowledge_id: str):
         """知识库可读判断"""
-        return PermissionService(self.db).assert_knowledge_readable(
-            user_id, knowledge_id
-        )
+        return self.permission_service.assert_knowledge_readable(user_id, knowledge_id)
 
     def _search_document_in_knowledge(
-        self, keyword: str, knowledge_id: str, limit: int
+        self, *, user_id: int, keyword: str, knowledge_id: str, limit: int
     ) -> List[SearchDocumentItem]:
-        """在知识库内搜索文档"""
-
+        """在知识库内搜索文档(带上用户权限)"""
+        candidate_limit = limit * 5
         rows = (
             self.db.query(Document)
             .join(Knowledge, Document.knowledge_id == Knowledge.id)
@@ -202,11 +191,13 @@ class SearchService:
                 Document.name.ilike(f"%{keyword}%"),
             )
             .order_by(Document.content_updated_at.desc())
-            .limit(limit)
+            .limit(candidate_limit)
             .all()
         )
-
-        return [self._to_document_item(row) for row in rows]
+        readable_rows = self.permission_service.filter_readable_documents(
+            user_id=user_id, documents=rows
+        )
+        return [self._to_document_item(row) for row in readable_rows[:limit]]
 
     def _search_in_knowledge(
         self, user_id: int, keyword: str, knowledge_id: str
@@ -215,7 +206,10 @@ class SearchService:
         knowledge = self._assert_knowledge_readable(user_id, knowledge_id)
 
         doc_items = self._search_document_in_knowledge(
-            keyword, knowledge.id, limit=self.DOCUMENT_LIMIT
+            user_id=user_id,
+            keyword=keyword,
+            knowledge_id=knowledge.id,
+            limit=self.DOCUMENT_LIMIT,
         )
         sections: List[SearchSection] = []
         if doc_items:

@@ -2,17 +2,17 @@
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, contains_eager
-from sqlalchemy import and_
 from app.models.document import Document
 from app.models.document_node import DocumentNode
 from typing import List
 from app.schemas.document_node import (
     DocumentNodeCreate,
     DragDocumentNodeParams,
-    DocumentNodeResponse,
     DocumentNodeUpdate,
 )
 from app.common.enums import DocumentNodeType, DocumentNodeDragAction
+from app.models.knowledge import Knowledge
+from app.services.permission_service import PermissionService
 
 
 class DocumentNodeService:
@@ -20,6 +20,7 @@ class DocumentNodeService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.permission_service = PermissionService(db)
 
     def create_node(self, document_node_in: DocumentNodeCreate) -> DocumentNode:
         """创建文档树节点"""
@@ -78,18 +79,41 @@ class DocumentNodeService:
         if auto_commit:
             self.db.commit()
 
-    def get_document_tree_nodes(self, knowledge_id: str) -> List[DocumentNodeResponse]:
-        """获取知识库的文档树"""
-        return (
+    def get_document_tree_nodes(
+        self, *, knowledge_id: str, user_id: int | None
+    ) -> List[DocumentNode]:
+        """获取知识库的文档树（追加权限过滤）"""
+        nodes = (
             self.db.query(DocumentNode)
             .outerjoin(Document, DocumentNode.document_id == Document.id)
             .filter(DocumentNode.knowledge_id == knowledge_id)
             .filter(
                 (DocumentNode.document_id.is_(None)) | (Document.deleted_at.is_(None))
             )
-            .options(contains_eager(DocumentNode.document))
+            .options(
+                contains_eager(DocumentNode.document)
+                .joinedload(Document.knowledge)
+                .joinedload(Knowledge.team),
+                contains_eager(DocumentNode.document)
+                .joinedload(Document.knowledge)
+                .joinedload(Knowledge.space),
+            )
             .all()
         )
+        documents = [node.document for node in nodes if node.document is not None]
+        readability_by_id = self.permission_service.resolve_multiple_document_readabilities(
+            user_id=user_id, documents=documents
+        )
+        # 批量入口当前内部仍逐条鉴权，后续优化为批量查询
+        visible_nodes: List[DocumentNode] = []
+        for node in nodes:
+            if node.document_id is None:
+                # 目录节点
+                visible_nodes.append(node)
+                continue
+            if readability_by_id.get(node.document_id, False):
+                visible_nodes.append(node)
+        return visible_nodes
 
     def get_node_by_document_id(self, document_id: str) -> DocumentNode:
         """通过文档id获取节点"""
@@ -164,9 +188,7 @@ class DocumentNodeService:
         self.db.commit()
         return None
 
-    def update_node(
-        self, node_id: str, update_in: DocumentNodeUpdate
-    ) -> None:
+    def update_node(self, node_id: str, update_in: DocumentNodeUpdate) -> None:
         """更新文档节点"""
         node = self.get_node_by_id(node_id)
         if not node:

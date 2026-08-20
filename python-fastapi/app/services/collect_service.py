@@ -1,5 +1,5 @@
 from app.models.collect import Collect
-from app.common.enums import CollectResourceType
+from app.common.enums import ResourceType
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from app.schemas.collect import (
@@ -12,6 +12,7 @@ from app.schemas.collect import (
 from app.models.knowledge import Knowledge
 from app.models.document import Document
 from typing import Optional
+from app.services.permission_service import PermissionService
 
 
 class CollectService:
@@ -19,18 +20,26 @@ class CollectService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.permission_service = PermissionService(db)
 
     def add_collect(
-        self, user_id: int, identifier: str, resource_type: CollectResourceType
+        self, user_id: int, identifier: str, resource_type: ResourceType
     ):
         """添加资源收藏"""
+        # 权限拦截(这里仅对只读进行拦截)
+        self.permission_service.assert_resource_readable(
+            user_id=user_id,
+            resource_type=resource_type,
+            identifier=identifier,
+        )
+
         collect_orm_data = (
             Collect(
                 user_id=user_id,
                 resource_type=resource_type.value,
                 knowledge_id=identifier,
             )
-            if resource_type == CollectResourceType.KNOWLEDGE
+            if resource_type == ResourceType.KNOWLEDGE
             else Collect(
                 user_id=user_id,
                 resource_type=resource_type.value,
@@ -43,7 +52,7 @@ class CollectService:
         return collect_orm_data
 
     def remove_collect(
-        self, user_id: int, identifier: str, resource_type: CollectResourceType
+        self, user_id: int, identifier: str, resource_type: ResourceType
     ):
         """取消资源收藏"""
         collect = (
@@ -65,7 +74,7 @@ class CollectService:
         return None
 
     def check_is_collected(
-        self, user_id: int, identifier: str, resource_type: CollectResourceType
+        self, user_id: int, identifier: str, resource_type: ResourceType
     ):
         """检查资源是否收藏"""
         return (
@@ -88,13 +97,26 @@ class CollectService:
             .options(joinedload(Collect.knowledge).joinedload(Knowledge.team))
             .filter(
                 Collect.user_id == user_id,
-                Collect.resource_type == CollectResourceType.KNOWLEDGE.value,
+                Collect.resource_type == ResourceType.KNOWLEDGE.value,
                 Knowledge.deleted_at.is_(None),
             )
         )
         if keyword:
             query = query.filter(Knowledge.name.like(f"%{keyword}%"))
-        return query.order_by(Collect.created_at.desc()).all()
+        collects = query.order_by(Collect.created_at.desc()).all()
+        knowledge_by_id = {
+            collect.knowledge_id: collect.knowledge for collect in collects
+        }
+        readability_by_id = (
+            self.permission_service.resolve_multiple_knowledge_readabilities(
+                user_id=user_id, knowledges=list(knowledge_by_id.values())
+            )
+        )
+        return [
+            collect
+            for collect in collects
+            if readability_by_id.get(collect.knowledge_id, False)
+        ]
 
     def _query_document_collects(self, user_id: int, keyword: Optional[str] = None):
         query = (
@@ -108,30 +130,46 @@ class CollectService:
             )
             .filter(
                 Collect.user_id == user_id,
-                Collect.resource_type == CollectResourceType.DOCUMENT.value,
+                Collect.resource_type == ResourceType.DOCUMENT.value,
                 Document.deleted_at.is_(None),
                 Knowledge.deleted_at.is_(None),
             )
         )
         if keyword:
             query = query.filter(Document.name.like(f"%{keyword}%"))
-        return query.order_by(Collect.created_at.desc()).all()
+        collects = query.order_by(Collect.created_at.desc()).all()
+        document_by_id = {collect.document_id: collect.document for collect in collects}
+        readability_by_id = (
+            self.permission_service.resolve_multiple_document_readabilities(
+                user_id=user_id, documents=list(document_by_id.values())
+            )
+        )
+        return [
+            collect
+            for collect in collects
+            if readability_by_id.get(collect.document_id, False)
+        ]
+
+    @staticmethod
+    def _build_team_brief(knowledge: Knowledge) -> Optional[CollectTeamBrief]:
+        """构建团队简要信息"""
+        team = knowledge.team
+        if team is None:
+            return None
+        return CollectTeamBrief(name=team.name, slug=team.slug)
 
     def _to_list_item(self, collect: Collect) -> Optional[CollectListItemResponse]:
         """将收藏转换为列表项"""
-        if collect.resource_type == CollectResourceType.KNOWLEDGE.value:
+        if collect.resource_type == ResourceType.KNOWLEDGE.value:
             knowledge = collect.knowledge
             if not knowledge or knowledge.deleted_at:
                 return None
-            team = knowledge.team
-            if not team or team.deleted_at:
-                return None
             return CollectListItemResponse(
                 id=collect.id,
-                resource_type=CollectResourceType(collect.resource_type),
+                resource_type=ResourceType(collect.resource_type),
                 identifier=knowledge.id,
                 created_at=collect.created_at,
-                team=CollectTeamBrief(name=team.name, slug=team.slug),
+                team=self._build_team_brief(knowledge),
                 knowledge=CollectKnowledgeBrief(
                     name=knowledge.name,
                     slug=knowledge.slug,
@@ -146,15 +184,13 @@ class CollectService:
         knowledge = document.knowledge
         if not knowledge or knowledge.deleted_at:
             return None
-        team = knowledge.team
-        if not team or team.deleted_at:
-            return None
+
         return CollectListItemResponse(
             id=collect.id,
-            resource_type=CollectResourceType(collect.resource_type),
+            resource_type=ResourceType(collect.resource_type),
             identifier=document.id,
             created_at=collect.created_at,
-            team=CollectTeamBrief(name=team.name, slug=team.slug),
+            team=self._build_team_brief(knowledge),
             knowledge=CollectKnowledgeBrief(
                 name=knowledge.name,
                 slug=knowledge.slug,
@@ -173,9 +209,9 @@ class CollectService:
         """获取资源收藏列表"""
         resource_type = search_collect.resource_type
         keyword = search_collect.keyword
-        if resource_type == CollectResourceType.KNOWLEDGE:
+        if resource_type == ResourceType.KNOWLEDGE:
             collects = self._query_knowledge_collects(user_id, keyword)
-        elif resource_type == CollectResourceType.DOCUMENT:
+        elif resource_type == ResourceType.DOCUMENT:
             collects = self._query_document_collects(user_id, keyword)
         else:
             collects = self._query_knowledge_collects(

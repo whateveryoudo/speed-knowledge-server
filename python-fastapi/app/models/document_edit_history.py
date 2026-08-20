@@ -41,7 +41,13 @@ class DocumentEditHistory(Base):
     edited_user_id = Column[int](
         Integer, ForeignKey("user.id"), index=True, nullable=False, comment="编辑的用户"
     )
-    edited_datetime = Column[datetime](DateTime, nullable=True, comment="编辑时间")
+    edited_datetime = Column[datetime](
+        DateTime,
+        nullable=False,
+        default=func.now(),
+        server_default=func.current_timestamp(),
+        comment="编辑时间",
+    )
     created_at = Column[datetime](
         DateTime,
         nullable=False,

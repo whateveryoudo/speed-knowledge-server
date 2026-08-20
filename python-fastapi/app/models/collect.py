@@ -4,7 +4,7 @@ import uuid
 from app.db.base import Base
 from typing import Optional
 from sqlalchemy.orm import relationship
-from app.common.enums import CollectResourceType
+from app.common.enums import ResourceType
 class Collect(Base):
     """资源收藏(知识库/文档)"""
     __tablename__ = "collect"
@@ -14,7 +14,7 @@ class Collect(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), index=True, nullable=False, comment="用户ID")
-    resource_type: CollectResourceType = Column(String(20), nullable=False, comment="资源类型")
+    resource_type: ResourceType = Column(String(20), nullable=False, comment="资源类型")
     knowledge_id: Optional[str] = Column(String(36), ForeignKey("knowledge_base.id", ondelete="CASCADE"), index=True, comment="知识库ID")
     document_id: Optional[str] = Column(String(36), ForeignKey("document_base.id", ondelete="CASCADE"), index=True, comment="文档ID")
     created_at: datetime = Column(DateTime, server_default=func.current_timestamp(), comment="创建时间")
