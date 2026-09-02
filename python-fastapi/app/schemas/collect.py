@@ -1,25 +1,23 @@
 from pydantic import BaseModel, Field
-from app.common.enums import ResourceType, DocumentType
+from app.common.enums import DocumentType, CollectTargetType
 from datetime import datetime
 from typing import Optional
 
 
-class CollectBase(BaseModel):
-    identifier: str = Field(..., description="收藏标识")
-    resource_type: ResourceType = Field(..., description="收藏类型")
 
 
-class CollectCreate(CollectBase):
+class CollectCreate(BaseModel):
     """收藏创建结构"""
 
-    pass
+    target_type: CollectTargetType = Field(..., description="目标资源类型")
+    target_id: str = Field(..., description="目标资源ID")
 
 
 class CollectSearch(BaseModel):
     """收藏搜索结构"""
 
-    resource_type: Optional[ResourceType] = Field(
-        default=None, description="收藏类型，不传表示全部"
+    target_type: Optional[CollectTargetType] = Field(
+        default=None, description="目标类型，不传表示全部"
     )
     keyword: Optional[str] = Field(default=None, description="关键词")
 
@@ -27,8 +25,8 @@ class CollectSearch(BaseModel):
 class CollectResponse(BaseModel):
     id: str = Field(..., description="收藏ID")
     user_id: int = Field(..., description="用户ID")
-    knowledge_id: Optional[str] = Field(None, description="知识ID")
-    document_id: Optional[str] = Field(None, description="文档ID")
+    target_type: CollectTargetType = Field(..., description="目标类型")
+    target_id: str = Field(..., description="目标ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
@@ -65,9 +63,9 @@ class CollectListItemResponse(BaseModel):
     """收藏列表项"""
 
     id: str = Field(..., description="收藏ID")
-    resource_type: ResourceType = Field(..., description="收藏资源类型")
-    identifier: str = Field(..., description="取消收藏用的资源ID")
+    target_type: CollectTargetType = Field(..., description="目标资源类型")
+    target_id: str = Field(..., description="目标资源ID")
     created_at: datetime = Field(..., description="收藏时间")
     team: Optional[CollectTeamBrief] = Field(None, description="团队简要信息")
-    knowledge: CollectKnowledgeBrief
+    knowledge: Optional[CollectKnowledgeBrief] = Field(None, description="知识简要信息")
     document: Optional[CollectDocumentBrief] = Field(None, description="文档简要信息")

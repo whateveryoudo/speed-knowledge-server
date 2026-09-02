@@ -1,7 +1,6 @@
 from app.models.collect import Collect
 from app.common.enums import ResourceType
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session
 from app.schemas.collect import (
     CollectSearch,
     CollectListItemResponse,
@@ -13,141 +12,168 @@ from app.models.knowledge import Knowledge
 from app.models.document import Document
 from typing import Optional
 from app.services.permission_service import PermissionService
+from app.common.enums import CollectTargetType
+from fastapi import HTTPException, status
 
 
 class CollectService:
     """资源收藏服务(知识库/文档)"""
 
+    _TARGET_RESOURCE_TYPE_MAP = {
+        CollectTargetType.KNOWLEDGE: ResourceType.KNOWLEDGE,
+        CollectTargetType.DOCUMENT: ResourceType.DOCUMENT,
+    }
+
     def __init__(self, db: Session):
         self.db = db
         self.permission_service = PermissionService(db)
 
+    @classmethod
+    def _to_resource_type(cls, target_type: CollectTargetType) -> ResourceType:
+        try:
+            return cls._TARGET_RESOURCE_TYPE_MAP[target_type]
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="暂不支持该收藏目标类型",
+            )
+
+    def get_collected_target_ids(
+        self,
+        *,
+        user_id: int,
+        target_type: CollectTargetType,
+        target_ids: list[str],
+    ) -> set[str]:
+        """查询用户已收藏的目标ID集合"""
+        unique_target_ids = list(dict.fromkeys(target_ids))
+        if not unique_target_ids:
+            return set()
+        rows = (
+            self.db.query(Collect.target_id)
+            .filter(
+                Collect.user_id == user_id,
+                Collect.target_type == target_type.value,
+                Collect.target_id.in_(unique_target_ids),
+            )
+            .all()
+        )
+        return {row.target_id for row in rows}
+
     def add_collect(
-        self, user_id: int, identifier: str, resource_type: ResourceType
+        self, *, user_id: int, target_type: CollectTargetType, target_id: str
     ):
         """添加资源收藏"""
         # 权限拦截(这里仅对只读进行拦截)
+        resource_type = self._to_resource_type(target_type)
         self.permission_service.assert_resource_readable(
             user_id=user_id,
             resource_type=resource_type,
-            identifier=identifier,
+            identifier=target_id,
         )
-
-        collect_orm_data = (
-            Collect(
-                user_id=user_id,
-                resource_type=resource_type.value,
-                knowledge_id=identifier,
-            )
-            if resource_type == ResourceType.KNOWLEDGE
-            else Collect(
-                user_id=user_id,
-                resource_type=resource_type.value,
-                document_id=identifier,
-            )
+        existing = self.check_is_collected(
+            user_id=user_id, target_type=target_type, target_id=target_id
+        )
+        if existing is not None:
+            return existing
+        collect_orm_data = Collect(
+            user_id=user_id,
+            target_type=target_type.value,
+            target_id=target_id,
         )
         self.db.add(collect_orm_data)
         self.db.commit()
         self.db.refresh(collect_orm_data)
         return collect_orm_data
 
-    def remove_collect(
-        self, user_id: int, identifier: str, resource_type: ResourceType
-    ):
-        """取消资源收藏"""
-        collect = (
-            self.db.query(Collect)
-            .filter(
-                Collect.user_id == user_id,
-                or_(
-                    Collect.knowledge_id == identifier,
-                    Collect.document_id == identifier,
-                ),
-                Collect.resource_type == resource_type.value,
-            )
-            .first()
-        )
-        if not collect:
-            return None
-        self.db.delete(collect)
-        self.db.commit()
-        return None
-
-    def check_is_collected(
-        self, user_id: int, identifier: str, resource_type: ResourceType
-    ):
-        """检查资源是否收藏"""
+    def get_collect(
+        self, *, user_id: int, target_type: CollectTargetType, target_id: str
+    ) -> Collect | None:
+        """获取资源收藏"""
         return (
             self.db.query(Collect)
             .filter(
                 Collect.user_id == user_id,
-                or_(
-                    Collect.knowledge_id == identifier,
-                    Collect.document_id == identifier,
-                ),
-                Collect.resource_type == resource_type.value,
+                Collect.target_type == target_type.value,
+                Collect.target_id == target_id,
             )
             .first()
         )
 
-    def _query_knowledge_collects(self, user_id: int, keyword: Optional[str] = None):
+    def remove_collect(
+        self, *, user_id: int, target_type: CollectTargetType, target_id: str
+    ) -> bool:
+        """取消资源收藏"""
+        collect = self.get_collect(
+            user_id=user_id, target_type=target_type, target_id=target_id
+        )
+        if not collect:
+            return False
+        self.db.delete(collect)
+        self.db.commit()
+        return True
+
+    def check_is_collected(
+        self, *, user_id: int, target_type: CollectTargetType, target_id: str
+    ) -> Collect | None:
+        """检查资源是否收藏"""
+        return self.get_collect(
+            user_id=user_id, target_type=target_type, target_id=target_id
+        )
+
+    def _query_knowledge_collects(
+        self, *, user_id: int, keyword: Optional[str] = None
+    ) -> list[tuple[Collect, Knowledge]]:
         query = (
             self.db.query(Collect)
-            .join(Knowledge, Collect.knowledge_id == Knowledge.id)
-            .options(joinedload(Collect.knowledge).joinedload(Knowledge.team))
+            .join(Knowledge, Collect.target_id == Knowledge.id)
             .filter(
                 Collect.user_id == user_id,
-                Collect.resource_type == ResourceType.KNOWLEDGE.value,
-                Knowledge.deleted_at.is_(None),
+                Collect.target_type == CollectTargetType.KNOWLEDGE.value,
             )
         )
         if keyword:
             query = query.filter(Knowledge.name.like(f"%{keyword}%"))
         collects = query.order_by(Collect.created_at.desc()).all()
-        knowledge_by_id = {
-            collect.knowledge_id: collect.knowledge for collect in collects
-        }
-        readability_by_id = (
-            self.permission_service.resolve_multiple_knowledge_readabilities(
-                user_id=user_id, knowledges=list(knowledge_by_id.values())
+        readable_knowledge_by_id = {
+            knowledge.id: knowledge
+            for knowledge in self.permission_service.list_readable_knowledges_by_ids(
+                user_id=user_id,
+                knowledge_ids=[collect.target_id for collect in collects],
             )
-        )
+        }
         return [
-            collect
+            (collect, readable_knowledge_by_id[collect.target_id])
             for collect in collects
-            if readability_by_id.get(collect.knowledge_id, False)
+            if collect.target_id in readable_knowledge_by_id
         ]
 
-    def _query_document_collects(self, user_id: int, keyword: Optional[str] = None):
+    def _query_document_collects(
+        self, *, user_id: int, keyword: Optional[str] = None
+    ) -> list[tuple[Collect, Document]]:
         query = (
             self.db.query(Collect)
-            .join(Document, Collect.document_id == Document.id)
-            .join(Knowledge, Document.knowledge_id == Knowledge.id)
-            .options(
-                joinedload(Collect.document)
-                .joinedload(Document.knowledge)
-                .joinedload(Knowledge.team)
-            )
+            .join(Document, Collect.target_id == Document.id)
             .filter(
                 Collect.user_id == user_id,
-                Collect.resource_type == ResourceType.DOCUMENT.value,
-                Document.deleted_at.is_(None),
-                Knowledge.deleted_at.is_(None),
+                Collect.target_type == CollectTargetType.DOCUMENT.value,
             )
         )
         if keyword:
             query = query.filter(Document.name.like(f"%{keyword}%"))
         collects = query.order_by(Collect.created_at.desc()).all()
-        document_by_id = {collect.document_id: collect.document for collect in collects}
-        readability_by_id = (
-            self.permission_service.resolve_multiple_document_readabilities(
-                user_id=user_id, documents=list(document_by_id.values())
+        readable_document_by_id = {
+            document.id: document
+            for document in self.permission_service.list_readable_documents_by_ids(
+                user_id=user_id,
+                document_ids=[collect.target_id for collect in collects],
             )
-        )
+        }
+
         return [
-            collect
+            (collect, readable_document_by_id[collect.target_id])
             for collect in collects
-            if readability_by_id.get(collect.document_id, False)
+            if collect.target_id in readable_document_by_id
         ]
 
     @staticmethod
@@ -158,69 +184,79 @@ class CollectService:
             return None
         return CollectTeamBrief(name=team.name, slug=team.slug)
 
-    def _to_list_item(self, collect: Collect) -> Optional[CollectListItemResponse]:
-        """将收藏转换为列表项"""
-        if collect.resource_type == ResourceType.KNOWLEDGE.value:
-            knowledge = collect.knowledge
-            if not knowledge or knowledge.deleted_at:
-                return None
-            return CollectListItemResponse(
-                id=collect.id,
-                resource_type=ResourceType(collect.resource_type),
-                identifier=knowledge.id,
-                created_at=collect.created_at,
-                team=self._build_team_brief(knowledge),
-                knowledge=CollectKnowledgeBrief(
-                    name=knowledge.name,
-                    slug=knowledge.slug,
-                    icon=knowledge.icon,
-                    id=knowledge.id,
-                ),
-            )
-        document = collect.document
-        if not document or document.deleted_at:
-            return None
-
-        knowledge = document.knowledge
-        if not knowledge or knowledge.deleted_at:
-            return None
-
+    def _to_knowledge_item(
+        self,
+        *,
+        collect: Collect,
+        knowledge: Knowledge,
+    ) -> CollectListItemResponse:
         return CollectListItemResponse(
             id=collect.id,
-            resource_type=ResourceType(collect.resource_type),
-            identifier=document.id,
+            target_type=CollectTargetType(collect.target_type),
+            target_id=collect.target_id,
             created_at=collect.created_at,
             team=self._build_team_brief(knowledge),
             knowledge=CollectKnowledgeBrief(
+                id=knowledge.id,
                 name=knowledge.name,
                 slug=knowledge.slug,
                 icon=knowledge.icon,
+            ),
+        )
+
+    def _to_document_item(
+        self,
+        *,
+        collect: Collect,
+        document: Document,
+    ) -> CollectListItemResponse:
+        knowledge = document.knowledge
+
+        return CollectListItemResponse(
+            id=collect.id,
+            target_type=CollectTargetType(collect.target_type),
+            target_id=collect.target_id,
+            created_at=collect.created_at,
+            team=self._build_team_brief(knowledge),
+            knowledge=CollectKnowledgeBrief(
                 id=knowledge.id,
+                name=knowledge.name,
+                slug=knowledge.slug,
+                icon=knowledge.icon,
             ),
             document=CollectDocumentBrief(
+                id=document.id,
                 name=document.name,
                 slug=document.slug,
-                id=document.id,
                 type=document.type,
             ),
         )
 
-    def get_collects(self, user_id: int, search_collect: CollectSearch):
+    def get_collects(
+        self, *, user_id: int, search_collect: CollectSearch
+    ) -> list[CollectListItemResponse]:
         """获取资源收藏列表"""
-        resource_type = search_collect.resource_type
+        target_type = search_collect.target_type
         keyword = search_collect.keyword
-        if resource_type == ResourceType.KNOWLEDGE:
-            collects = self._query_knowledge_collects(user_id, keyword)
-        elif resource_type == ResourceType.DOCUMENT:
-            collects = self._query_document_collects(user_id, keyword)
-        else:
-            collects = self._query_knowledge_collects(
-                user_id, keyword
-            ) + self._query_document_collects(user_id, keyword)
-            collects.sort(key=lambda x: x.created_at, reverse=True)
-        result = []
-        for collect in collects:
-            list_item = self._to_list_item(collect)
-            if list_item:
-                result.append(list_item)
+
+        knowledge_rows: list[tuple[Collect, Knowledge]] = []
+        document_rows: list[tuple[Collect, Document]] = []
+        if target_type in (None, CollectTargetType.KNOWLEDGE):
+            knowledge_rows = self._query_knowledge_collects(
+                user_id=user_id, keyword=keyword
+            )
+        if target_type in (None, CollectTargetType.DOCUMENT):
+            document_rows = self._query_document_collects(
+                user_id=user_id, keyword=keyword
+            )
+
+        result = [
+            self._to_knowledge_item(collect=collect, knowledge=knowledge)
+            for collect, knowledge in knowledge_rows
+        ]
+        result.extend(
+            self._to_document_item(collect=collect, document=document)
+            for collect, document in document_rows
+        )
+        result.sort(key=lambda x: x.created_at, reverse=True)
         return result

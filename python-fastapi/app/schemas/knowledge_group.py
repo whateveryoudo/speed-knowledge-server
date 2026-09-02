@@ -70,7 +70,7 @@ class DocumentSummaryItem(BaseModel):
     name: str = Field(..., description="文档名称")
     slug: str = Field(..., description="文档短链")
     updated_at: datetime = Field(..., description="更新时间")
-    content_updated_at: datetime = Field(..., description="内容更新时间")
+    content_updated_at: Optional[datetime] = Field(default=None, description="内容更新时间")
 
 class KnowledgeInGroupItem(KnowledgeResponse):
     """知识库分组中的知识库项(包含relation部分字段，知识库字段，文档总结前三项)"""

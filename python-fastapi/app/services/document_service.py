@@ -9,7 +9,6 @@ from app.schemas.document import (
     DocumentUpdate,
     DocumentRouteContext,
 )
-from app.schemas.document_node import DocumentNodeCreate
 from typing import List, Literal, Optional
 from sqlalchemy.orm import Session, joinedload
 from app.services.document_node_service import DocumentNodeService
@@ -26,7 +25,6 @@ from app.services.base_service import BaseService
 from app.services.permission_service import PermissionService
 from app.common.enums import (
     DocumentType,
-    DocumentNodeType,
     DocumentImportFormat,
     DocumentExportFormat,
     SpaceType,
@@ -35,6 +33,7 @@ from app.common.enums import (
     ResourceType,
     DocumentVisibility,
     resource_role_name,
+    DocumentAbility,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -98,8 +97,15 @@ class DocumentService(BaseService[Document]):
         # 创建文档创建者授权
         if document_in.user_id is None:
             raise ValueError("文档创建者用户id不能为空")
+        self.permission_service.assert_knowledge_ability(
+            user_id=document_in.user_id,
+            identifier=document_in.knowledge_id,
+            ability=DocumentAbility.DOC_CREATE,
+        )
         temp_slug = self._generate_slug()
-        while self.get_active_query().filter(Document.slug == temp_slug).first():
+        while self.document_repository.exists_slug(
+            knowledge_id=document_in.knowledge_id, slug=temp_slug
+        ):
             temp_slug = self._generate_slug()
         document = Document(
             user_id=document_in.user_id,
@@ -133,22 +139,13 @@ class DocumentService(BaseService[Document]):
             )
         # 调用节点更新
         document_node_service = DocumentNodeService(self.db)
-        # 提取节点创建结构(这里提取为两类，如果是通用文档则设置为文档类型，否则为目录类型)
-        node_type = (
-            DocumentNodeType.DOC
-            if document_in.type in DocumentType
-            else DocumentNodeType.TITLE
-        )
-        document_node = document_node_service.create_node(
-            DocumentNodeCreate(
-                knowledge_id=document.knowledge_id,
-                name=document.name,
-                id=document.id,
-                type=node_type,
-                parent_id=document_in.parent_id,
-            )
+        document_node = document_node_service.create_document_node(
+            document=document,
+            parent_id=document_in.parent_id,
+            commit=False,
         )
         self.db.commit()
+        self.db.refresh(document_node)
         # 这里追加判断是否导入默认内容（如果是走导入则跳过）
         if not skip_default_content:
             # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
@@ -318,10 +315,6 @@ class DocumentService(BaseService[Document]):
 
         return self._export_content_by_nodejs(document_id, format, fileName)
 
-    def get_list_by_user_id(self, user_id: int) -> List[Document]:
-        """通过用户id获取文档列表"""
-        return self.db.query(Document).filter(Document.user_id == user_id).all()
-
     def get_list_by_knowledge_id(
         self, *, knowledge_id: str, user_id: int
     ) -> List[Document]:
@@ -409,16 +402,6 @@ class DocumentService(BaseService[Document]):
             .first()
         )
         return document_content.node_json
-
-    def soft_muitiple_delete_by_knowledge_id(self, knowledge_id: str) -> None:
-        """通过知识库id软删除文档"""
-        self.db.query(Document).filter(
-            Document.knowledge_id == knowledge_id, Document.deleted_at.is_(None)
-        ).update(
-            {Document.deleted_at: func.now()},
-            synchronize_session=False,  # bulk update 建议带上
-        )
-        # 注意这里不会去删除节点树信息（到时候回收站恢复后会保留）
 
     def delete_by_id_or_slug(
         self, identifier: str, is_soft_delete: bool = True
@@ -639,27 +622,35 @@ class DocumentService(BaseService[Document]):
     def get_context_users(
         self, *, document_id: str, keyword: str | None = None
     ) -> List[User]:
-        """查询当前文档下可访问的用户列表"""
+        """查询当前文档最终具有读取能力的上下文用户"""
         document = self.document_repository.get_active_by_id_or_slug(document_id)
         if document is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
             )
-        user_ids = self.resource_grant_service.list_document_context_user_ids(
+        # 收窄用户范围
+        candidate_user_ids = self.resource_grant_service.list_document_context_user_ids(
             document=document
         )
-        if not user_ids:
+        if not candidate_user_ids:
             return []
+        # 进一步进行权限过滤（查找可读的权限）
+        readable_user_ids = self.permission_service.filter_document_readable_user_ids(
+            document=document, user_ids=candidate_user_ids
+        )
+        if not readable_user_ids:
+            return []
+        # 查询用户
         query = self.db.query(User).filter(
-            User.id.in_(user_ids), User.deleted_at.is_(None)
+            User.id.in_(readable_user_ids), User.deleted_at.is_(None)
         )
 
-        if keyword:
-            normalized_keyword = keyword.lower().strip()
+        normalized_keyword = (keyword or "").lower().strip()
+        if normalized_keyword:
             query = query.filter(
                 or_(
                     User.username.ilike(f"%{normalized_keyword}%"),
                     User.nickname.ilike(f"%{normalized_keyword}%"),
                 )
             )
-        return query.all()
+        return query.order_by(User.id.asc()).all()

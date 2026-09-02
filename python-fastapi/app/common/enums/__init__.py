@@ -12,6 +12,7 @@ from .knowledge import (
     KnowledgeScopeType,
 )
 from .document import (
+    DocumentCreatorScope,
     DocumentHistoryType,
     DocumentType,
     DocumentVisibility,
@@ -32,6 +33,7 @@ from .resource_grant import (
 )
 from .resource_access_request import AccessRequestStatus
 from .permission import PermissionScopeType
+from .collect import CollectTargetType
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -53,6 +55,7 @@ __all__ = [
     "GrantSource",
     "ResourceType",
     "InvitationStatus",
+    "DocumentCreatorScope",
     "DocumentHistoryType",
     "DocumentType",
     "DocumentVisibility",
@@ -70,4 +73,5 @@ __all__ = [
     "PrincipalType",
     "PrincipalRole",
     "PermissionScopeType",
+    "CollectTargetType",
 ]

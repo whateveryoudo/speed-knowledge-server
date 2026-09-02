@@ -1,31 +1,30 @@
-from sqlalchemy.orm import Session, joinedload
-from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 from app.models.knowledge_common_pin import KnowledgeCommonPin
 from app.models.knowledge import Knowledge
 from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
 from typing import List
 from app.common.utils import next_order_index, is_duplicate_entry
 from sqlalchemy.exc import IntegrityError
+from app.services.permission_service import PermissionService
+from app.schemas.knowledge import KnowledgeResponse
 
 
 class KnowledgeCommonPinService:
     def __init__(self, db: Session):
         self.db = db
+        self.permission_service = PermissionService(db)
 
-    def _to_response(
-        self, pin: KnowledgeCommonPin, user_id: int
-    ) -> KnowledgeCommonPinResponse | None:
-        """转换为响应对象"""
-        from app.services.knowledge_service import KnowledgeService
-        knowledge_service = KnowledgeService(self.db)
-        knowledge = (
-            knowledge_service.get_active_query()
-            .filter(Knowledge.id == pin.knowledge_id)
-            .options(joinedload(Knowledge.team))
-            .first()
+    def _build_response(
+        self,
+        *,
+        pin: KnowledgeCommonPin,
+        knowledge: Knowledge,
+        ability_map: dict[str, dict],
+    ) -> KnowledgeCommonPinResponse:
+        """构建响应对象"""
+        knowledge_response = KnowledgeResponse.model_validate(knowledge).model_copy(
+            update={"ability": ability_map.get(knowledge.id, {})}
         )
-        if not knowledge:
-            return None
         return KnowledgeCommonPinResponse(
             id=pin.id,
             knowledge_id=pin.knowledge_id,
@@ -33,7 +32,7 @@ class KnowledgeCommonPinService:
             order_index=pin.order_index,
             created_at=pin.created_at,
             updated_at=pin.updated_at,
-            knowledge=knowledge_service.to_wrap_knowledge_response(knowledge, user_id),
+            knowledge=knowledge_response,
         )
 
     def get_by_knowledge_id_and_user_id(
@@ -50,18 +49,25 @@ class KnowledgeCommonPinService:
         )
 
     def create(
-        self, knowledge_id: str, user_id: int, *, commit: bool = True
+        self, *, knowledge_id: str, user_id: int, commit: bool = True
     ) -> KnowledgeCommonPinResponse:
         """创建一条常用知识库记录"""
+        knowledge = self.permission_service.assert_knowledge_readable(
+            user_id=user_id, identifier=knowledge_id
+        )
+        ability_map = (
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=user_id,
+                knowledge_ids=[knowledge_id],
+            )
+        )
         existing_record = self.get_by_knowledge_id_and_user_id(knowledge_id, user_id)
-        if existing_record:
-            response = self._to_response(existing_record, user_id)
-            if not response:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="知识库不存在或已删除",
-                )
-            return response
+        if existing_record is not None:
+            return self._build_response(
+                pin=existing_record,
+                knowledge=knowledge,
+                ability_map=ability_map,
+            )
 
         new_record = KnowledgeCommonPin(
             knowledge_id=knowledge_id,
@@ -71,38 +77,34 @@ class KnowledgeCommonPinService:
         self.db.add(new_record)
         if not commit:
             self.db.flush()
-            response = self._to_response(new_record, user_id)
-            if not response:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="知识库不存在或已删除",
-                )
-            return response
+            return self._build_response(
+                pin=new_record,
+                knowledge=knowledge,
+                ability_map=ability_map,
+            )
         try:
             self.db.commit()
         except IntegrityError as e:
             self.db.rollback()
-            if is_duplicate_entry(e):
-                existing_record = self.get_by_knowledge_id_and_user_id(
-                    knowledge_id, user_id
-                )
-                if existing_record:
-                    response = self._to_response(existing_record, user_id)
-                    if response:
-                        return response
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="已在常用列中",
-                )
-            raise e
-        self.db.refresh(new_record)
-        response = self._to_response(new_record, user_id)
-        if not response:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在或已删除",
+            if not is_duplicate_entry(e):
+                raise
+            existing_record = self.get_by_knowledge_id_and_user_id(
+                knowledge.id, user_id
             )
-        return response
+            if existing_record is None:
+                raise
+            return self._build_response(
+                pin=existing_record,
+                knowledge=knowledge,
+                ability_map=ability_map,
+            )
+
+        self.db.refresh(new_record)
+        return self._build_response(
+            pin=new_record,
+            knowledge=knowledge,
+            ability_map=ability_map,
+        )
 
     def get_list_by_user_id(self, user_id: int) -> List[KnowledgeCommonPinResponse]:
         """获取用户常用知识库记录列表（含知识库信息）"""
@@ -112,12 +114,31 @@ class KnowledgeCommonPinService:
             .order_by(KnowledgeCommonPin.order_index.asc())
             .all()
         )
-        result: List[KnowledgeCommonPinResponse] = []
-        for pin in pins:
-            item = self._to_response(pin, user_id)
-            if item:
-                result.append(item)
-        return result
+        if not pins:
+            return []
+        readable_knowledge_by_id = {
+            knowledge.id: knowledge
+            for knowledge in self.permission_service.list_readable_knowledges_by_ids(
+                user_id=user_id, knowledge_ids=[pin.knowledge_id for pin in pins]
+            )
+        }
+        ability_map = (
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=user_id,
+                knowledge_ids=[
+                    knowledge.id for knowledge in readable_knowledge_by_id.values()
+                ],
+            )
+        )
+        return [
+            self._build_response(
+                pin=pin,
+                knowledge=readable_knowledge_by_id[pin.knowledge_id],
+                ability_map=ability_map,
+            )
+            for pin in pins
+            if pin.knowledge_id in readable_knowledge_by_id
+        ]
 
     def change_order_index(
         self, knowledge_id: str, user_id: int, order_index: int

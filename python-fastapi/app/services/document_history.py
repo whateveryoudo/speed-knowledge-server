@@ -13,7 +13,12 @@ from app.models import (
     Document,
 )
 from app.services.collect_service import CollectService
-from app.common.enums import DocumentHistoryType, ResourceType
+from app.common.enums import (
+    DocumentHistoryType,
+    ResourceType,
+    DocumentCreatorScope,
+    CollectTargetType,
+)
 from app.models.document_edit_history import DocumentEditHistory
 from app.services.permission_service import PermissionService
 
@@ -74,8 +79,8 @@ class DocumentHistoryService:
             )
         if query_in.doc_type:
             filter_conditions.append(Document.type == query_in.doc_type)
-        if query_in.doc_creator:
-            filter_conditions.append(Document.user_id == query_in.doc_creator)
+        if query_in.doc_creator_scope == DocumentCreatorScope.MINE:
+            filter_conditions.append(Document.user_id == user_id)
         if filter_conditions:
             query = query.filter(*filter_conditions)
 
@@ -113,20 +118,25 @@ class DocumentHistoryService:
 
         # 进行分页查询
         items, total, has_more = paginate_after_fetch(
-            items=page_items, total=len(readable_items), pagination_query=pagination_query
+            items=page_items,
+            total=len(readable_items),
+            pagination_query=pagination_query,
         )  # 返回数据和总条数
         # 内容组合
         response_items: list[DocumentHistoryResponse] = []
+        # 调整为批量查询
+        collected_document_ids = collection_service.get_collected_target_ids(
+            user_id=user_id,
+            target_type=CollectTargetType.DOCUMENT,
+            target_ids=[item.document_id for item in items],
+        )
         for item in items:
             doc_creator = (
                 item.document.user.nickname or item.document.user.username
                 if item.document.user
                 else ""
             )
-            # 查询文档是否被收藏
-            collected_row = collection_service.check_is_collected(
-                user_id, item.document_id, ResourceType.DOCUMENT
-            )
+
             if query_in.history_type == DocumentHistoryType.VIEW:
                 update_datetime = item.viewed_datetime
             else:
@@ -149,7 +159,7 @@ class DocumentHistoryService:
                 doc_name=item.document.name,
                 doc_type=item.document.type,
                 doc_slug=item.document.slug,
-                doc_is_collected=collected_row is not None,
+                doc_is_collected=item.document_id in collected_document_ids,
                 created_at=item.created_at,
                 updated_at=item.updated_at,
             )

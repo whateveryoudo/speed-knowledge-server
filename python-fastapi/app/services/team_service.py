@@ -3,7 +3,6 @@ from app.schemas.team import TeamCreate, TeamUpdate
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.services.base_service import BaseService
-from datetime import datetime
 import secrets
 import string
 from app.services.team_member_service import TeamMemberService
@@ -27,11 +26,12 @@ class TeamService(BaseService):
 
     def get_team(self, team_id: str):
         return self.get_active_query().filter(Team.id == team_id).first()
+
     def _slug_exists(self, slug: str):
         return self.get_all_query().filter(Team.slug == slug).first() is not None
+
     def create_team(self, team_create: TeamCreate):
         # 排除members
-        print(team_create)
         temp_slug = self._generate_slug()
         while self._slug_exists(temp_slug):
             temp_slug = self._generate_slug()
@@ -56,7 +56,7 @@ class TeamService(BaseService):
     def create_default_team(self, team_create: TeamCreate):
         # 排除members
         temp_slug = self._generate_slug()
-        while self.get_active_query().filter(Team.slug == temp_slug).first():
+        while self._slug_exists(temp_slug):
             temp_slug = self._generate_slug()
         team_row = Team(
             **team_create.model_dump(exclude={"members", "slug"}),
@@ -86,7 +86,11 @@ class TeamService(BaseService):
 
     def delete_team(self, team_id: str):
 
-        team = self.get_active_query().filter(Team.id == team_id)
+        team: Team | None = self.get_active_query().filter(Team.id == team_id).first()
+        if team is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在"
+            )
         if team.is_default:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="默认团队不能删除"

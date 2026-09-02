@@ -33,7 +33,9 @@ class DocumentRepository(SoftDeleteRepository[Document]):
                 or_(
                     Knowledge.team_id.is_(None),
                     and_(
-                        Team.deleted_at.is_(None), Team.space_id == Knowledge.space_id
+                        Team.id.is_not(None),
+                        Team.deleted_at.is_(None),
+                        Team.space_id == Knowledge.space_id,
                     ),
                 ),
             )
@@ -51,14 +53,32 @@ class DocumentRepository(SoftDeleteRepository[Document]):
         """通过ID获取未删除的文档"""
         return self.active_scope_query().filter(Document.id == document_id).first()
 
-    def exists_active_slug(self, *, knowledge_id: str, slug: str) -> bool:
-        """检查指定知识库下是否存在未删除的文档slug"""
+    def exists_slug(self, *, knowledge_id: str, slug: str) -> bool:
+        """检查全部文档slug"""
         return (
-            self.active_query()
+            self.all_query()
             .filter(Document.knowledge_id == knowledge_id, Document.slug == slug)
             .first()
             is not None
         )
+
+    def list_active_by_title(
+        self,
+        *,
+        keyword: str,
+        knowledge_id: str | None = None,
+        order_by_content_updated: bool = False,
+    ) -> list[Document]:
+        """根据标题获取全部祖先链的有效文档"""
+        query = self.active_scope_query().filter(Document.name.ilike(f"%{keyword}%"))
+        if knowledge_id is not None:
+            query = query.filter(Document.knowledge_id == knowledge_id)
+        order_column = (
+            Document.content_updated_at
+            if order_by_content_updated
+            else Document.updated_at
+        )
+        return query.order_by(order_column.desc()).all()
 
     def list_active_by_knowledge(self, *, knowledge_id: str) -> list[Document]:
         """获取指定知识库下的有效文档，增加权限解析所需关系"""
@@ -73,6 +93,18 @@ class DocumentRepository(SoftDeleteRepository[Document]):
         if not document_ids:
             return []
         return self.active_scope_query().filter(Document.id.in_(document_ids)).all()
+
+    def list_active_by_knowledge_ids(
+        self, knowledge_ids: Sequence[str]
+    ) -> list[Document]:
+        """获取指定知识库ID列表下的有效文档"""
+        if not knowledge_ids:
+            return []
+        return (
+            self.active_scope_query()
+            .filter(Document.knowledge_id.in_(knowledge_ids))
+            .all()
+        )
 
     def active_list_query(self) -> Query:
         """列表查询入口"""

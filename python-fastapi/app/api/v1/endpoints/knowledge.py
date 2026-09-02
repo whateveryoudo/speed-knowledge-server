@@ -33,11 +33,14 @@ from app.schemas.knowledge_daily_stats import KnowledgeDailyStatsResponse
 from app.services.collect_service import CollectService
 from app.services.permission_service import PermissionService
 from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
-from app.schemas.knowledge_common_pin import KnowledgeCommonPinResponse
+from app.schemas.knowledge_common_pin import (
+    KnowledgeCommonPinCreate,
+    KnowledgeCommonPinResponse,
+)
 from app.models.document_node import DocumentNode
 from app.common.enums import (
-    ResourceType,
     KnowledgeAbility,
+    CollectTargetType,
 )
 from app.schemas.knowledge_group import (
     KnowledgeGroupUpdateBody,
@@ -147,7 +150,9 @@ async def get_knowledge_index_page(
         )
         if current_user and current_user.id:
             collected_record = collect_service.check_is_collected(
-                current_user.id, knowledge.id, ResourceType.KNOWLEDGE
+                user_id=current_user.id,
+                target_type=CollectTargetType.KNOWLEDGE,
+                target_id=knowledge.id,
             )
         else:
             collected_record = None
@@ -295,30 +300,14 @@ async def delete_knowledge(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_knowledge_common_pin(
-    knowledge_id: str,
+    body: KnowledgeCommonPinCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeCommonPinResponse:
     """创建一条常用知识库记录"""
     knowledge_common_pin_service = KnowledgeCommonPinService(db)
-    return knowledge_common_pin_service.create(knowledge_id, current_user.id)
-
-
-@router.put(
-    "/common-pin/update/{knowledge_id}",
-    response_model=None,
-    status_code=status.HTTP_200_OK,
-)
-async def update_knowledge_common_pin(
-    knowledge_id: str,
-    order_index: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> None:
-    """更新常用知识库记录的排序索引"""
-    knowledge_common_pin_service = KnowledgeCommonPinService(db)
-    return knowledge_common_pin_service.change_order_index(
-        knowledge_id, current_user.id, order_index
+    return knowledge_common_pin_service.create(
+        knowledge_id=body.knowledge_id, user_id=current_user.id
     )
 
 

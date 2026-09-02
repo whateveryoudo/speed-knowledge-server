@@ -1,7 +1,12 @@
 from fastapi import APIRouter, status, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from typing import List
-from app.schemas.collect import CollectCreate, CollectResponse, CollectSearch, CollectListItemResponse
+from app.schemas.collect import (
+    CollectCreate,
+    CollectResponse,
+    CollectSearch,
+    CollectListItemResponse,
+)
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.services.collect_service import CollectService
@@ -9,6 +14,7 @@ from app.models.collect import Collect
 
 
 router = APIRouter()
+
 
 @router.post("/", response_model=CollectResponse, status_code=status.HTTP_201_CREATED)
 async def add_collect(
@@ -18,8 +24,13 @@ async def add_collect(
 ) -> Collect:
     """添加资源收藏"""
     collect_service = CollectService(db)
-    collect = collect_service.add_collect(current_user.id, collect_in.identifier, collect_in.resource_type)
+    collect = collect_service.add_collect(
+        user_id=current_user.id,
+        target_type=collect_in.target_type,
+        target_id=collect_in.target_id,
+    )
     return collect
+
 
 @router.delete("/", status_code=status.HTTP_200_OK)
 async def remove_collect(
@@ -29,10 +40,19 @@ async def remove_collect(
 ) -> None:
     """取消资源收藏"""
     collect_service = CollectService(db)
-    collect_service.remove_collect(current_user.id, collect_in.identifier, collect_in.resource_type)
+    collect_service.remove_collect(
+        user_id=current_user.id,
+        target_type=collect_in.target_type,
+        target_id=collect_in.target_id,
+    )
     return None
 
-@router.get("/list", response_model=List[CollectListItemResponse], status_code=status.HTTP_200_OK)
+
+@router.get(
+    "/list",
+    response_model=List[CollectListItemResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def get_collects(
     search_collect: CollectSearch = Depends(),
     current_user: User = Depends(get_current_user),
@@ -40,5 +60,7 @@ async def get_collects(
 ) -> List[CollectListItemResponse]:
     """获取资源收藏列表"""
     collect_service = CollectService(db)
-    collects = collect_service.get_collects(current_user.id, search_collect)
+    collects = collect_service.get_collects(
+        user_id=current_user.id, search_collect=search_collect
+    )
     return collects

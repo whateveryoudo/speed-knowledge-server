@@ -4,13 +4,14 @@ from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
 
 from app.common.utils import next_order_index, prepare_insert_order_index
-from app.models.knowledge import Knowledge
 from app.models.document import Document
 from app.models.knowledge_group import KnowledgeGroup
 from app.models.knowledge_group_relation import KnowledgeGroupRelation
+from app.services.permission_service import PermissionService
+from app.repositories.document_repository import DocumentRepository
+from app.schemas.knowledge import KnowledgeResponse
 from app.schemas.knowledge_group import (
     KnowledgeGroupCreate,
     KnowledgeGroupUpdateBody,
@@ -27,6 +28,8 @@ class KnowledgeGroupService:
 
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.permission_service = PermissionService(db)
+        self.document_repository = DocumentRepository(db)
 
     def _query(self):
         return self.db.query(KnowledgeGroup)
@@ -96,81 +99,68 @@ class KnowledgeGroupService:
 
     def _build_doc_summaries(
         self,
+        *,
         relations: List[KnowledgeGroupRelation],
         groups: List[KnowledgeGroup],
-        active_knowledge_ids: List[str],
-        *,
+        readable_documents: List[Document],
         limit: int = 3,
     ) -> dict[str, List[DocumentSummaryItem]]:
-        """批量获取文档top3"""
-        if not active_knowledge_ids:
+        """使用最终可读文档构建每个知识库的TOP-N"""
+        if not readable_documents:
             return {}
 
-        group_map = {group.id: group for group in groups}
+        group_by_id = {group.id: group for group in groups}
 
-        knowledge_order_type: dict[str, int] = {}
+        order_type_by_knowledge_id: dict[str, int] = {}
 
         for relation in relations:
-            knowledge = relation.knowledge
-            if not knowledge or knowledge.deleted_at is not None:
+            group = group_by_id.get(relation.group_id)
+            if group is None:
                 continue
-            if knowledge.id not in knowledge_order_type:
-                group = group_map.get(relation.group_id)
-                knowledge_order_type[knowledge.id] = (
-                    self._get_doc_order_type(group) if group else 1
-                )
-
-        docs = (
-            self.db.query(Document)
-            .filter(
-                Document.knowledge_id.in_(active_knowledge_ids),
-                Document.deleted_at.is_(None),
+            order_type_by_knowledge_id[relation.knowledge_id] = (
+                self._get_doc_order_type(group)
             )
-            .all()
-        )
-        docs_by_knowledge: dict[str, List[Document]] = defaultdict(list)
-        for doc in docs:
-            docs_by_knowledge[doc.knowledge_id].append(doc)
-        doc_summaries: dict[str, List[DocumentSummaryItem]] = {}
-        for knowledge_id, docs in docs_by_knowledge.items():
-            order_type = knowledge_order_type.get(knowledge_id, 1)
-            sorted_docs = sorted(
-                docs,
+        documents_by_knowledge_id: dict[str, List[Document]] = defaultdict(list)
+        for document in readable_documents:
+            documents_by_knowledge_id[document.knowledge_id].append(document)
+
+        result: dict[str, List[DocumentSummaryItem]] = {}
+        for knowledge_id, documents in documents_by_knowledge_id.items():
+            order_type = order_type_by_knowledge_id.get(knowledge_id, 1)
+
+            sorted_documents = sorted(
+                documents,
                 key=lambda x: (
-                    x.content_updated_at or x.updated_at
+                    (x.content_updated_at or x.updated_at)
                     if order_type == 1
                     else x.created_at
                 ),
                 reverse=True,
             )
-            doc_summaries[knowledge_id] = [
+            result[knowledge_id] = [
                 DocumentSummaryItem(
-                    id=doc.id,
-                    name=doc.name,
-                    slug=doc.slug,
-                    updated_at=doc.updated_at,
-                    content_updated_at=doc.content_updated_at,
+                    id=document.id,
+                    name=document.name,
+                    slug=document.slug,
+                    updated_at=document.updated_at,
+                    content_updated_at=document.content_updated_at,
                 )
-                for doc in sorted_docs[:limit]
+                for document in sorted_documents[:limit]
             ]
-        return doc_summaries
+        return result
 
     def get_list_with_knowledge(
         self, user_id: int, keyword: Optional[str] = None
     ) -> List[KnowledgeGroupResponse]:
-        """获取带知识库的分组列表"""
-        from app.services.knowledge_service import KnowledgeService
+        """获取带最终可读知识库和文档摘要的分组列表"""
 
-        knowledge_service = KnowledgeService(self.db)
         groups = self.get_list_by_user_id(user_id)
         keyword = (keyword or "").strip().lower()
 
         relations = (
             self.db.query(KnowledgeGroupRelation)
+            .options(joinedload(KnowledgeGroupRelation.knowledge))
             .filter(KnowledgeGroupRelation.user_id == user_id)
-            .options(
-                joinedload(KnowledgeGroupRelation.knowledge).joinedload(Knowledge.team)
-            )
             .order_by(
                 KnowledgeGroupRelation.order_index.asc(),
                 KnowledgeGroupRelation.created_at.asc(),
@@ -178,69 +168,96 @@ class KnowledgeGroupService:
             .all()
         )
 
-        items_by_group: dict[str, list] = {group.id: [] for group in groups}
-        active_knowledge_ids: list[str] = []
-        for relation in relations:
-            knowledge = relation.knowledge
-            if not knowledge or knowledge.deleted_at is not None:
-                continue
-            if keyword and keyword not in (knowledge.name or "").lower():
-                continue
-            active_knowledge_ids.append(knowledge.id)
+        # 根据关键词缩小知识库的候选范围
 
-        doc_counts: dict[str, int] = {}
-        if active_knowledge_ids:
-            count_rows = (
-                self.db.query(Document.knowledge_id, func.count(Document.id))
-                .filter(Document.knowledge_id.in_(active_knowledge_ids))
-                .group_by(Document.knowledge_id)
-                .all()
+        candidate_knowledge_ids: list[str] = list(
+            dict.fromkeys(
+                relation.knowledge_id
+                for relation in relations
+                if relation.knowledge is not None
+                and (not keyword or keyword in (relation.knowledge.name or "").lower())
             )
-            doc_counts = {kid: cnt for kid, cnt in count_rows}
-
-        # 批量获取文档top3
-        doc_summaries = self._build_doc_summaries(
-            relations, groups, active_knowledge_ids, limit=3
         )
 
+        # 同时完成知识库有效父链和read_book 的判断
+
+        readable_knowledges = self.permission_service.list_readable_knowledges_by_ids(
+            user_id=user_id,
+            knowledge_ids=candidate_knowledge_ids,
+        )
+        readable_knowledge_by_id = {
+            knowledge.id: knowledge for knowledge in readable_knowledges
+        }
+
+        readable_knowledge_ids = list(readable_knowledge_by_id.keys())
+
+        candidate_documents = self.document_repository.list_active_by_knowledge_ids(
+            readable_knowledge_ids,
+        )
+
+        # 进一步过滤 最终带有DOC_READ 的文档
+        readable_documents = self.permission_service.filter_readable_documents(
+            user_id=user_id,
+            documents=candidate_documents,
+        )
+
+        documents_by_knowledge_id: dict[str, List[Document]] = defaultdict(list)
+
+        for document in readable_documents:
+            documents_by_knowledge_id[document.knowledge_id].append(document)
+
+        document_counts = {
+            knowledge_id: len(documents)
+            for knowledge_id, documents in documents_by_knowledge_id.items()
+        }
+        document_summaries = self._build_doc_summaries(
+            relations=relations,
+            groups=groups,
+            readable_documents=readable_documents,
+            limit=3,
+        )
+        ability_map = (
+            self.permission_service.get_multiple_effective_knowledge_abilities(
+                user_id=user_id,
+                knowledge_ids=readable_knowledge_ids,
+            )
+        )
+        items_by_group: dict[str, List[KnowledgeInGroupItem]] = {
+            group.id: [] for group in groups
+        }
         for relation in relations:
-            knowledge = relation.knowledge
-            if not knowledge or knowledge.deleted_at is not None:
+            knowledge = readable_knowledge_by_id.get(relation.knowledge_id)
+            if knowledge is None:
                 continue
-            if keyword and keyword not in (knowledge.name or "").lower():
-                continue
-            response = knowledge_service.to_wrap_knowledge_response(knowledge, user_id)
-            # 同步文档数量
-            response = response.model_copy(
+            knowledge_response = KnowledgeResponse.model_validate(knowledge).model_copy(
                 update={
-                    "items_count": doc_counts.get(knowledge.id, 0),
+                    "ability": ability_map.get(knowledge.id, {}),
+                    "items_count": document_counts.get(knowledge.id, 0),
                 }
             )
-            response = KnowledgeInGroupItem(
-                **response.model_dump(),
+            group_item = KnowledgeInGroupItem(
+                **knowledge_response.model_dump(),
                 order_index=relation.order_index,
                 relation_id=relation.id,
-                doc_summary=doc_summaries.get(knowledge.id, []),
+                doc_summary=document_summaries.get(knowledge.id, []),
             )
-            items_by_group.setdefault(relation.group_id, []).append(response)
-
-        result: List[KnowledgeGroupResponse] = []
-        for group in groups:
-            display_config = group.display_config or DEFAULT_DISPLAY_CONFIG.model_dump()
-            result.append(
-                KnowledgeGroupResponse(
-                    id=group.id,
-                    user_id=group.user_id,
-                    group_name=group.group_name,
-                    order_index=group.order_index,
-                    is_default=group.is_default,
-                    display_config=display_config,
-                    created_at=group.created_at,
-                    updated_at=group.updated_at,
-                    knowledge_group_items=items_by_group.get(group.id, []),
-                )
+            items_by_group.setdefault(relation.group_id, []).append(group_item)
+        return [
+            KnowledgeGroupResponse(
+                id=group.id,
+                user_id=group.user_id,
+                group_name=group.group_name,
+                order_index=group.order_index,
+                is_default=group.is_default,
+                display_config=(
+                    group.display_config or DEFAULT_DISPLAY_CONFIG.model_dump()
+                ),
+                created_at=group.created_at,
+                updated_at=group.updated_at,
+                knowledge_group_items=items_by_group.get(group.id, []),
             )
-        return result
+            for group in groups
+        ]
 
     def update(
         self,

@@ -356,13 +356,41 @@ class PermissionService:
                 detail="不支持的资源类型",
             )
 
+    def list_readable_documents_by_ids(
+        self, *, user_id: int | None, document_ids: list[str]
+    ) -> list[Document]:
+        """根据ID获取父链有效且当前用户可读的文档"""
+        unique_ids = list(dict.fromkeys(document_ids))
+        if not unique_ids:
+            return []
+        active_documents = self.document_repository.list_active_by_ids(unique_ids)
+        active_document_by_id = {document.id: document for document in active_documents}
+
+        # 按照传入id返回
+        return [
+            active_document_by_id[document_id]
+            for document_id in unique_ids
+            if document_id in active_document_by_id
+            and self.can_read_document(user_id, active_document_by_id[document_id])
+        ]
+
     def resolve_multiple_document_readabilities(
         self, *, user_id: int | None, documents: list[Document]
     ) -> dict[str, bool]:
-        """批量解析文档是否可读，目前先试用循环单条，后续替换为批量获取和能力查询"""
+        """批量解析文档是否可读（排除祖先链无效的文档）"""
+        document_ids = list(dict.fromkeys([document.id for document in documents]))
+        if not document_ids:
+            return {}
+        readable_document_ids = {
+            document.id
+            for document in self.list_readable_documents_by_ids(
+                user_id=user_id, document_ids=document_ids
+            )
+        }
+
         return {
-            document.id: self.can_read_document(user_id, document)
-            for document in documents
+            document_id: document_id in readable_document_ids
+            for document_id in document_ids
         }
 
     def filter_readable_documents(
@@ -378,13 +406,54 @@ class PermissionService:
             if readability_by_id.get(document.id, False)
         ]
 
+    def filter_document_readable_user_ids(
+        self, *, document: Document, user_ids: list[int]
+    ) -> list[int]:
+        """过滤出对同一温度最终具有读取能力的用户ID"""
+        unique_user_ids = list(dict.fromkeys(user_ids))
+        # TODO:后续替换成实际批量查询
+        if not unique_user_ids:
+            return []
+        return [
+            user_id
+            for user_id in unique_user_ids
+            if self.can_read_document(user_id, document)
+        ]
+
+    def list_readable_knowledges_by_ids(
+        self, *, user_id: int | None, knowledge_ids: list[str]
+    ) -> list[Knowledge]:
+        """根据ID获取父链有效且当前用户可读的知识库"""
+        unique_ids = list(dict.fromkeys(knowledge_ids))
+        if not unique_ids:
+            return []
+        active_knowledges = self.knowledge_repository.list_active_by_ids(unique_ids)
+        active_knowledge_by_id = {
+            knowledge.id: knowledge for knowledge in active_knowledges
+        }
+        return [
+            active_knowledge_by_id[knowledge_id]
+            for knowledge_id in unique_ids
+            if knowledge_id in active_knowledge_by_id
+            and self.can_read_knowledge(user_id, active_knowledge_by_id[knowledge_id])
+        ]
+
     def resolve_multiple_knowledge_readabilities(
         self, *, user_id: int | None, knowledges: list[Knowledge]
     ) -> dict[str, bool]:
-        """批量解析知识库是否可读，目前先试用循环单条，后续替换为批量获取和能力查询"""
+        """批量解析知识库是否可读(排除祖先链无效的知识库)，目前先试用循环单条，后续替换为批量获取和能力查询"""
+        knowledge_ids = list(dict.fromkeys([knowledge.id for knowledge in knowledges]))
+        if not knowledge_ids:
+            return {}
+        readable_knowledge_ids = {
+            knowledge.id
+            for knowledge in self.list_readable_knowledges_by_ids(
+                user_id=user_id, knowledge_ids=knowledge_ids
+            )
+        }
         return {
-            knowledge.id: self.can_read_knowledge(user_id, knowledge)
-            for knowledge in knowledges
+            knowledge_id: knowledge_id in readable_knowledge_ids
+            for knowledge_id in knowledge_ids
         }
 
     def filter_readable_knowledges(

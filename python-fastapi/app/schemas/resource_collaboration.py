@@ -2,6 +2,7 @@ from app.schemas.user import UserResponse
 from pydantic import BaseModel, Field
 from app.common.enums.resource import ResourceRole
 from typing import Optional, Literal
+from app.schemas.query import Pagination
 
 
 class ResourceCollaborationItem(BaseModel):
@@ -13,5 +14,6 @@ class ResourceCollaborationItem(BaseModel):
     access_request_id: Optional[str] = Field(..., description="访问请求ID")
 
 
-class ResourceCollaborationOverview(BaseModel):
-    items: list[ResourceCollaborationItem] = Field(..., description="资源协作列表")
+class ResourceCollaborationQuery(Pagination):
+    """资源协作查询"""
+    pass

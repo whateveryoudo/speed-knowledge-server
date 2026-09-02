@@ -39,17 +39,17 @@ from app.services.document_view_history import DocumentViewHistoryService
 from app.schemas.document_view_history import DocumentViewHistoryCreate
 from app.schemas.document_node import (
     DocumentNodeResponse,
-    DocumentNodeCreate,
     DragDocumentNodeParams,
+    CatalogNodeCreate,
     DocumentNodeUpdate,
 )
 from datetime import datetime
 from app.services.collect_service import CollectService
 from app.common.enums import (
-    ResourceType,
     DocumentImportFormat,
     DocumentType,
-    DocumentAbility
+    DocumentAbility,
+    CollectTargetType,
 )
 from app.schemas.user import UserResponse
 from app.models.knowledge import Knowledge
@@ -174,12 +174,14 @@ async def get_document_detail(
     if current_user and current_user.id:
         collect_service = CollectService(db)
         collected_record = collect_service.check_is_collected(
-            current_user.id, document.id, ResourceType.DOCUMENT
+            user_id=current_user.id,
+            target_type=CollectTargetType.DOCUMENT,
+            target_id=document.id,
         )
     else:
         collected_record = None
     return DocumentResponse.model_validate(document).model_copy(
-        update={"has_collected": collected_record}
+        update={"has_collected": bool(collected_record)}
     )
 
 
@@ -262,44 +264,57 @@ async def update_document_visibility(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_catalog_node(
-    document_node_in: DocumentNodeCreate,
+    document_node_in: CatalogNodeCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentNodeResponse:
     """创建目录节点"""
     document_node_service = DocumentNodeService(db)
     # 这里直接调用节点服务，不调用文档服务创建文档
-    created_document_node = document_node_service.create_node(document_node_in)
+    created_document_node = document_node_service.create_catalog_node(
+        operator_id=current_user.id,
+        knowledge_id=document_node_in.knowledge_id,
+        name=document_node_in.name,
+        parent_id=document_node_in.parent_id,
+    )
     return created_document_node
 
 
 @node_router.put("/drag", response_model=None)
 async def drag_document(
     drag_document_in: DragDocumentNodeParams,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     """拖拽文档节点（这里放到前面优先匹配）"""
-    print(drag_document_in)
     document_node_service = DocumentNodeService(db)
-    return document_node_service.drag_document(drag_document_in)
+    return document_node_service.drag_document(
+        operator_id=current_user.id, drag_document_in=drag_document_in
+    )
 
 
 @node_router.delete("/{node_id}", response_model=None)
 async def delete_document_node(
     node_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     """删除文档节点（1.DOC软删；2.双向链表更新；3.递归删除子项）"""
     document_node_service = DocumentNodeService(db)
-    return document_node_service.delete_node(node_id)
+    return document_node_service.delete_node(
+        operator_id=current_user.id, node_id=node_id
+    )
 
 
 @node_router.put("/{node_id}", response_model=None)
 async def update_document_node(
     node_id: str,
     document_node_in: DocumentNodeUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     """更新文档节点"""
     document_node_service = DocumentNodeService(db)
-    return document_node_service.update_node(node_id, document_node_in)
+    return document_node_service.update_node(
+        operator_id=current_user.id, node_id=node_id, update_in=document_node_in
+    )

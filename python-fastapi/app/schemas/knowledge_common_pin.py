@@ -3,6 +3,10 @@ from datetime import datetime
 from app.schemas.knowledge import KnowledgeResponse
 
 
+class KnowledgeCommonPinCreate(BaseModel):
+    knowledge_id: str = Field(..., description="知识库ID")
+
+
 class KnowledgeCommonPinBase(BaseModel):
     knowledge_id: str = Field(..., description="知识库ID")
     user_id: int = Field(..., description="用户ID")

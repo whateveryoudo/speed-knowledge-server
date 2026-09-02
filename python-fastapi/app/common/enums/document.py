@@ -3,6 +3,13 @@
 from enum import Enum
 
 
+class DocumentCreatorScope(str, Enum):
+    """历史文档列表创建者筛选范围"""
+
+    ALL = "all"  # 全部
+    MINE = "mine"  # 自己
+
+
 class DocumentHistoryType(str, Enum):
     """文档历史类型"""
 
@@ -11,23 +18,28 @@ class DocumentHistoryType(str, Enum):
     LIKE = "like"  # 点赞
     COLLECT = "collect"  # 收藏
 
+
 class DocumentAbility(str, Enum):
     """角色能力"""
-    DOC_CREATE = 'doc_create'  # 创建
-    DOC_READ = 'doc_read'  # 只读
-    DOC_EDIT = 'doc_edit'  # 编辑
-    DOC_DELETE = 'doc_delete'  # 删除
-    DOC_JOIN = 'doc_join'  # 加入
-    DOC_SHARE = 'doc_share'  # 分享
-    DOC_COMMENT = 'doc_comment'  # 评论
-    DOC_EXPORT = 'doc_export'  # 导出
+
+    DOC_CREATE = "doc_create"  # 创建
+    DOC_READ = "doc_read"  # 只读
+    DOC_EDIT = "doc_edit"  # 编辑
+    DOC_DELETE = "doc_delete"  # 删除
+    DOC_JOIN = "doc_join"  # 加入
+    DOC_SHARE = "doc_share"  # 分享
+    DOC_COMMENT = "doc_comment"  # 评论
+    DOC_EXPORT = "doc_export"  # 导出
+
 
 class DocumentVisibility(str, Enum):
     """文档可见范围"""
+
     INHERIT = "inherit"  # 继承知识库可见范围
     SPACE = "space"  # 空间内部成员可访问
     PUBLIC = "public"  # 互联网公开
     PRIVATE = "private"  # 不继承知识库的空间/公开范围
+
 
 class DocumentType(str, Enum):
     """文档类型"""
@@ -50,15 +62,19 @@ class DocumentNodeType(str, Enum):
     TITLE = "TITLE"  # 目录
     DOC = "DOC"  # 文档节点
 
+
 class DocumentImportFormat(str, Enum):
     """文档导入格式"""
+
     MARKDOWN = "markdown"  # Markdown
     WORD = "word"  # WORD
     EXCEL = "excel"  # EXCEL
     SPEED = "speed"  # SPEED
- 
+
+
 class DocumentExportFormat(str, Enum):
     """文档导出格式"""
+
     MARKDOWN = "markdown"  # Markdown
     WORD = "word"  # WORD
     SPEED = "speed"  # SPEED

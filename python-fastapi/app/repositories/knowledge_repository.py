@@ -51,9 +51,9 @@ class KnowledgeRepository(SoftDeleteRepository[Knowledge]):
         """通过ID获取未删除的知识库"""
         return self.active_scope_query().filter(Knowledge.id == knowledge_id).first()
 
-    def exists_active_slug(self, slug: str) -> bool:
-        """检查是否存在未删除的知识库slug"""
-        return self.active_query().filter(Knowledge.slug == slug).first() is not None
+    def exists_slug(self, slug: str) -> bool:
+        """检查全部知识库slug"""
+        return self.all_query().filter(Knowledge.slug == slug).first() is not None
 
     def list_active_by_ids(self, knowledge_ids: Sequence[str]) -> list[Knowledge]:
         """获取未删除的知识库列表"""
@@ -68,6 +68,15 @@ class KnowledgeRepository(SoftDeleteRepository[Knowledge]):
     def list_active_by_team_id(self, team_id: str) -> list[Knowledge]:
         """获取未删除的指定团队下的知识库列表"""
         return self.active_scope_query().filter(Knowledge.team_id == team_id).all()
+
+    def list_active_by_title(self, *, keyword: str) -> list[Knowledge]:
+        """根据标题获取全部祖先链的有效知识库"""
+        return (
+            self.active_scope_query()
+            .filter(Knowledge.name.ilike(f"%{keyword}%"))
+            .order_by(Knowledge.updated_at.desc())
+            .all()
+        )
 
     def count_active_documents(self, knowledge_id: str) -> int:
         """获取未删除的指定知识库下的文档数量"""

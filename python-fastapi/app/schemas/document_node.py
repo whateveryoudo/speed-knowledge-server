@@ -41,7 +41,9 @@ class DocumentNodeResponse(DocumentNodeBase):
     id: str = Field(..., description="文档树节点ID")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-    document_type: Optional[DocumentType] = Field(default=None, description="所属文档类型")
+    document_type: Optional[DocumentType] = Field(
+        default=None, description="所属文档类型"
+    )
     document_slug: Optional[str] = Field(default=None, description="所属文档短链")
     content_updated_at: Optional[datetime] = Field(
         default=None, description="文档内容更新时间"
@@ -52,6 +54,14 @@ class DocumentNodeResponse(DocumentNodeBase):
 
 
 # 这里不继承基础类，需要传入的参数很少
+class CatalogNodeCreate(BaseModel):
+    """创建目录节点参数"""
+
+    name: str = Field(..., description="目录名称", min_length=1, max_length=50)
+    knowledge_id: str = Field(..., description="所属知识库ID")
+    parent_id: Optional[str] = Field(default=None, description="父节点ID")
+
+
 class DocumentNodeCreate(BaseModel):
     """创建文档目录结构"""
 
@@ -65,7 +75,7 @@ class DocumentNodeCreate(BaseModel):
 class DocumentNodeUpdate(BaseModel):
     """更新文档节点结构"""
 
-    title: Optional[str] = Field(default=None, description="文档节点标题", min_length=1, max_length=50)
+    title: str = Field(..., description="文档节点标题", min_length=1, max_length=50)
 
 
 class DragDocumentNodeParams(BaseModel):

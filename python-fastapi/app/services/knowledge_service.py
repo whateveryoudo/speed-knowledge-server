@@ -3,7 +3,7 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
-from sqlalchemy import or_
+from sqlalchemy import or_, Query
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.services.permission_service import PermissionService
@@ -35,7 +35,7 @@ from fastapi import status
 from sqlalchemy.orm import joinedload
 from app.schemas.query import SortRule, BaseSortOrder
 from app.schemas.response import PaginationQuery, PaginationResponse
-from app.common.pagination import paginate_query, paginate_response
+from app.common.pagination import paginate_after_fetch, paginate_response
 from sqlalchemy.exc import IntegrityError
 from app.common.utils import is_duplicate_entry, is_slug_duplicate
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
@@ -85,11 +85,7 @@ class KnowledgeService(BaseService[Knowledge]):
         team_id: Optional[str],
     ) -> Space:
         """验证知识库容器(会有拦截判断)"""
-        space = (
-            self.db.query(Space)
-            .filter(Space.id == space_id)
-            .first()
-        )
+        space = self.db.query(Space).filter(Space.id == space_id).first()
         if not space:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"
@@ -123,9 +119,7 @@ class KnowledgeService(BaseService[Knowledge]):
             return space
         team = (
             self.db.query(Team)
-            .filter(
-                Team.id == team_id, Team.space_id == space_id
-            )
+            .filter(Team.id == team_id, Team.space_id == space_id)
             .first()
         )
         if not team:
@@ -194,9 +188,7 @@ class KnowledgeService(BaseService[Knowledge]):
         for _ in range(3):
             try:
                 temp_slug = self._generate_slug()
-                while (
-                    self.get_active_query().filter(Knowledge.slug == temp_slug).first()
-                ):
+                while self.knowledge_repository.exists_slug(temp_slug):
                     temp_slug = self._generate_slug()
                 knowledge = Knowledge(
                     creator_id=knowledge_in.creator_id,
@@ -306,24 +298,6 @@ class KnowledgeService(BaseService[Knowledge]):
                 detail="已有知识库，请选择知识库进行文档创建",
             )
         return self.create(data.model_copy(update={"team_id": None}))
-
-    def get_by_id_or_slug(self, identifier: str) -> Knowledge:
-        """通过知识库id/短链查询知识库(附带文档数量)"""
-        knowledge = (
-            self.get_active_query()
-            .filter(
-                or_(Knowledge.id == identifier, Knowledge.slug == identifier),
-            )
-            .first()
-        )
-        if knowledge:
-            items_count = (
-                self.db.query(Document)
-                .filter(Document.knowledge_id == knowledge.id)
-                .count()
-            )
-            knowledge.items_count = items_count
-        return knowledge
 
     def _validate_visibility(
         self, *, knowledge: Knowledge, visibility: KnowledgeVisibility
@@ -441,6 +415,29 @@ class KnowledgeService(BaseService[Knowledge]):
             Knowledge.id.in_(accessible_ids), Knowledge.creator_id != user_id
         )
 
+    def _paginate_readable_knowledge_query(
+        self,
+        *,
+        query: Query,
+        user_id: int,
+        query_in: KnowledgeListQuery | KnowledgeListMineQuery,
+    ) -> tuple[list[Knowledge], int, bool]:
+        """过滤最终可读性，在进行内部过滤"""
+        candidate_rows = query.all()
+        readable_rows = self.permission_service.filter_readable_knowledges(
+            user_id=user_id, knowledges=candidate_rows
+        )
+        pagination_query = PaginationQuery(
+            page=query_in.page, page_size=query_in.page_size
+        )
+        page_rows = readable_rows[
+            pagination_query.skip : pagination_query.skip + pagination_query.limit
+        ]
+
+        return paginate_after_fetch(
+            items=page_rows, total=len(readable_rows), pagination_query=pagination_query
+        )
+
     def _to_response(
         self,
         *,
@@ -475,8 +472,8 @@ class KnowledgeService(BaseService[Knowledge]):
         query = self._apply_filters(query, query_in)
         query = self._apply_sorter(query, query_in.sorts)
 
-        rows, total, has_more = paginate_query(
-            query, PaginationQuery(page=query_in.page, page_size=query_in.page_size)
+        rows, total, has_more = self._paginate_readable_knowledge_query(
+            query=query, user_id=user_id, query_in=query_in
         )
 
         # 数据补充（权限）
@@ -511,8 +508,8 @@ class KnowledgeService(BaseService[Knowledge]):
         )
         query = self._apply_sorter(query, query_in.sorts)
 
-        rows, total, has_more = paginate_query(
-            query, PaginationQuery(page=query_in.page, page_size=query_in.page_size)
+        rows, total, has_more = self._paginate_readable_knowledge_query(
+            query=query, user_id=user_id, query_in=query_in
         )
 
         # 数据补充（权限）
@@ -535,15 +532,13 @@ class KnowledgeService(BaseService[Knowledge]):
         return paginate_response(items, total, has_more, query_in)
 
     def soft_delete(self, knowledge_id: str) -> bool:
-        """软删除知识库"""
+        """软删除知识库(这里不会去软删除下方的文档，会在访问侧做权限判断)"""
         knowledge = self.get_active_query().filter(Knowledge.id == knowledge_id).first()
-        if knowledge:
-            knowledge.deleted_at = datetime.now()
-            # 知识库下方文档都要软删除
-            self.document_service.soft_muitiple_delete_by_knowledge_id(knowledge.id)
-            self.db.commit()
-            return True
-        return False
+        if knowledge is None:
+            return False
+        knowledge.soft_delete()
+        self.db.commit()
+        return True
 
     def leave_direct_collaboration(self, *, knowledge_id: str, user_id: int) -> None:
         """移除用户对知识库的直接授权"""
