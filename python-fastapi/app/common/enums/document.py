@@ -22,11 +22,9 @@ class DocumentHistoryType(str, Enum):
 class DocumentAbility(str, Enum):
     """角色能力"""
 
-    DOC_CREATE = "doc_create"  # 创建
     DOC_READ = "doc_read"  # 只读
     DOC_EDIT = "doc_edit"  # 编辑
     DOC_DELETE = "doc_delete"  # 删除
-    DOC_JOIN = "doc_join"  # 加入
     DOC_SHARE = "doc_share"  # 分享
     DOC_COMMENT = "doc_comment"  # 评论
     DOC_EXPORT = "doc_export"  # 导出

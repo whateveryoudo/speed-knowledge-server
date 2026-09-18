@@ -50,6 +50,7 @@ from app.common.enums import (
     DocumentType,
     DocumentAbility,
     CollectTargetType,
+    KnowledgeAbility,
 )
 from app.schemas.user import UserResponse
 from app.models.knowledge import Knowledge
@@ -131,7 +132,7 @@ async def import_document(
     file: UploadFile = File(...),
     format: DocumentImportFormat = Form(...),
     knowledge: Knowledge = Depends(
-        VerifyKnowledgePermission(DocumentAbility.DOC_CREATE)
+        VerifyKnowledgePermission(KnowledgeAbility.CREATE_DOCUMENT)
     ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

@@ -49,19 +49,19 @@ class KnowledgeCommonPinService:
         )
 
     def create(
-        self, *, knowledge_id: str, user_id: int, commit: bool = True
+        self, *, knowledge_id: str, creator_id: int, commit: bool = True
     ) -> KnowledgeCommonPinResponse:
         """创建一条常用知识库记录"""
         knowledge = self.permission_service.assert_knowledge_readable(
-            user_id=user_id, identifier=knowledge_id
+            user_id=creator_id, identifier=knowledge_id
         )
         ability_map = (
             self.permission_service.get_multiple_effective_knowledge_abilities(
-                user_id=user_id,
+                user_id=creator_id,
                 knowledge_ids=[knowledge_id],
             )
         )
-        existing_record = self.get_by_knowledge_id_and_user_id(knowledge_id, user_id)
+        existing_record = self.get_by_knowledge_id_and_user_id(knowledge_id, creator_id)
         if existing_record is not None:
             return self._build_response(
                 pin=existing_record,
@@ -71,8 +71,8 @@ class KnowledgeCommonPinService:
 
         new_record = KnowledgeCommonPin(
             knowledge_id=knowledge_id,
-            order_index=next_order_index(self.db, KnowledgeCommonPin, user_id=user_id),
-            user_id=user_id,
+            order_index=next_order_index(self.db, KnowledgeCommonPin, user_id=creator_id),
+            user_id=creator_id,
         )
         self.db.add(new_record)
         if not commit:
@@ -89,7 +89,7 @@ class KnowledgeCommonPinService:
             if not is_duplicate_entry(e):
                 raise
             existing_record = self.get_by_knowledge_id_and_user_id(
-                knowledge.id, user_id
+                knowledge.id, creator_id
             )
             if existing_record is None:
                 raise

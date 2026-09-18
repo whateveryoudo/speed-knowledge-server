@@ -52,14 +52,20 @@ class ResourceInvitationService:
         """生成唯一的邀请token"""
         while True:
             token = self._generate_token()
-            exists = self.db.query(ResourceInvitation).filter(ResourceInvitation.token == token).first()
+            exists = (
+                self.db.query(ResourceInvitation)
+                .filter(ResourceInvitation.token == token)
+                .first()
+            )
             if exists is None:
                 return token
 
     def get_by_id_or_404(self, invitation_id: str) -> ResourceInvitation:
         """获取邀请，不存在则抛出404异常"""
         invitation = (
-            self.db.query(ResourceInvitation).filter(ResourceInvitation.id == invitation_id).first()
+            self.db.query(ResourceInvitation)
+            .filter(ResourceInvitation.id == invitation_id)
+            .first()
         )
         if invitation is None:
             raise HTTPException(status_code=404, detail="邀请链接不存在")
@@ -105,7 +111,9 @@ class ResourceInvitationService:
             resource = self.document_repository.get_active_by_id(resource_id)
         else:
             # 这里编辑区会变灰，但是实际运行做防御性拦截
-            raise HTTPException(status_code=422, detail=f"不支持的资源类型: {resource_type}")
+            raise HTTPException(
+                status_code=422, detail=f"不支持的资源类型: {resource_type}"
+            )
         if resource is None:
             raise HTTPException(status_code=404, detail="资源不存在")
         return resource
@@ -114,8 +122,11 @@ class ResourceInvitationService:
         self, *, invitation_in: ResourceInvitationCreate, inviter_id: int
     ) -> ResourceInvitation:
         """创建或更新邀请配置"""
-        if invitation_in.offered_role == ResourceRole.NONE:
-            raise HTTPException(status_code=422, detail="邀请角色不能为none")
+        # 校验邀请角色是否可授权
+        self.resource_grant_service.assert_assignable_role(
+            resource_type=invitation_in.resource_type,
+            resource_role=invitation_in.offered_role,
+        )
         self._get_invited_resource(
             resource_type=invitation_in.resource_type,
             resource_id=invitation_in.resource_id,
@@ -154,20 +165,25 @@ class ResourceInvitationService:
         invitation = self.get_by_id_or_404(invitation_id)
         update_data = invitation_update.model_dump(exclude_unset=True)
         offered_role = update_data.get("offered_role")
-        if offered_role == ResourceRole.NONE:
-            raise HTTPException(status_code=422, detail="邀请角色不能为none")
+
         if offered_role is not None:
+            self.resource_grant_service.assert_assignable_role(
+                resource_type=ResourceType(invitation.resource_type),
+                resource_role=ResourceRole(offered_role),
+            )
             invitation.offered_role = offered_role.value
         if "need_approval" in update_data:
             invitation.need_approval = update_data["need_approval"]
-        status = update_data.get("status")
-        if status is not None:
-            invitation.status = status.value
+        invitation_status = update_data.get("status")
+        if invitation_status is not None:
+            invitation.status = invitation_status.value
         invitation.inviter_id = operator_id
         self.db.flush()
         return invitation
 
-    def reset_token(self, *, invitation_id: str, operator_id: int) -> ResourceInvitation:
+    def reset_token(
+        self, *, invitation_id: str, operator_id: int
+    ) -> ResourceInvitation:
         """重置token"""
         invitation = self.get_by_id_or_404(invitation_id)
         invitation.token = self._generate_unique_token()
@@ -248,6 +264,10 @@ class ResourceInvitationService:
         resource_name = resource.name
         resource_type = ResourceType(invitation.resource_type)
         offered_role = ResourceRole(invitation.offered_role)
+        self.resource_grant_service.assert_assignable_role(
+            resource_type=resource_type,
+            resource_role=offered_role,
+        )
         existing_role = self._resolve_existing_role(
             user_id=applicant_user_id,
             resource_type=resource_type,

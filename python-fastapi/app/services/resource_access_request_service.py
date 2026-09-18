@@ -57,9 +57,7 @@ class ResourceAccessRequestService:
         self, request_id: str, *, for_update: bool = False
     ) -> ResourceAccessRequest | None:
         """根据ID获取资源访问申请（审批单）"""
-        return self.request_repository.get_by_id(
-            request_id, for_update=for_update
-        )
+        return self.request_repository.get_by_id(request_id, for_update=for_update)
 
     def get_by_id_or_404(
         self, request_id: str, *, for_update: bool = False
@@ -146,9 +144,10 @@ class ResourceAccessRequestService:
         apply_message: Optional[str] = None,
     ) -> ResourceAccessRequest:
         """确保用户对指定资源有一条待审批的审批单，如果之前的申请已经结束，则会创建新的审批单"""
-        if requested_role == ResourceRole.NONE:
-            raise HTTPException(status_code=422, detail="申请角色不能为none")
-
+        self.resource_grant_service.assert_assignable_role(
+            resource_type=resource_type,
+            resource_role=requested_role,
+        )
         pending_request = self.get_pending_request(
             resource_type=resource_type,
             resource_id=resource_id,
@@ -246,6 +245,10 @@ class ResourceAccessRequestService:
             raise HTTPException(status_code=409, detail="申请状态不正确，不能通过")
         resource_type = ResourceType(access_request.resource_type)
         requested_role = ResourceRole(access_request.requested_role)
+        self.resource_grant_service.assert_assignable_role(
+            resource_type=resource_type,
+            resource_role=requested_role,
+        )
         resource = self._get_resource(
             resource_type=resource_type, resource_id=access_request.resource_id
         )
@@ -254,6 +257,7 @@ class ResourceAccessRequestService:
             resource_type=resource_type,
             resource=resource,
         )
+
         # 审批期间，如果用户被拉到了团队/空间/或者直接授权（获得了更高级的权限，则不重复写入低的grant）
         if not self.resource_grant_service.role_covers(existing_role, requested_role):
             # 插入新的grant

@@ -56,6 +56,23 @@ class ResourceGrantService:
         self.db = db
         self.grant_repository = ResourceGrantRepository(db)
 
+    @staticmethod
+    def assert_assignable_role(
+        *, resource_type: ResourceType, resource_role: ResourceRole
+    ) -> None:
+        """校验用户操作允许授权的资源角色"""
+        if resource_type not in (ResourceType.KNOWLEDGE, ResourceType.DOCUMENT):
+            raise HTTPException(status_code=422, detail="不支持的授权资源类型")
+        if resource_role == ResourceRole.NONE:
+            raise HTTPException(status_code=422, detail="资源角色不能为none")
+        if resource_type == ResourceType.DOCUMENT and resource_role not in (
+            ResourceRole.EDIT,
+            ResourceRole.READ,
+        ):
+            raise HTTPException(
+                status_code=422, detail="单篇文档授权仅支持可阅读或可编辑角色"
+            )
+
     def _build_user_principals(
         self, user_id: int
     ) -> list[tuple[PrincipalType, int | str, PrincipalRole]]:
@@ -650,24 +667,6 @@ class ResourceGrantService:
         )
         if grant is None:
             raise RuntimeError(f"创建者默认授权不能为空")
-        return grant
-
-    def create_document_creator_grant(
-        self, *, document: Document, creator_id: int
-    ) -> ResourceGrant:
-        """创建文档创建者授权"""
-        grant = self.upsert_grant(
-            resource_type=ResourceType.DOCUMENT,
-            resource_id=document.id,
-            principal_type=PrincipalType.USER,
-            principal_id=creator_id,
-            principal_role=PrincipalRole.NONE,
-            resource_role=ResourceRole.ADMIN,
-            source=GrantSource.CREATOR,
-            created_by=creator_id,
-        )
-        if grant is None:
-            raise RuntimeError(f"文档创建者默认授权创建失败")
         return grant
 
     def create_knowledge_team_grant(

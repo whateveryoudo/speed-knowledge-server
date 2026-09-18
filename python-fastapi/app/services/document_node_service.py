@@ -9,7 +9,7 @@ from app.schemas.document_node import (
     DragDocumentNodeParams,
     DocumentNodeUpdate,
 )
-from app.common.enums import DocumentNodeType, DocumentNodeDragAction, DocumentAbility
+from app.common.enums import DocumentNodeType, DocumentNodeDragAction, DocumentAbility, KnowledgeAbility
 from app.models.knowledge import Knowledge
 from app.services.permission_service import PermissionService
 
@@ -85,7 +85,7 @@ class DocumentNodeService:
         self.permission_service.assert_knowledge_ability(
             user_id=operator_id,
             identifier=knowledge_id,
-            ability=DocumentAbility.DOC_CREATE,
+            ability=KnowledgeAbility.CREATE_DOCUMENT,
         )
         node = self._insert_node(
             knowledge_id=knowledge_id,

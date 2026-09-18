@@ -22,6 +22,7 @@ class KnowledgeAbility(str, Enum):
     SHARE_BOOK = 'share_book'  # 分享知识库
     MODIFY_BOOK_PERMISSION = 'modify_book_permission'  # 修改知识库权限
 
+    CREATE_DOCUMENT = 'create_document'  # 创建文档
 
 class KnowledgeIndexPageSort(str, Enum):
     """知识库文档树首页排序"""

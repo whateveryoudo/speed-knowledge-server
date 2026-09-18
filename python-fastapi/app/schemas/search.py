@@ -1,4 +1,4 @@
-from app.common.enums.search import SearchContextType, KnowledgeVisibility, SearchVisibilityType
+from app.common.enums import SearchContextType, KnowledgeVisibility, SearchVisibilityType
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Union
 

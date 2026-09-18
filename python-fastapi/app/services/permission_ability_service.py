@@ -27,6 +27,7 @@ class PermissionAbilityService:
             KnowledgeAbility.MODIFY_BOOK_SETTING: True,
             KnowledgeAbility.SHARE_BOOK: True,
             KnowledgeAbility.MODIFY_BOOK_PERMISSION: True,
+            KnowledgeAbility.CREATE_DOCUMENT: True,
         },
         ResourceRole.EDIT: {
             KnowledgeAbility.CREATE_BOOK: False,
@@ -37,6 +38,7 @@ class PermissionAbilityService:
             KnowledgeAbility.MODIFY_BOOK_SETTING: False,
             KnowledgeAbility.SHARE_BOOK: True,
             KnowledgeAbility.MODIFY_BOOK_PERMISSION: False,
+            KnowledgeAbility.CREATE_DOCUMENT: True,
         },
         ResourceRole.READ: {
             KnowledgeAbility.CREATE_BOOK: False,
@@ -47,39 +49,52 @@ class PermissionAbilityService:
             KnowledgeAbility.MODIFY_BOOK_SETTING: False,
             KnowledgeAbility.SHARE_BOOK: False,
             KnowledgeAbility.MODIFY_BOOK_PERMISSION: False,
+            KnowledgeAbility.CREATE_DOCUMENT: False,
         },
     }
-
-    # 角色权限能力映射(这里是单个文档的能力)
-    __default_document_abilities_dict = {
+    # 这里拆分成两套矩阵能力
+    __knowledge_document_abilities_dict = {
         ResourceRole.ADMIN: {
-            DocumentAbility.DOC_CREATE: True,
             DocumentAbility.DOC_READ: True,
             DocumentAbility.DOC_EDIT: True,
             DocumentAbility.DOC_DELETE: True,
-            DocumentAbility.DOC_JOIN: True,
             DocumentAbility.DOC_SHARE: True,
             DocumentAbility.DOC_COMMENT: True,
-            DocumentAbility.DOC_EXPORT: True
+            DocumentAbility.DOC_EXPORT: True,
         },
         ResourceRole.EDIT: {
-            DocumentAbility.DOC_CREATE: False,
             DocumentAbility.DOC_READ: True,
             DocumentAbility.DOC_EDIT: True,
             DocumentAbility.DOC_DELETE: False,
-            DocumentAbility.DOC_JOIN: False,
             DocumentAbility.DOC_SHARE: True,
-            DocumentAbility.DOC_COMMENT: False,
+            DocumentAbility.DOC_COMMENT: True,
             DocumentAbility.DOC_EXPORT: True,
         },
         ResourceRole.READ: {
-            DocumentAbility.DOC_CREATE: False,
             DocumentAbility.DOC_READ: True,
             DocumentAbility.DOC_EDIT: False,
             DocumentAbility.DOC_DELETE: False,
-            DocumentAbility.DOC_JOIN: False,
             DocumentAbility.DOC_SHARE: False,
-            DocumentAbility.DOC_COMMENT: False,
+            DocumentAbility.DOC_COMMENT: True,
+            DocumentAbility.DOC_EXPORT: False,
+        },
+    }
+    # 单篇文档直接授权能力
+    __direct_document_abilities_dict = {
+        ResourceRole.EDIT: {
+            DocumentAbility.DOC_READ: True,
+            DocumentAbility.DOC_EDIT: True,
+            DocumentAbility.DOC_DELETE: False,
+            DocumentAbility.DOC_SHARE: False,
+            DocumentAbility.DOC_COMMENT: True,
+            DocumentAbility.DOC_EXPORT: True,
+        },
+        ResourceRole.READ: {
+            DocumentAbility.DOC_READ: True,
+            DocumentAbility.DOC_EDIT: False,
+            DocumentAbility.DOC_DELETE: False,
+            DocumentAbility.DOC_SHARE: False,
+            DocumentAbility.DOC_COMMENT: True,
             DocumentAbility.DOC_EXPORT: False,
         },
     }
@@ -92,7 +107,9 @@ class PermissionAbilityService:
         """用于获取游客的权限能力(全部只读)"""
         return {
             **cls.__default_knowledge_abilities_dict[ResourceRole.READ],
-            **cls.__default_document_abilities_dict[ResourceRole.READ],
+            **cls.__knowledge_document_abilities_dict[ResourceRole.READ],
+            # 游客不允许评论(这里是匿名游客)
+            DocumentAbility.DOC_COMMENT: False,
         }
 
     def create_permission_abilities_by_role(
@@ -107,17 +124,16 @@ class PermissionAbilityService:
                 f"不支持的角色标识: {permission_ability_in.role_key}"
             ) from e
         if scope_type == PermissionScopeType.KNOWLEDGE:
-            # 知识库需要合并知识库和文档的权限能力（注意：知识库的只读和文档只读没区别，但是知识库的编辑其实就是文档的admin权限）
+            # 知识库需要合并知识库和文档的权限能力
             permission_abilities = {
                 **self.__default_knowledge_abilities_dict[role_key],
-                # 这里作下区分，其实知识库编辑可以理解为有文档的最高权限了
-                **self.__default_document_abilities_dict[
-                    (role_key if role_key == ResourceRole.READ else ResourceRole.ADMIN)
-                ],
+                **self.__knowledge_document_abilities_dict[role_key],
             }
 
         elif scope_type == PermissionScopeType.DOCUMENT:
-            permission_abilities = self.__default_document_abilities_dict[role_key]
+            if role_key not in (ResourceRole.EDIT, ResourceRole.READ):
+                raise ValueError("单篇文档仅支持read/edit角色")
+            permission_abilities = self.__direct_document_abilities_dict[role_key]
         else:
             raise ValueError(f"不支持的作用域类型: {scope_type}")
         for ability_key, enabled in permission_abilities.items():

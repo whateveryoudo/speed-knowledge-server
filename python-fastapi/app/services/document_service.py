@@ -33,7 +33,7 @@ from app.common.enums import (
     ResourceType,
     DocumentVisibility,
     resource_role_name,
-    DocumentAbility,
+    KnowledgeAbility,
 )
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
@@ -100,7 +100,7 @@ class DocumentService(BaseService[Document]):
         self.permission_service.assert_knowledge_ability(
             user_id=document_in.user_id,
             identifier=document_in.knowledge_id,
-            ability=DocumentAbility.DOC_CREATE,
+            ability=KnowledgeAbility.CREATE_DOCUMENT,
         )
         temp_slug = self._generate_slug()
         while self.document_repository.exists_slug(
@@ -117,13 +117,9 @@ class DocumentService(BaseService[Document]):
         )
         self.db.add(document)
         self.db.flush()
-        self.resource_grant_service.create_document_creator_grant(
-            document=document,
-            creator_id=document_in.user_id,
-        )
-        # 创建默认权限组(追加3个角色权限)
+        # 文档创建者不产生永久授权，权限由知识库继承或文档直接授权决定
+        # 创建默认权限组(追加2个角色权限)
         for role in (
-            ResourceRole.ADMIN,
             ResourceRole.EDIT,
             ResourceRole.READ,
         ):

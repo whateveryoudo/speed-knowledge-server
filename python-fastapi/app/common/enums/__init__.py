@@ -22,6 +22,7 @@ from .document import (
     DocumentImportFormat,
     DocumentExportFormat,
 )
+from .search import SearchContextType, SearchVisibilityType
 from .invitation import InvitationStatus
 from .resource import ResourceType, ResourceRole, resource_role_name
 from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
@@ -34,6 +35,13 @@ from .resource_grant import (
 from .resource_access_request import AccessRequestStatus
 from .permission import PermissionScopeType
 from .collect import CollectTargetType
+from .collaborator import (
+    CollaboratorRole,
+    collaborator_role_name,
+    CollaboratorStatus,
+    CollaboratorSource,
+    CollaborateResourceType,
+)
 __all__ = [
     "SpaceType",
     "SpaceMemberRole",
@@ -74,4 +82,11 @@ __all__ = [
     "PrincipalRole",
     "PermissionScopeType",
     "CollectTargetType",
+    "CollaboratorRole",
+    "collaborator_role_name",
+    "CollaboratorStatus",
+    "CollaboratorSource",
+    "CollaborateResourceType",
+    "SearchContextType",
+    "SearchVisibilityType",
 ]

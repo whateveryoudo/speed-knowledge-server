@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     APP_NAME: str
     API_V1_STR: str
     PORT: int
-    DEBUG: bool
+    APP_DEBUG: bool
     DOMAIN: str
 
     # 登录失败次数和窗口时间

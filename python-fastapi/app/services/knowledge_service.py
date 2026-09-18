@@ -3,7 +3,8 @@
 from sqlalchemy.orm.session import Session
 from app.schemas.knowledge import KnowledgeCreate
 from app.models.knowledge import Knowledge
-from sqlalchemy import or_, Query
+from sqlalchemy import or_
+from sqlalchemy.orm import Query
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.services.permission_service import PermissionService
@@ -243,7 +244,7 @@ class KnowledgeService(BaseService[Knowledge]):
                 # 默认添加为常用知识库
                 common_pin_service = KnowledgeCommonPinService(self.db)
                 common_pin_service.create(
-                    knowledge.id, knowledge_in.creator_id, commit=False
+                    knowledge_id=knowledge.id, creator_id=knowledge_in.creator_id, commit=False
                 )
 
                 self.db.commit()
