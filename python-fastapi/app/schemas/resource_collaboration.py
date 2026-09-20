@@ -36,7 +36,7 @@ class ResourceCollaborationItem(BaseModel):
     display_name: str = Field(..., description="显示名称(某些角色会显示成一些角色名)")
     locked: bool = Field(..., description="是否锁定(不允许切换角色)")
     resource_role: Optional[ResourceRole] = Field(None, description="角色")
-    source: str = Field(..., description="来源")
+    source: Optional[str] = Field(None, description="来源")
     status: Literal["pending", "effective"] = Field(..., description="状态")
     can_manage: bool = Field(..., description="当前登录人能否管理这一行")
     grant_id: Optional[str] = Field(..., description="授权ID")
