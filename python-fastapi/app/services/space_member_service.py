@@ -13,11 +13,12 @@ class SpaceMemberService(BaseService):
     def get_space_member(self, space_member_id: str):
         return self.get_active_query().filter(SpaceMember.id == space_member_id).first()
 
-    def add_member(self, space_member_create: SpaceMemberCreate):
+    def add_member(self, space_member_create: SpaceMemberCreate, commit: bool = True):
         space_member_row = SpaceMember(**space_member_create.model_dump())
         self.db.add(space_member_row)
         self.db.flush()
-        self.db.commit()
+        if commit:
+            self.db.commit()
         self.db.refresh(space_member_row)
         return space_member_row
 

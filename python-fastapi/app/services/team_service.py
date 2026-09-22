@@ -22,7 +22,7 @@ class TeamService(BaseService):
 
     def get_team_list_by_space_id(self, space_id: str):
         """根据空间ID获取团队列表"""
-        return self.get_active_query().filter(Team.space_id == space_id)
+        return self.get_active_query().filter(Team.space_id == space_id).all()
 
     def get_team(self, team_id: str):
         return self.get_active_query().filter(Team.id == team_id).first()
@@ -30,14 +30,28 @@ class TeamService(BaseService):
     def _slug_exists(self, slug: str):
         return self.get_all_query().filter(Team.slug == slug).first() is not None
 
-    def create_team(self, team_create: TeamCreate):
+    def create_team(self, *, team_create: TeamCreate, owner_id: int):
         # 排除members
         temp_slug = self._generate_slug()
         while self._slug_exists(temp_slug):
             temp_slug = self._generate_slug()
-        team_row = Team(**team_create.model_dump(exclude={"members"}), slug=temp_slug)
+        team_row = Team(
+            **team_create.model_dump(exclude={"members"}),
+            slug=temp_slug,
+            owner_id=owner_id,
+        )
         self.db.add(team_row)
         self.db.flush()
+
+        team_member_service = TeamMemberService(self.db)
+        team_member_service.add_member(
+            TeamMemberCreate(
+                team_id=team_row.id,
+                user_id=owner_id,
+                role=TeamMemberRole.OWNER,
+            ),
+            commit=False,
+        )
         self.db.commit()
         self.db.refresh(team_row)
         return team_row
@@ -52,30 +66,6 @@ class TeamService(BaseService):
             )
             .first()
         )
-
-    def create_default_team(self, team_create: TeamCreate):
-        # 排除members
-        temp_slug = self._generate_slug()
-        while self._slug_exists(temp_slug):
-            temp_slug = self._generate_slug()
-        team_row = Team(
-            **team_create.model_dump(exclude={"members", "slug"}),
-            slug=temp_slug,
-            is_default=True,
-        )
-        self.db.add(team_row)
-        self.db.flush()
-        # 追加默认成员
-        team_member_service = TeamMemberService(self.db)
-        team_member_service.add_member(
-            TeamMemberCreate(
-                team_id=team_row.id,
-                user_id=team_row.owner_id,
-                role=TeamMemberRole.OWNER,
-            )
-        )
-        self.db.refresh(team_row)
-        return team_row
 
     def update_team(self, team_update: TeamUpdate):
         self.get_active_query().filter(Team.id == team_update.id).update(

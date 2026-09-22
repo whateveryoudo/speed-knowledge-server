@@ -6,6 +6,7 @@ from app.schemas.space_member import SpaceMemberCreate
 from app.core.deps import get_db, get_current_user
 from app.services.space_member_service import SpaceMemberService
 from app.models.user import User
+from app.common.enums.space import SpaceType
 
 router = APIRouter()
 
@@ -15,28 +16,30 @@ def add_member(member: SpaceMemberCreate, db: Session = Depends(get_db)):
     return SpaceMemberService(db).add_member(member)
 
 
-@router.post("/", response_model=SpaceCreate)
-def create_space(space: SpaceCreate, db: Session = Depends(get_db)):
-    return SpaceService(db).create_space(space)
-
-@router.get("/by_domin/{space_domin}", response_model=SpaceResponse)
-def get_space(
-    space_domin: str,
-    db: Session = Depends(get_db),
-):
-    """根据域名获取空间(这里不会走权限检查)"""
-    return SpaceService(db).get_space_by_domin(space_domin)
-
-@router.get("/", response_model=SpaceResponse | None)
-def get_space_(
+@router.post("/", response_model=SpaceResponse)
+def create_space(
+    space_create: SpaceCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    space = SpaceService(db).get_space_by_user_id(user.id)
+    return SpaceService(db).create_space(space_create=space_create, owner_id=user.id)
+
+
+@router.get("/list", response_model=list[SpaceResponse])
+def list_my_spaces(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    return SpaceService(db).list_spaces_by_user_id(user.id)
+
+@router.get("/", response_model=SpaceResponse | None)
+def get_my_space(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    space = SpaceService(db).get_my_space(user.id)
     if space is None:
         return None
     return space
-
 
 
 @router.put("/{space_domin}", response_model=SpaceUpdate)
@@ -46,8 +49,8 @@ def update_space(space_domin: str, space: SpaceUpdate, db: Session = Depends(get
 
 @router.get("/check-domin-available", response_model=bool)
 def check_domin_available(domin: str, db: Session = Depends(get_db)) -> bool:
-    row = SpaceService(db).check_domin_available(domin)
-    if row:
+    row = SpaceService(db).check_domain_avaliable(domin)
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="域名已被使用"
         )

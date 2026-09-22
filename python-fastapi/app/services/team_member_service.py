@@ -9,10 +9,11 @@ class TeamMemberService:
     def __init__(self, db: Session):
         self.db = db
 
-    def add_member(self, team_member_create: TeamMemberCreate) -> TeamMemberResponse:
+    def add_member(self, team_member_create: TeamMemberCreate, *, commit: bool = True) -> TeamMemberResponse:
         team_member_row = TeamMember(**team_member_create.model_dump())
         self.db.add(team_member_row)
         self.db.flush()
-        self.db.commit()
-        self.db.refresh(team_member_row)
+        if commit:
+            self.db.commit()
+            self.db.refresh(team_member_row)
         return team_member_row

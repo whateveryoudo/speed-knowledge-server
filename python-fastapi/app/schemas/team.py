@@ -14,11 +14,13 @@ class TeamBase(BaseModel):
     slug: str = Field(..., description="团队标识")
 
 
-class TeamCreate(TeamBase):
+class TeamCreate(BaseModel):
+    space_id: str = Field(..., description="所属空间ID")
+    icon: Optional[str] = Field(None, description="团队图标")
+    description: Optional[str] = Field(None, description="团队简介")
+    visibility: TeamVisibility = Field(..., description="团队可见性")
+    name: str = Field(..., min_length=2, max_length=30, description="团队名称")
     members: Optional[List[int]] = Field(None, description="团队成员ID列表")
-    slug: Optional[str] = Field(None, description="团队标识")
-    pass
-
 
 class TeamUpdate(TeamBase):
     name: Optional[str] = Field(
