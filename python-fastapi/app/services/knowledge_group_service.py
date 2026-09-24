@@ -229,10 +229,13 @@ class KnowledgeGroupService:
             knowledge = readable_knowledge_by_id.get(relation.knowledge_id)
             if knowledge is None:
                 continue
+            from app.services.knowledge_service import KnowledgeService
+
             knowledge_response = KnowledgeResponse.model_validate(knowledge).model_copy(
                 update={
                     "ability": ability_map.get(knowledge.id, {}),
                     "items_count": document_counts.get(knowledge.id, 0),
+                    "scope_slug": KnowledgeService(self.db)._resolve_scope_slug(knowledge),
                 }
             )
             group_item = KnowledgeInGroupItem(

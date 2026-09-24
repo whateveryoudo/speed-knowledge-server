@@ -150,7 +150,10 @@ class KnowledgeService(BaseService[Knowledge]):
         """包装知识库响应(游客访问)"""
         ability = self.permission_service.get_guest_readonly_abilities()
         return KnowledgeResponse.model_validate(knowledge).model_copy(
-            update={"ability": ability}
+            update={
+                "ability": ability,
+                "scope_slug": self._resolve_scope_slug(knowledge),
+            }
         )
 
     def to_wrap_knowledge_response(
@@ -165,6 +168,7 @@ class KnowledgeService(BaseService[Knowledge]):
         return KnowledgeResponse.model_validate(knowledge).model_copy(
             update={
                 "ability": ability,
+                "scope_slug": self._resolve_scope_slug(knowledge),
             }
         )
 
@@ -453,7 +457,11 @@ class KnowledgeService(BaseService[Knowledge]):
             else KnowledgeFromWay.COLLABORATION
         )
         return KnowledgeResponse.model_validate(knowledge).model_copy(
-            update={"ability": ability_map.get(knowledge.id, {}), "source": source}
+            update={
+                "ability": ability_map.get(knowledge.id, {}),
+                "source": source,
+                "scope_slug": self._resolve_scope_slug(knowledge),
+            }
         )
 
     def get_list_by_user_id(

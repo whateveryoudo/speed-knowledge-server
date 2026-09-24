@@ -24,6 +24,9 @@ class SpaceService(BaseService):
             .first()
         )
 
+    def get_space_by_domin(self, space_domin: str):
+        return self.get_active_query().filter(Space.domain == space_domin).first()
+
     def _generate_public_area_slug(self, space_domain: str) -> str:
         suffix = "".join(
             secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6)
