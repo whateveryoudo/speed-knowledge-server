@@ -10,7 +10,7 @@ from app.common.simpleImageCaptcha import SimpleImageCaptcha
 from fastapi.responses import StreamingResponse
 from app.core.redis_client import get_redis
 from app.schemas.user import Token, CaptchaResponse, LoginErrorResponse
-from app.core.deps import get_db
+from app.core.deps import get_db, assert_org_space_member
 from app.services.user_service import UserService
 from app.core.security import (
     create_access_token,
@@ -97,9 +97,10 @@ async def login(
             },
             headers={"WWW-Authenticate", "Bearer"},
         )
-    print(user.id)
     # 清除登录失败记录
     clear_login_failure(redis_client, client_ip, user_name)
+    # 新增空间登录（这里不再登录测进行拦截，进入具体页面会403）
+    # assert_org_space_member(db=db, user_id=user.id, host=request.headers.get("Host"))
     access_token = create_access_token(data={"sub": str(user.id)})
     print(access_token)
     return {"access_token": access_token, "token_type": "bearer"}
@@ -108,7 +109,9 @@ async def login(
 @router.get("/getVerificateCode", response_model=CaptchaResponse)
 async def getverificate_code(
     request: Request,
-    _: None = Depends(MinIntervalByIP(key_prefix="captcha:min_interval", interval_seconds=1)),
+    _: None = Depends(
+        MinIntervalByIP(key_prefix="captcha:min_interval", interval_seconds=1)
+    ),
     __: None = Depends(
         RateLimitByIP(key_prefix="captcha:rate_limit", limit=20, window_seconds=60)
     ),
@@ -153,7 +156,9 @@ async def getverificate_code(
 @router.post("/sendEmailCode", response_model=SendEmailCodeResponse)
 async def send_email_code(
     body: SendEmailCodeRequest,
-    _: None = Depends(MinIntervalByIP(key_prefix="email_code:min_interval", interval_seconds=1)),
+    _: None = Depends(
+        MinIntervalByIP(key_prefix="email_code:min_interval", interval_seconds=1)
+    ),
     __: None = Depends(
         RateLimitByIP(key_prefix="email_code:rate_limit", limit=10, window_seconds=60)
     ),
@@ -178,16 +183,12 @@ async def send_email_code(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="发送频率过高，请稍后再试",
         )
-    code = "".join(
-        random.choices(string.ascii_uppercase + string.digits, k=6)
-    )
+    code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
     code_key = f"email_code:{scene.value}:{email}"
-    
 
     email_service = EmailService()
     email_service.send_verification_code(scene, email, code)
-
 
     redis_client.setex(
         name=code_key, time=settings.EMAIL_CODE_EXPIRE_SECONDS, value=code

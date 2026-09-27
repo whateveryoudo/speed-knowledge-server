@@ -1,7 +1,7 @@
 """依赖注入"""
 
 from fastapi import Depends, HTTPException, status, Query, Request, Header
-from typing import Generator, Union
+from typing import Generator, Union, Optional
 from app.db.session import SessionLocal
 from sqlalchemy.orm.session import Session
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -15,7 +15,9 @@ from app.services.knowledge_service import KnowledgeService
 from app.services.permission_service import PermissionService
 from app.services.space_service import SpaceService
 from app.models.space import Space
+from app.models.space_member import SpaceMember
 from app.services.team_service import TeamService
+from app.services.space_member_service import SpaceMemberService
 from app.core.redis_client import get_redis
 import redis
 from app.models.team import Team
@@ -191,6 +193,36 @@ class VerifyKnowledgePermission:
 #     return target_knowledge
 
 
+def assert_org_space_member(
+    *,
+    db: Session = Depends(get_db),
+    user_id: int,
+    host: str,
+) -> None:
+    domain = get_space_subdomain(host)
+    if not domain:
+        return
+    space_service = SpaceService(db)
+    space = space_service.get_space_by_domain(domain)
+    if not space:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
+    if getattr(space.type, "value", space.type) != SpaceType.ORGANIZATION.value:
+        return
+    space_member_service = SpaceMemberService(db)
+    if not space_member_service.check_member(space_id=space.id, user_id=user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="你不是该空间成员，可联系空间管理员添加",
+        )
+
+
+def get_space_by_host(request: Request, db: Session = Depends(get_db)) -> Space:
+    domain = get_space_subdomain(request.headers.get("host", ""))
+    if not domain:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
+    return SpaceService(db).get_space_by_domain(domain)
+
+
 def get_current_space(
     request: Request,
     db: Session = Depends(get_db),
@@ -199,9 +231,9 @@ def get_current_space(
     """获取当前空间"""
     host = request.headers.get("host", "")
     space_service = SpaceService(db)
-    space_domin = get_space_subdomain(host)
-    if space_domin:
-        space = space_service.get_space_by_domin(space_domin)
+    space_domain = get_space_subdomain(host)
+    if space_domain:
+        space = space_service.get_space_by_domain(space_domain)
         if not space:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"

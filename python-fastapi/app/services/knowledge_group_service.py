@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.common.utils import next_order_index, prepare_insert_order_index
 from app.models.document import Document
+from app.models.knowledge import Knowledge
 from app.models.knowledge_group import KnowledgeGroup
 from app.models.knowledge_group_relation import KnowledgeGroupRelation
 from app.services.permission_service import PermissionService
@@ -56,9 +57,7 @@ class KnowledgeGroupService:
             .first()
         )
         if not group:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="默认分组不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="默认分组不存在")
         return group
 
     def create(self, knowledge_group_in: KnowledgeGroupCreate) -> KnowledgeGroup:
@@ -117,9 +116,9 @@ class KnowledgeGroupService:
             group = group_by_id.get(relation.group_id)
             if group is None:
                 continue
-            order_type_by_knowledge_id[relation.knowledge_id] = (
-                self._get_doc_order_type(group)
-            )
+            order_type_by_knowledge_id[
+                relation.knowledge_id
+            ] = self._get_doc_order_type(group)
         documents_by_knowledge_id: dict[str, List[Document]] = defaultdict(list)
         for document in readable_documents:
             documents_by_knowledge_id[document.knowledge_id].append(document)
@@ -150,23 +149,63 @@ class KnowledgeGroupService:
         return result
 
     def get_list_with_knowledge(
-        self, user_id: int, keyword: Optional[str] = None
+        self,
+        *,
+        user_id: int,
+        team_id: Optional[str] = None,
+        keyword: Optional[str] = None,
     ) -> List[KnowledgeGroupResponse]:
         """获取带最终可读知识库和文档摘要的分组列表"""
-
-        groups = self.get_list_by_user_id(user_id)
         keyword = (keyword or "").strip().lower()
+        if team_id:
+            # 团队知识库分组
+            groups = (
+                self._query()
+                .filter(KnowledgeGroup.team_id == team_id)
+                .order_by(KnowledgeGroup.order_index.asc())
+                .all()
+            )
+            if not groups:
+                # 这里正常不会走到这里（创建团队的时候会默认带上一个初始分组）
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="团队知识库分组不存在"
+                )
+        else:
+            groups = self.get_list_by_user_id(user_id)
+        if not groups:
+            return []
+        group_ids = [g.id for g in groups]
 
         relations = (
             self.db.query(KnowledgeGroupRelation)
             .options(joinedload(KnowledgeGroupRelation.knowledge))
-            .filter(KnowledgeGroupRelation.user_id == user_id)
+            .filter(KnowledgeGroupRelation.group_id.in_(group_ids))
             .order_by(
                 KnowledgeGroupRelation.order_index.asc(),
                 KnowledgeGroupRelation.created_at.asc(),
             )
             .all()
         )
+        if team_id:
+            # 兼容挂载为加入分组的团队知识库，放到默认分组下
+            default_group = next((g for g in groups if g.is_default), groups[0])
+            grouped_knowledge_ids = {r.knowledge_id for r in relations}
+            team_knowledges = (
+                self.db.query(Knowledge)
+                .filter(Knowledge.team_id == team_id, Knowledge.deleted_at.is_(None))
+                .all()
+            )
+            for kb in team_knowledges:
+                if kb.id not in grouped_knowledge_ids:
+                    rel = KnowledgeGroupRelation(
+                        group_id=default_group.id,
+                        order_index=next_order_index(
+                            self.db, KnowledgeGroupRelation, default_group.id
+                        ),
+                        knowledge_id=kb.id,
+                    )
+                    rel.knowledge = kb
+                    relations.append(rel)
 
         # 根据关键词缩小知识库的候选范围
 
@@ -235,7 +274,9 @@ class KnowledgeGroupService:
                 update={
                     "ability": ability_map.get(knowledge.id, {}),
                     "items_count": document_counts.get(knowledge.id, 0),
-                    "scope_slug": KnowledgeService(self.db)._resolve_scope_slug(knowledge),
+                    "scope_slug": KnowledgeService(self.db)._resolve_scope_slug(
+                        knowledge
+                    ),
                 }
             )
             group_item = KnowledgeInGroupItem(
@@ -325,7 +366,6 @@ class KnowledgeGroupService:
         relations = (
             self.db.query(KnowledgeGroupRelation)
             .filter(
-                KnowledgeGroupRelation.user_id == user_id,
                 KnowledgeGroupRelation.group_id == group_id,
             )
             .order_by(
@@ -340,7 +380,6 @@ class KnowledgeGroupService:
             relation.order_index = next_order_index(
                 self.db,
                 KnowledgeGroupRelation,
-                user_id=user_id,
                 group_id=default_group.id,
             )
             self.db.flush()

@@ -2,7 +2,6 @@
 
 from sqlalchemy import (
     Column,
-    BigInteger,
     Boolean,
     Integer,
     String,
@@ -12,7 +11,6 @@ from sqlalchemy import (
     text,
     JSON,
     UniqueConstraint,
-    Enum,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime

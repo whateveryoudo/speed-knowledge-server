@@ -16,11 +16,18 @@ class AttachmentItem(BaseModel):
 
 # 默认图片(前端未传入的情况)
 default_attachment_item = AttachmentItem(
-    id='0567a480-0f34-4ab8-9e5d-6ab99dfcd191',
+    id='01f90544-19ee-4d8f-99e7-7d3f74b0cce1',
     fileName='default_cover.png',
     fileType='image/png',
     fileSize=3962
 )   
+
+default_space_cover = AttachmentItem(
+    id='b84e09f5-3c2c-4219-8494-04cc6bdcdfeb',
+    fileName='space_default_cover.svg',
+    fileType='image/svg+xml',
+    fileSize=1108
+)
 
 class AttachmentBase(BaseModel):
     """基础附件结构(公共字段)"""

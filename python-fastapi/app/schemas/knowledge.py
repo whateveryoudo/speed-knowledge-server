@@ -57,6 +57,9 @@ class KnowledgeListQuery(BasePaginationQuery):
         default=KnowledgeFromWay.OWN, description="查询范围"
     )
 
+    team_id: Optional[str] = Field(None, description="团队ID")
+    only_public_area: bool = Field(False, description="是否只查询公共区域")
+
 
 class KnowledgeListMineQuery(BasePaginationQuery):
     """我的知识库列表查询结构(继承自基础分页查询结构)"""
@@ -65,6 +68,8 @@ class KnowledgeListMineQuery(BasePaginationQuery):
     abilities: Optional[List[Union[KnowledgeAbility, DocumentAbility]]] = Field(
         None, description="要求知识库具备的全部能力"
     )
+    team_id: Optional[str] = Field(None, description="团队ID")
+    only_public_area: bool = Field(False, description="是否只查询公共区域")
 
 
 class KnowledgeResponse(KnowledgeBase):
@@ -75,9 +80,12 @@ class KnowledgeResponse(KnowledgeBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     team: Optional[TeamResponse] = Field(default=None, description="所属团队")
-    source: Optional[KnowledgeFromWay] = Field(default=None, description="知识库来源：自己创建的、参与协同的")
+    source: Optional[KnowledgeFromWay] = Field(
+        default=None, description="知识库来源：自己创建的、参与协同的"
+    )
     scope_slug: Optional[str] = Field(
-        default=None, description="路由作用域短链：username / public_area_slug / team.slug"
+        default=None,
+        description="路由作用域短链：username / public_area_slug / team.slug",
     )
     ability: Optional[Dict[Union[KnowledgeAbility, DocumentAbility], bool]] = Field(
         default=None, description="知识库权限能力"

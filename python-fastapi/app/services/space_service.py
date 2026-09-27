@@ -6,6 +6,7 @@ from app.services.base_service import BaseService
 from app.models.space_member import SpaceMember
 from app.services.space_member_service import SpaceMemberService
 from app.schemas.space_member import SpaceMemberCreate
+from app.schemas.attachment import default_space_cover
 from app.common.enums import SpaceMemberRole, SpaceType
 import secrets
 import string
@@ -24,8 +25,8 @@ class SpaceService(BaseService):
             .first()
         )
 
-    def get_space_by_domin(self, space_domin: str):
-        return self.get_active_query().filter(Space.domain == space_domin).first()
+    def get_space_by_domain(self, space_domain: str):
+        return self.get_active_query().filter(Space.domain == space_domain).first()
 
     def _generate_public_area_slug(self, space_domain: str) -> str:
         suffix = "".join(
@@ -33,8 +34,8 @@ class SpaceService(BaseService):
         )
         return f"org-wiki-{space_domain}-{suffix}"
 
-    def check_domain_avaliable(self, domin: str) -> bool:
-        return self.get_active_query().filter(Space.domain == domin).first() is None
+    def check_domain_avaliable(self, domain: str) -> bool:
+        return self.get_active_query().filter(Space.domain == domain).first() is None
 
     def create_space(self, *, space_create: SpaceCreate, owner_id: int):
         if not self.check_domain_avaliable(space_create.domain):
@@ -42,12 +43,13 @@ class SpaceService(BaseService):
                 status_code=status.HTTP_400_BAD_REQUEST, detail="空间域名已被使用"
             )
         public_area_slug = self._generate_public_area_slug(space_create.domain)
-
+        data = space_create.model_dump(exclude={"description"})
         space_row = Space(
-            **space_create.model_dump(),
+            **data,
             description=space_create.description or "",
             public_area_slug=public_area_slug,
             owner_id=owner_id,
+            icon=default_space_cover.model_dump(),
             type=SpaceType.ORGANIZATION,
         )
         self.db.add(space_row)
@@ -95,7 +97,6 @@ class SpaceService(BaseService):
             .join(SpaceMember, SpaceMember.space_id == Space.id)
             .filter(
                 SpaceMember.user_id == user_id,
-                SpaceMember.deleted_at.is_(None),
                 Space.type == SpaceType.ORGANIZATION,
             )
             .all()

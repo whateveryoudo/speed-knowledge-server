@@ -71,7 +71,9 @@ class KnowledgeCommonPinService:
 
         new_record = KnowledgeCommonPin(
             knowledge_id=knowledge_id,
-            order_index=next_order_index(self.db, KnowledgeCommonPin, user_id=creator_id),
+            order_index=next_order_index(
+                self.db, KnowledgeCommonPin, user_id=creator_id
+            ),
             user_id=creator_id,
         )
         self.db.add(new_record)
@@ -106,11 +108,18 @@ class KnowledgeCommonPinService:
             ability_map=ability_map,
         )
 
-    def get_list_by_user_id(self, user_id: int) -> List[KnowledgeCommonPinResponse]:
+    def get_list_by_user_id(
+        self, user_id: int, *, space_id: str
+    ) -> List[KnowledgeCommonPinResponse]:
         """获取用户常用知识库记录列表（含知识库信息）"""
         pins = (
             self.db.query(KnowledgeCommonPin)
-            .filter(KnowledgeCommonPin.user_id == user_id)
+            .join(Knowledge, KnowledgeCommonPin.knowledge_id == Knowledge.id)
+            .filter(
+                KnowledgeCommonPin.user_id == user_id,
+                Knowledge.space_id == space_id,
+                Knowledge.deleted_at.is_(None),
+            )
             .order_by(KnowledgeCommonPin.order_index.asc())
             .all()
         )

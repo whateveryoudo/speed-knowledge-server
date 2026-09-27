@@ -1,3 +1,4 @@
+from app.common.enums import TeamMemberRole
 from pydantic import BaseModel, Field
 from app.common.enums.team import TeamVisibility
 from typing import Optional, List
@@ -38,3 +39,18 @@ class TeamResponse(TeamBase):
 
     class Config:
         from_attributes = True
+
+
+class TeamListItemResponse(TeamResponse):
+    """团队列表卡片项响应"""
+    member_count: int = Field(..., description="团队成员数")
+    knowledge_count: int = Field(..., description="团队知识库数")
+    my_role:Optional[TeamMemberRole] = Field(None, description="我在团队中的角色")
+    is_joined:Optional[bool] = Field(None, description="我是否已加入团队")
+    
+class TeamDetailResponse(TeamResponse):
+    member_count:int = Field(..., description="团队成员数")
+    knowledge_count:int = Field(..., description="团队知识库数")
+    my_role:Optional[TeamMemberRole] = Field(None, description="我在团队中的角色")
+    
+        

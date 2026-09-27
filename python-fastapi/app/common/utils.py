@@ -21,6 +21,7 @@ _IPV4_HOST_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 def get_space_subdomain(host: str) -> str | None:
     """从 Host 解析空间子域名；localhost / IP / 裸域名 返回 None"""
     hostname = host.split(";")[0].split(":")[0].lower()
+    print(hostname)
     if not hostname or hostname in {"localhost", "127.0.0.1"}:
         return None
     if _IPV4_HOST_RE.match(hostname):
@@ -64,7 +65,7 @@ def is_slug_duplicate(exc: IntegrityError, check_unique_key: str) -> bool:
 def next_order_index(db: Session, model, **filters) -> int:
     """获取下一个排序索引"""
     max_index = db.query(func.max(model.order_index)).filter_by(**filters).scalar()
-    return (max_index or -1) + 1
+    return (max_index if max_index is not None else -1) + 1
 
 
 def prepare_insert_order_index(

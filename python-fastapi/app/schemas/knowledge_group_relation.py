@@ -8,7 +8,6 @@ from datetime import datetime
 class KnowledgeGroupRelationBase(BaseModel):
     """知识库分组关联信息基础结构"""
 
-    user_id: int = Field(..., description="所属用户ID")
     order_index: Optional[int] = Field(default=None, description="排序索引")
     knowledge_id: str = Field(..., description="知识库ID")
     group_id: str = Field(..., description="分组ID")

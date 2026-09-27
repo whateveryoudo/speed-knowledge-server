@@ -20,10 +20,12 @@ from app.core.deps import (
     VerifyKnowledgePermission,
     get_knowledge_or_403,
     get_optional_current_user,
+    get_current_space,
 )
 from app.models.user import User
 from app.models.knowledge import Knowledge
 from app.models.team import Team
+from app.models.space import Space
 from app.services.knowledge_service import KnowledgeService
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.services.document_node_service import DocumentNodeService
@@ -74,12 +76,13 @@ async def get_knowledge_list(
     query_in: KnowledgeListQuery,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    space: Space = Depends(get_current_space),
 ) -> PaginationResponse[KnowledgeResponse]:
     """获取知识库列表(这里主要是用于 知识库列表区分（我的/被邀请的）)"""
     knowledge_service = KnowledgeService(db)
 
     knowledge_list = knowledge_service.get_list_by_user_id(
-        user_id=current_user.id, query_in=query_in
+        user_id=current_user.id, query_in=query_in, space_id=space.id
     )
     return knowledge_list
 
@@ -89,10 +92,13 @@ async def get_knowledge_list_mine(
     query_in: KnowledgeListMineQuery,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    space: Space = Depends(get_current_space),
 ) -> PaginationResponse[KnowledgeResponse]:
     """获取我的知识库列表(主要是用于支持按照某些条件过滤)"""
     knowledge_service = KnowledgeService(db)
-    return knowledge_service.get_list_mine(user_id=current_user.id, query_in=query_in)
+    return knowledge_service.get_list_mine(
+        user_id=current_user.id, query_in=query_in, space_id=space.id
+    )
 
 
 @router.get("/{identifier}", response_model=KnowledgeResponse)
@@ -167,9 +173,7 @@ async def get_knowledge_index_page(
             has_collected=bool(collected_record),
         )
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
 
 
 # 这里是直接创建一个默认的分组，不需要传入任何参数
@@ -247,7 +251,9 @@ async def get_knowledge_group_list_detail(
 ) -> List[KnowledgeGroupResponse]:
     """获取带知识库的分组列表"""
     knowledge_group_service = KnowledgeGroupService(db)
-    return knowledge_group_service.get_list_with_knowledge(current_user.id, keyword)
+    return knowledge_group_service.get_list_with_knowledge(
+        user_id=current_user.id, keyword=keyword
+    )
 
 
 @router.put(
@@ -263,7 +269,7 @@ async def move_knowledge_group_relation(
 ) -> None:
     """移动/排序分组内知识库"""
     relation_service = KnowledgeGroupRelationService(db)
-    relation_service.move_relation(current_user.id, knowledge_id, move_in)
+    relation_service.move_relation(knowledge_id, move_in)
 
 
 @router.get("/{identifier}/document/tree", response_model=List[DocumentNodeResponse])
@@ -313,11 +319,15 @@ async def create_knowledge_common_pin(
 
 @router.get("/common-pin/list", response_model=List[KnowledgeCommonPinResponse])
 async def get_knowledge_common_pin_list(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    space: Space = Depends(get_current_space),
 ) -> List[KnowledgeCommonPinResponse]:
     """获取用户常用知识库记录列表"""
     knowledge_common_pin_service = KnowledgeCommonPinService(db)
-    return knowledge_common_pin_service.get_list_by_user_id(current_user.id)
+    return knowledge_common_pin_service.get_list_by_user_id(
+        current_user.id, space_id=space.id
+    )
 
 
 @router.delete(
@@ -336,9 +346,7 @@ async def delete_knowledge_common_pin(
         knowledge_id, current_user.id
     )
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="常用记录不存在"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="常用记录不存在")
 
 
 @router.delete(

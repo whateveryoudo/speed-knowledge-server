@@ -11,7 +11,14 @@ class SpaceMemberService(BaseService):
         super().__init__(db, SpaceMember)
 
     def get_space_member(self, space_member_id: str):
-        return self.get_active_query().filter(SpaceMember.id == space_member_id).first()
+        return self.db.query(SpaceMember).filter(SpaceMember.id == space_member_id).first()
+
+    def check_member(self, *, space_id: int, user_id: int) -> bool:
+        return (
+            self.db.query(SpaceMember)
+            .filter(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
+            .first() is not None
+        )
 
     def add_member(self, space_member_create: SpaceMemberCreate, commit: bool = True):
         space_member_row = SpaceMember(**space_member_create.model_dump())
@@ -30,6 +37,8 @@ class SpaceMemberService(BaseService):
         return space_member_update
 
     def delete_space_member(self, space_member_id: str):
-        self.db.query(SpaceMember).filter(SpaceMember.id == space_member_id).update({"deleted_at": func.now()})
+        self.db.query(SpaceMember).filter(
+            SpaceMember.id == space_member_id
+        ).first().delete()
         self.db.commit()
         return True

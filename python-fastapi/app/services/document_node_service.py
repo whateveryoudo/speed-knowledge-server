@@ -9,7 +9,12 @@ from app.schemas.document_node import (
     DragDocumentNodeParams,
     DocumentNodeUpdate,
 )
-from app.common.enums import DocumentNodeType, DocumentNodeDragAction, DocumentAbility, KnowledgeAbility
+from app.common.enums import (
+    DocumentNodeType,
+    DocumentNodeDragAction,
+    DocumentAbility,
+    KnowledgeAbility,
+)
 from app.models.knowledge import Knowledge
 from app.services.permission_service import PermissionService
 
@@ -31,6 +36,10 @@ class DocumentNodeService:
         parent_id: str | None,
     ) -> DocumentNode:
         """创建文档树节点(通用)"""
+        # 增加知识库锁
+        self.db.query(Knowledge).filter(
+            Knowledge.id == knowledge_id
+        ).with_for_update().first()
         parent: DocumentNode | None = None
         if parent_id is not None:
             parent = self.get_node_by_id(parent_id)
@@ -126,9 +135,7 @@ class DocumentNodeService:
         """通过文档id删除节点"""
         node = self.get_node_by_document_id(document_id)
         if not node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
         self._delete_subtree(node)
         if auto_commit:
             self.db.commit()
@@ -236,15 +243,17 @@ class DocumentNodeService:
         """通过node-id节点(需要同步软删除文档)"""
         node = self.get_node_by_id(node_id)
         if not node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
         # 文档树权限校验（需要有知识库的文档编辑能力）
         self.permission_service.assert_knowledge_ability(
             user_id=operator_id,
             identifier=node.knowledge_id,
             ability=DocumentAbility.DOC_DELETE,
         )
+        # 增加知识库锁
+        self.db.query(Knowledge).filter(
+            Knowledge.id == node.knowledge_id
+        ).with_for_update().first()
         # 递归删除子节点
         self._delete_subtree(node)
         self.db.commit()
@@ -256,9 +265,7 @@ class DocumentNodeService:
         """更新文档节点"""
         node = self.get_node_by_id(node_id)
         if not node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
         # 文档树权限校验（需要有知识库的文档编辑能力）
         if node.type == DocumentNodeType.DOC:
             if node.document_id is None:
@@ -333,9 +340,7 @@ class DocumentNodeService:
         drag_node = self.get_node_by_id(drag_document_in.node_id)
         target_node = self.get_node_by_id(drag_document_in.target_id)
         if drag_node is None or target_node is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="拖拽节点不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="拖拽节点不存在")
         if drag_node.id == target_node.id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -351,6 +356,12 @@ class DocumentNodeService:
             identifier=drag_node.knowledge_id,
             ability=DocumentAbility.DOC_EDIT,
         )
+        # 增加知识库锁
+        from app.models.knowledge import Knowledge
+
+        self.db.query(Knowledge).filter(
+            Knowledge.id == drag_node.knowledge_id
+        ).with_for_update().first()
 
         # 计算移动完成的后的父节点（用于环检测）
         if drag_document_in.action in (
