@@ -39,6 +39,7 @@ class KnowledgeGroupBase(BaseModel):
     """知识库分组基础结构"""
 
     user_id: int = Field(..., description="所属用户ID")
+    team_id:Optional[str] = Field(default=None, description="所属团队ID")
     group_name: str = Field(..., description="分组名称", min_length=1, max_length=50)
     order_index: int = Field(..., description="排序索引")
     is_default: Optional[bool] = Field(default=False, description="是否默认分组")

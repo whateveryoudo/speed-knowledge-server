@@ -50,7 +50,9 @@ def get_team(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return TeamService(db).get_team_by_identifier(team_identifier, space_id=space.id, user_id=user.id)
+    return TeamService(db).get_team_by_identifier(
+        identifier=team_identifier, space_id=space.id, user_id=user.id
+    )
 
 
 @router.get("/{slug}/knowledge-groups", response_model=list[KnowledgeGroupResponse])
@@ -62,7 +64,9 @@ def get_knowledge_groups_by_slug(
     db: Session = Depends(get_db),
 ):
     team_service = TeamService(db)
-    team = team_service.get_team_by_identifier(slug, space_id=space.id)
+    team = team_service.get_team_by_identifier(
+        identifier=slug, space_id=space.id, user_id=user.id
+    )
     if team is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="团队不存在")
     return KnowledgeGroupService(db).get_list_with_knowledge(

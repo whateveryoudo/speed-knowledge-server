@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Query, Depends, HTTPException
 from sqlalchemy.orm.session import Session
 from app.schemas.response import PaginationResponse
 from app.schemas.knowledge import (
@@ -14,6 +14,7 @@ from app.schemas.knowledge import (
     KnowledgeListMineQuery,
     KnowledgeVisibilityUpdate,
 )
+from typing import Optional
 from app.core.deps import (
     get_db,
     get_current_user,
@@ -179,14 +180,16 @@ async def get_knowledge_index_page(
 # 这里是直接创建一个默认的分组，不需要传入任何参数
 @router.post("/group/create", response_model=str, status_code=status.HTTP_201_CREATED)
 async def create_knowledge_group(
+    team_id: Optional[str] = Query(None, description="团队id(团队知识库分组创建)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> int:
     """创建知识库分组"""
     knowledge_group_service = KnowledgeGroupService(db)
-    order_index = next_order_index(db, KnowledgeGroup, user_id=current_user.id)
+    order_index = next_order_index(db, KnowledgeGroup, team_id=team_id) if team_id  else next_order_index(db, KnowledgeGroup, user_id=current_user.id)
     knowledge_group_data = KnowledgeGroupCreate(
         user_id=current_user.id,
+        team_id=team_id,
         group_name="新建分组",
         order_index=order_index,
         is_default=False,

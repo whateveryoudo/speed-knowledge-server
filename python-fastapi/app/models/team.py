@@ -10,7 +10,7 @@ class Team(SoftDeleteMixin, Base):
     __tablename__ = "team"
     id = Column(String(36), default=lambda: str(uuid.uuid4()), primary_key=True)
     name = Column(String(30), nullable=False, comment="团队名称")
-    icon = Column(String(20), nullable=True, comment="团队图标(团队则为类型，个人则存放的是url链接)")
+    icon = Column(String(255), nullable=True, comment="团队图标(预设类型或图片url)")
     slug = Column(String(64), index=True, nullable=False, unique=True, comment="团队标识(用于访问知识库的时候携带)")
     space_id = Column(String(36), ForeignKey("space.id", ondelete="CASCADE"), nullable=False, comment="空间ID")
     description = Column(String(512), nullable=True, comment="团队简介")

@@ -11,6 +11,7 @@ from app.models.knowledge import Knowledge
 from app.models.knowledge_group import KnowledgeGroup
 from app.models.knowledge_group_relation import KnowledgeGroupRelation
 from app.services.permission_service import PermissionService
+from app.services.team_member_service import TeamMemberService
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.knowledge import KnowledgeResponse
 from app.schemas.knowledge_group import (
@@ -21,6 +22,7 @@ from app.schemas.knowledge_group import (
     DocumentSummaryItem,
     DEFAULT_DISPLAY_CONFIG,
 )
+from app.common.enums import TeamMemberRole
 from collections import defaultdict
 
 
@@ -31,43 +33,73 @@ class KnowledgeGroupService:
         self.db = db
         self.permission_service = PermissionService(db)
         self.document_repository = DocumentRepository(db)
+        self.team_member_service = TeamMemberService(db)
 
     def _query(self):
         return self.db.query(KnowledgeGroup)
 
-    def _get_owned_group(self, group_id: str, user_id: int) -> KnowledgeGroup:
-        group = (
-            self._query()
-            .filter(KnowledgeGroup.id == group_id, KnowledgeGroup.user_id == user_id)
-            .first()
-        )
+    def _get_group_with_permission(self, group_id: str, user_id: int) -> KnowledgeGroup:
+        """根据权限查找分组"""
+        group = self._query().filter(KnowledgeGroup.id == group_id).first()
         if not group:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="知识库分组不存在"
             )
+
+        if group.team_id:
+            self.team_member_service.ensure_member_role(
+                team_id=group.team_id,
+                user_id=user_id,
+                allow_roles=[TeamMemberRole.OWNER, TeamMemberRole.ADMIN],
+            )
+        else:
+            if group.user_id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="你无权操作此分组",
+                )
         return group
 
-    def get_default_group(self, user_id: int) -> KnowledgeGroup:
-        group = (
-            self._query()
-            .filter(
-                KnowledgeGroup.user_id == user_id,
-                KnowledgeGroup.is_default.is_(True),
+    def get_default_group(
+        self, user_id: int, team_id: Optional[str] = None
+    ) -> KnowledgeGroup:
+        if team_id:
+            group = (
+                self._query()
+                .filter(
+                    KnowledgeGroup.team_id == team_id,
+                    KnowledgeGroup.is_default.is_(True),
+                )
+                .first()
             )
-            .first()
-        )
+        else:
+            group = (
+                self._query()
+                .filter(
+                    KnowledgeGroup.user_id == user_id,
+                    KnowledgeGroup.team_id.is_(None),
+                    KnowledgeGroup.is_default.is_(True),
+                )
+                .first()
+            )
         if not group:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="默认分组不存在")
         return group
 
     def create(self, knowledge_group_in: KnowledgeGroupCreate) -> KnowledgeGroup:
         """创建知识库分组"""
-        # 这里再头部插入
-        order_index = prepare_insert_order_index(
-            self.db, KnowledgeGroup, 0, user_id=knowledge_group_in.user_id
-        )
+        # 这里再头部插入（兼容团队和个人）
+        if knowledge_group_in.team_id:
+            order_index = prepare_insert_order_index(
+                self.db, KnowledgeGroup, 0, team_id=knowledge_group_in.team_id
+            )
+        else:
+            order_index = prepare_insert_order_index(
+                self.db, KnowledgeGroup, 0, user_id=knowledge_group_in.user_id
+            )
         knowledge_group = KnowledgeGroup(
             user_id=knowledge_group_in.user_id,
+            team_id=knowledge_group_in.team_id,
             is_default=knowledge_group_in.is_default,
             group_name=knowledge_group_in.group_name,
             order_index=order_index,
@@ -84,7 +116,7 @@ class KnowledgeGroupService:
         """获取知识库分组列表"""
         return (
             self._query()
-            .filter(KnowledgeGroup.user_id == user_id)
+            .filter(KnowledgeGroup.user_id == user_id, KnowledgeGroup.team_id.is_(None))
             .order_by(KnowledgeGroup.order_index.asc(), KnowledgeGroup.created_at.asc())
             .all()
         )
@@ -290,6 +322,7 @@ class KnowledgeGroupService:
             KnowledgeGroupResponse(
                 id=group.id,
                 user_id=group.user_id,
+                team_id=group.team_id,
                 group_name=group.group_name,
                 order_index=group.order_index,
                 is_default=group.is_default,
@@ -310,7 +343,7 @@ class KnowledgeGroupService:
         knowledge_group_in: KnowledgeGroupUpdateBody,
     ) -> KnowledgeGroup:
         """更新知识库分组"""
-        knowledge_group = self._get_owned_group(group_id, user_id)
+        knowledge_group = self._get_group_with_permission(group_id, user_id)
         if knowledge_group_in.group_name is not None:
             knowledge_group.group_name = knowledge_group_in.group_name
         if knowledge_group_in.order_index is not None:
@@ -325,14 +358,23 @@ class KnowledgeGroupService:
 
     def change_order_index(self, group_id: str, user_id: int, order_index: int) -> bool:
         """拖拽调整分组排序"""
-        move_record = self._get_owned_group(group_id, user_id)
+        move_record = self._get_group_with_permission(group_id, user_id)
         old_index = move_record.order_index
         if old_index == order_index:
             return True
+        base_query = self._query()
+        # 兼容团队和个人的获取
+        if move_record.team_id:
+            base_query = base_query.filter(
+                KnowledgeGroup.team_id == move_record.team_id
+            )
+        else:
+            base_query = base_query.filter(
+                KnowledgeGroup.user_id == user_id,KnowledgeGroup.team_id.is_(None)
+            )
 
         if old_index < order_index:
-            self.db.query(KnowledgeGroup).filter(
-                KnowledgeGroup.user_id == user_id,
+            base_query.filter(
                 KnowledgeGroup.order_index > old_index,
                 KnowledgeGroup.order_index <= order_index,
             ).update(
@@ -340,8 +382,7 @@ class KnowledgeGroupService:
                 synchronize_session=False,
             )
         else:
-            self.db.query(KnowledgeGroup).filter(
-                KnowledgeGroup.user_id == user_id,
+            base_query.filter(
                 KnowledgeGroup.order_index < old_index,
                 KnowledgeGroup.order_index >= order_index,
             ).update(
@@ -355,14 +396,13 @@ class KnowledgeGroupService:
 
     def delete(self, group_id: str, user_id: int) -> bool:
         """删除分组，知识库移动到默认分组"""
-        group = self._get_owned_group(group_id, user_id)
+        group = self._get_group_with_permission(group_id, user_id)
         if group.is_default:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="默认分组不能删除",
             )
-
-        default_group = self.get_default_group(user_id)
+        default_group = self.get_default_group(user_id, group.team_id)
         relations = (
             self.db.query(KnowledgeGroupRelation)
             .filter(

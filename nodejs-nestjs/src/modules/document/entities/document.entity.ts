@@ -4,12 +4,15 @@ import {
   Entity,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   OneToOne,
   JoinColumn,
   OneToMany,
 } from "typeorm";
 import { DocumentContent } from "../../document-content/entities/document-content.entity";
 import { DocumentEditHistory } from "../../document-edit-history/entities/document-edit-history.entity";
+import { DocumentVisibility } from "@/enums/document";
+
 @Entity("document_base")
 export class DocumentBase {
   @PrimaryColumn("varchar", { length: 36 })
@@ -30,8 +33,8 @@ export class DocumentBase {
   @Column("varchar", { length: 10 })
   type: string;
 
-  @Column("boolean", { default: false })
-  is_public: boolean;
+  @Column("varchar", { length: 20, default: DocumentVisibility.INHERIT })
+  visibility: DocumentVisibility;
 
   @Column("int", { default: 0 })
   view_count: number;
@@ -44,6 +47,9 @@ export class DocumentBase {
 
   @UpdateDateColumn({ type: "datetime" })
   updated_at: Date;
+
+  @DeleteDateColumn({ type: "datetime", nullable: true })
+  deleted_at: Date;
 
   @OneToOne(() => DocumentContent, (content) => content.document, { cascade: true })
   content: DocumentContent;

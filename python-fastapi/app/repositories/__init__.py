@@ -6,6 +6,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.repositories.resource_access_request_repository import ResourceAccessRequestRepository
 from app.repositories.resource_grant_repository import ResourceGrantRepository
 from app.repositories.permission_group_repository import PermissionGroupRepository
+from app.repositories.team_member_respository import TeamMemberRepository
 
 __all__ = [
     "KnowledgeRepository",
@@ -15,4 +16,5 @@ __all__ = [
     "ResourceAccessRequestRepository",
     "ResourceGrantRepository",
     "PermissionGroupRepository",
+    "TeamMemberRepository",
 ]

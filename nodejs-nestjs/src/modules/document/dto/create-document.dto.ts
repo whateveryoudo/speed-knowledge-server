@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsDate, IsString } from 'class-validator';
-import { DocumentType } from '@/enums/document';
+import { IsEnum, IsNotEmpty, IsOptional, IsDate, IsString } from 'class-validator';
+import { DocumentType, DocumentVisibility } from '@/enums/document';
+
 export class CreateDocumentDto {
   @ApiProperty({ example: '1234567890' })
   @IsString()
@@ -27,15 +28,18 @@ export class CreateDocumentDto {
   @IsNotEmpty()
   type: DocumentType;
 
-  
-  @ApiProperty({ example: 'is_public' })
-  @IsBoolean()
+  @ApiProperty({
+    example: DocumentVisibility.INHERIT,
+    enum: DocumentVisibility,
+    required: false,
+    description: '文档可见范围: inherit(继承知识库), space(空间内部成员可见), private(私有), public(互联网公开)',
+  })
+  @IsEnum(DocumentVisibility)
   @IsOptional()
-  is_public: boolean;
+  visibility?: DocumentVisibility;
 
   @ApiProperty({ example: 'content_updated_at' })
   @IsDate()
   @IsOptional()
   content_updated_at: Date;
 }
-
