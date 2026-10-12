@@ -1,5 +1,6 @@
+from datetime import datetime, date
+import uuid
 from sqlalchemy import (
-    Column,
     String,
     Index,
     Integer,
@@ -8,8 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-
-import uuid
+from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
@@ -24,14 +24,16 @@ class KnowledgeDailyStats(Base):
         Index("idx_stats_date", "stats_date"),
     )
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    knowledge_id = Column(String(36), nullable=False)
-    stats_date = Column(Date, nullable=False)
-    word_count = Column(Integer, nullable=False)
-    created_at = Column(
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    knowledge_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    stats_date: Mapped[date] = mapped_column(Date, nullable=False)
+    word_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),

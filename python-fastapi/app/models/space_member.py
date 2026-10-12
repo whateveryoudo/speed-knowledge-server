@@ -1,41 +1,47 @@
 from app.db.base import Base
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, func, Integer, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import String, DateTime, Enum, ForeignKey, func, Integer, UniqueConstraint
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.common.enums import SpaceMemberRole
+from datetime import datetime
 import uuid
 
 
 class SpaceMember(Base):
     __tablename__ = "space_member"
-    __table_args__ = (UniqueConstraint("space_id", "user_id", name="uq_space_member_space_user"),)
-    id = Column(String(36), default=lambda: str(uuid.uuid4()), primary_key=True)
-    space_id = Column(
+    __table_args__ = (
+        UniqueConstraint("space_id", "user_id", name="uq_space_member_space_user"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), default=lambda: str(uuid.uuid4()), primary_key=True
+    )
+    space_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("space.id", ondelete="CASCADE"),
         nullable=False,
         comment="空间ID",
     )
-    user_id = Column(
+    user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("user.id", ondelete="CASCADE"),
         nullable=False,
         comment="用户ID",
     )
-    role = Column(Enum(SpaceMemberRole), nullable=False, comment="角色")
-    created_at = Column(
+    role: Mapped[SpaceMemberRole] = mapped_column(
+        Enum(SpaceMemberRole), nullable=False, comment="角色"
+    )
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="更新时间",
     )
-    # dept_id = Column(String(36), ForeignKey("space_dept.id", ondelete="CASCADE"), nullable=True, comment="部门ID")
 
     space = relationship("Space", back_populates="space_members")
     user = relationship("User", back_populates="space_members")
-    # space_dept = relationship("SpaceDept", back_populates="space_members")

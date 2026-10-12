@@ -40,6 +40,7 @@ class KnowledgeGroupType(str, Enum):
     LIST = "list"  # 列表布局
 
 
+
 class KnowledgeGroupStyle(str, Enum):
     """知识库卡片样式"""
 

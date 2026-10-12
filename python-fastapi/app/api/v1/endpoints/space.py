@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.services.space_service import SpaceService
+from app.services.knowledge_group_service import KnowledgeGroupService
+from app.schemas.knowledge_group import KnowledgeGroupResponse, KnowledgeGroupCreate
 from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse
 from app.schemas.space_member import SpaceMemberCreate
-from app.core.deps import get_db, get_current_user, get_space_by_host
+
+from app.core.deps import get_db, get_current_user, get_space_by_host, get_current_space
 from app.services.space_member_service import SpaceMemberService
 from app.models.user import User
 from app.models.space import Space
-from app.common.enums import SpaceType
+from app.common.enums import SpaceType, KnowledgeScopeType
+from typing import Optional
 
 router = APIRouter()
 
@@ -50,10 +54,10 @@ def space_access(
 ):
     """校验当前用户是否可以访问该空间（前端layout使用）"""
     if space.type == SpaceType.ORGANIZATION.value:
-        is_member = SpaceMemberService(db).check_member(
+        member = SpaceMemberService(db).get_member_by_user_id(
             space_id=space.id, user_id=current_user.id
         )
-        if not is_member:
+        if member is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="你不是该空间成员，可联系空间管理员添加",
@@ -80,7 +84,44 @@ def update_space(space_domain: str, space: SpaceUpdate, db: Session = Depends(ge
 @router.get("/check-domain-available", response_model=bool)
 def check_domain_available(domain: str, db: Session = Depends(get_db)) -> bool:
     if not SpaceService(db).check_domain_avaliable(domain):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="域名已被使用"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="域名已被使用")
     return True
+
+
+@router.get("/groups", response_model=list[KnowledgeGroupResponse])
+def get_space_group_detail(
+    keyword: Optional[str] = Query(None, description="搜索关键词"),
+    space: Space = Depends(get_current_space),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取空间公共区带知识库的分组列表"""
+    return KnowledgeGroupService(db).get_list_with_knowledge(
+        user_id=user.id,
+        scope_id=space.id,
+        scope_type=KnowledgeScopeType.SPACE,
+        keyword=keyword,
+    )
+
+
+@router.post(
+    "/groups/create",
+    response_model=KnowledgeGroupResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_space_group(
+    space: Space = Depends(get_current_space),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """指定团队下创建分组"""
+    return KnowledgeGroupService(db).create(
+        KnowledgeGroupCreate(
+            group_name="新建分组",
+            scope_type=KnowledgeScopeType.SPACE.value,
+            scope_id=space.id,
+            order_index=0,
+            is_default=False,
+        ),
+        user.id,
+    )

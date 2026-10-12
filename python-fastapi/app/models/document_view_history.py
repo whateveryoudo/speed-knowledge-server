@@ -1,17 +1,14 @@
 """文档浏览历史模型"""
 
 from sqlalchemy import (
-    Column,
     Integer,
     String,
     ForeignKey,
     DateTime,
-    Text,
     func,
     UniqueConstraint,
-    Index,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.db.base import Base
 from uuid import uuid4
 from datetime import datetime
@@ -26,35 +23,39 @@ class DocumentViewHistory(Base):
         UniqueConstraint(
             "document_id", "viewed_user_id", name="uniq_document_id_viewed_user_id"
         ),
-        # Index('idx_document_id', 'document_id'),
-        # Index('idx_viewed_user_id', 'viewed_user_id'),
     )
 
-    id = Column[str](String(36), primary_key=True, default=lambda: str(uuid4()))
-    document_id = Column[str](
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    document_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("document_base.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
         comment="所属文档",
     )
-    viewed_user_id = Column[int](
-        Integer, ForeignKey("user.id"), index=True, nullable=False, comment="浏览的用户"
+    viewed_user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("user.id"),
+        index=True,
+        nullable=False,
+        comment="浏览的用户",
     )
-    viewed_datetime = Column[datetime](
+    viewed_datetime: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         default=func.now(),
         server_default=func.current_timestamp(),
         comment="浏览时间",
     )
-    created_at = Column[datetime](
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column[datetime](
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),

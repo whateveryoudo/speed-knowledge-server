@@ -1,7 +1,9 @@
 """知识库模型"""
 
+from typing import Optional
+from datetime import datetime
+import uuid
 from sqlalchemy import (
-    Column,
     Boolean,
     Integer,
     String,
@@ -12,10 +14,8 @@ from sqlalchemy import (
     JSON,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.db.base import Base
-import uuid
 from app.schemas.attachment import default_attachment_item
 from app.common.enums import (
     KnowledgeIndexPageSort,
@@ -36,14 +36,14 @@ class Knowledge(SoftDeleteMixin, Base):
 
     __table_args__ = (UniqueConstraint("slug", name="uniq_knowledge_slug"),)
 
-    id = Column[str](
+    id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         index=True,
         comment="主键",
     )
-    creator_id = Column[int](
+    creator_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("user.id", ondelete="RESTRICT"),
         index=True,
@@ -51,21 +51,21 @@ class Knowledge(SoftDeleteMixin, Base):
         comment="知识库创建者",
     )
 
-    space_id = Column[str](
+    space_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("space.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
         comment="所属空间",
     )
-    team_id = Column[str](
+    team_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("team.id", ondelete="CASCADE"),
         index=True,
         nullable=True,
         comment="所属团队(允许为空：为空则表示为个人空间或者空间公共区)",
     )
-    visibility = Column[str](
+    visibility: Mapped[str] = mapped_column(
         String(20),
         default=KnowledgeVisibility.PRIVATE.value,
         server_default=text("'private'"),
@@ -73,64 +73,64 @@ class Knowledge(SoftDeleteMixin, Base):
         comment="公开范围: private私有, space空间成员可见, public互联网公开",
     )
 
-    icon = Column[str](String(20), nullable=False, comment="知识库图标")
-    name = Column[str](String(128), nullable=False, comment="知识库名称")
-    slug = Column[str](
+    icon: Mapped[str] = mapped_column(String(20), nullable=False, comment="知识库图标")
+    name: Mapped[str] = mapped_column(String(128), nullable=False, comment="知识库名称")
+    slug: Mapped[str] = mapped_column(
         String(64), index=True, nullable=False, unique=True, comment="知识库短链"
     )
-    description = Column[str](String(512), nullable=True, comment="简介")
-    cover_url = Column(
+    description: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, comment="简介")
+    cover_url: Mapped[Optional[dict]] = mapped_column(
         JSON,
         default=default_attachment_item.model_dump(),
         nullable=True,
         comment="封面图信息",
     )
 
-    enable_password_protection = Column[bool](
+    enable_password_protection: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         server_default=text("0"),
         comment="是否启用高级密码保护,默认不开启",
     )
 
-    enable_catalog = Column[bool](
+    enable_catalog: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("1"), comment="是否启用目录"
     )
 
-    enable_custom_body = Column[bool](
+    enable_custom_body: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("0"), comment="是否启用自定义模块"
     )
 
-    enable_user_feed = Column[bool](
+    enable_user_feed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("0"), comment="是否显示协同人员"
     )
-    layout = Column[KnowledgeIndexPageLayout](
+    layout: Mapped[KnowledgeIndexPageLayout] = mapped_column(
         String(20),
         default=KnowledgeIndexPageLayout.CATALOG,
         nullable=False,
         comment="布局",
     )
-    sort = Column[KnowledgeIndexPageSort](
+    sort: Mapped[KnowledgeIndexPageSort] = mapped_column(
         String(20),
         default=KnowledgeIndexPageSort.CATALOG,
         nullable=False,
         comment="排序",
     )
 
-    content_updated_at = Column[datetime](
+    content_updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True, comment="内容最近更新时间"
     )
-    created_at = Column[datetime](
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column[datetime](
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
-        server_onupdate=func.current_timestamp(),  # 或 mysql_on_update=func.current_timestamp()
+        server_onupdate=func.current_timestamp(),
         comment="更新时间",
     )
 

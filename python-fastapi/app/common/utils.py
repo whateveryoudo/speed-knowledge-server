@@ -1,9 +1,13 @@
+from collections.abc import Iterable
 from uuid import UUID
-from typing import Any
-import re
+from enum import Enum
+from typing import Any, Iterable, Optional, Set, Type, TypeVar
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+import re
+
+T = TypeVar("T", bound=Enum)
 
 
 def isUUID(value: str) -> bool:
@@ -76,3 +80,36 @@ def prepare_insert_order_index(
         model.order_index >= target_index
     ).update({model.order_index: model.order_index + 1}, synchronize_session=False)
     return target_index
+
+
+def to_enum_value(val: Any) -> Any:
+    """获取枚举的底层值"""
+
+    return val.value if isinstance(val, Enum) else val
+
+
+def to_enum_values(items: Any) -> Set[Any]:
+    """将可迭代对象转换为枚举值的集合"""
+    if items is None:
+        return set()
+    if isinstance(items, (str, bytes)) or not isinstance(items, Iterable):
+        return {to_enum_value(items)}
+    return {to_enum_value(item) for item in items}
+
+
+def to_enum(enum_cls: Type[T], val: Any, default: Optional[T] = None) -> Optional[T]:
+    if val is None:
+        return default
+    if isinstance(val, enum_cls):
+        return val
+    try:
+        return enum_cls(val)
+    except (ValueError, KeyError, TypeError):
+        pass
+    # 按名称查找
+    if isinstance(val, str):
+        try:
+            return enum_cls[val]
+        except (KeyError, TypeError):
+            pass
+    return default    

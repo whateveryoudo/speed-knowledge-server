@@ -64,6 +64,21 @@ class SpaceService(BaseService):
             ),
             commit=False,
         )
+        # 追加空间公区区的默认分组
+        from app.models.knowledge_group import KnowledgeGroup
+        from app.schemas.knowledge_group import DEFAULT_DISPLAY_CONFIG
+        from app.common.enums import KnowledgeScopeType
+
+        default_space_group = KnowledgeGroup(
+            group_name="默认分组",
+            scope_id=space_row.id,
+            scope_type=KnowledgeScopeType.SPACE.value,
+            created_by=owner_id,
+            is_default=True,
+            display_config=DEFAULT_DISPLAY_CONFIG.model_dump(),
+        )
+        self.db.add(default_space_group)
+
         self.db.commit()
         self.db.refresh(space_row)
         return space_row

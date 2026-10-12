@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from app.common.enums import BaseSortOrder
 from typing import Optional, List
-
+from app.schemas.response import PaginationQuery
 
 class SortRule(BaseModel):
     """基础排序规则结构"""
@@ -10,7 +10,7 @@ class SortRule(BaseModel):
     order: BaseSortOrder = Field(default=BaseSortOrder.ASC, description="排序顺序")
 
 
-class Pagination(BaseModel):
+class Pagination(PaginationQuery):
     """基础分页查询结构"""
 
     page: int = Field(default=1,ge=1, description="页码")

@@ -1,8 +1,10 @@
-from app.db.base import Base
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, func, Integer, UniqueConstraint
+from typing import Optional
+from datetime import datetime
 import uuid
+from sqlalchemy import String, DateTime, Enum, ForeignKey, func, Integer, UniqueConstraint
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from app.db.base import Base
 from app.common.enums import TeamMemberRole
-from sqlalchemy.orm import relationship
 
 
 class TeamMember(Base):
@@ -12,33 +14,38 @@ class TeamMember(Base):
     __table_args__ = (
         UniqueConstraint("team_id", "user_id", name="uix_team_member_team_user"),
     )
-    id = Column(String(36), default=lambda: str(uuid.uuid4()), primary_key=True)
-    team_id = Column(
+
+    id: Mapped[str] = mapped_column(
+        String(36), default=lambda: str(uuid.uuid4()), primary_key=True
+    )
+    team_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("team.id", ondelete="CASCADE"),
         nullable=False,
         comment="团队ID",
     )
-    user_id = Column(
+    user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("user.id", ondelete="CASCADE"),
         nullable=False,
         comment="用户ID",
     )
-    role = Column(Enum(TeamMemberRole), nullable=False, comment="角色")
-    dept_id = Column(
+    role: Mapped[TeamMemberRole] = mapped_column(
+        Enum(TeamMemberRole), nullable=False, comment="角色"
+    )
+    dept_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("space_dept.id", ondelete="CASCADE"),
         nullable=True,
         comment="部门ID",
     )
-    created_at = Column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),

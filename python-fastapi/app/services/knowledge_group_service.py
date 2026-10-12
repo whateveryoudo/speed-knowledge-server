@@ -1,5 +1,7 @@
 """知识库分组服务"""
 
+from app.common.enums import SpaceMemberRole
+from app.models import SpaceMember
 from typing import List, Optional
 
 from fastapi import HTTPException, status
@@ -12,6 +14,7 @@ from app.models.knowledge_group import KnowledgeGroup
 from app.models.knowledge_group_relation import KnowledgeGroupRelation
 from app.services.permission_service import PermissionService
 from app.services.team_member_service import TeamMemberService
+from app.services.space_member_service import SpaceMemberService
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.knowledge import KnowledgeResponse
 from app.schemas.knowledge_group import (
@@ -22,7 +25,7 @@ from app.schemas.knowledge_group import (
     DocumentSummaryItem,
     DEFAULT_DISPLAY_CONFIG,
 )
-from app.common.enums import TeamMemberRole
+from app.common.enums import TeamMemberRole, KnowledgeScopeType
 from collections import defaultdict
 
 
@@ -34,9 +37,41 @@ class KnowledgeGroupService:
         self.permission_service = PermissionService(db)
         self.document_repository = DocumentRepository(db)
         self.team_member_service = TeamMemberService(db)
+        self.space_member_service = SpaceMemberService(db)
 
     def _query(self):
         return self.db.query(KnowledgeGroup)
+
+    def _get_scope_type(self, scope_type: KnowledgeScopeType | str) -> str:
+        """获取分组类型，兼容字符串和枚举"""
+        if isinstance(scope_type, KnowledgeScopeType):
+            return scope_type.value
+        else:
+            return scope_type
+
+    def _assert_scope_permission(
+        self, *, scope_type: KnowledgeScopeType | str, scope_id: str, user_id: int
+    ) -> None:
+        """校验操作人是否对作用域分组有管理/创建权限"""
+        type_val = self._get_scope_type(scope_type)
+        if type_val == KnowledgeScopeType.TEAM.value:
+            self.team_member_service.ensure_member_role(
+                team_id=scope_id,
+                user_id=user_id,
+                allow_roles=[TeamMemberRole.OWNER, TeamMemberRole.ADMIN],
+            )
+        elif type_val == KnowledgeScopeType.SPACE.value:
+            self.space_member_service.ensure_member_role(
+                space_id=scope_id,
+                user_id=user_id,
+                allow_roles=[SpaceMemberRole.OWNER, SpaceMemberRole.ADMIN],
+            )
+        else:
+            if scope_id != str(user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="你无权操作此分组",
+                )
 
     def _get_group_with_permission(self, group_id: str, user_id: int) -> KnowledgeGroup:
         """根据权限查找分组"""
@@ -45,78 +80,73 @@ class KnowledgeGroupService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="知识库分组不存在"
             )
-
-        if group.team_id:
-            self.team_member_service.ensure_member_role(
-                team_id=group.team_id,
-                user_id=user_id,
-                allow_roles=[TeamMemberRole.OWNER, TeamMemberRole.ADMIN],
-            )
-        else:
-            if group.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="你无权操作此分组",
-                )
+        self._assert_scope_permission(
+            scope_type=group.scope_type, scope_id=group.scope_id, user_id=user_id
+        )
         return group
 
     def get_default_group(
-        self, user_id: int, team_id: Optional[str] = None
+        self, *, scope_type: KnowledgeScopeType | str, scope_id: str
     ) -> KnowledgeGroup:
-        if team_id:
-            group = (
-                self._query()
-                .filter(
-                    KnowledgeGroup.team_id == team_id,
-                    KnowledgeGroup.is_default.is_(True),
-                )
-                .first()
+        # 调整为多态判断
+        type_val = self._get_scope_type(scope_type)
+        group = (
+            self._query()
+            .filter(
+                KnowledgeGroup.is_default.is_(True),
+                KnowledgeGroup.scope_type == type_val,
+                KnowledgeGroup.scope_id == scope_id,
             )
-        else:
-            group = (
-                self._query()
-                .filter(
-                    KnowledgeGroup.user_id == user_id,
-                    KnowledgeGroup.team_id.is_(None),
-                    KnowledgeGroup.is_default.is_(True),
-                )
-                .first()
-            )
+            .first()
+        )
         if not group:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="默认分组不存在")
         return group
 
-    def create(self, knowledge_group_in: KnowledgeGroupCreate) -> KnowledgeGroup:
+    def create(
+        self, knowledge_group_in: KnowledgeGroupCreate, operator_id: int
+    ) -> KnowledgeGroup:
         """创建知识库分组"""
+        # 权限拦截判断
+        self._assert_scope_permission(
+            scope_type=knowledge_group_in.scope_type,
+            scope_id=knowledge_group_in.scope_id,
+            user_id=operator_id,
+        )
         # 这里再头部插入（兼容团队和个人）
-        if knowledge_group_in.team_id:
-            order_index = prepare_insert_order_index(
-                self.db, KnowledgeGroup, 0, team_id=knowledge_group_in.team_id
-            )
-        else:
-            order_index = prepare_insert_order_index(
-                self.db, KnowledgeGroup, 0, user_id=knowledge_group_in.user_id
-            )
+        type_val = self._get_scope_type(knowledge_group_in.scope_type)
+        scope_id = knowledge_group_in.scope_id
+        order_index = prepare_insert_order_index(
+            self.db, KnowledgeGroup, 0, scope_type=type_val, scope_id=scope_id
+        )
         knowledge_group = KnowledgeGroup(
-            user_id=knowledge_group_in.user_id,
-            team_id=knowledge_group_in.team_id,
-            is_default=knowledge_group_in.is_default,
+            scope_id=scope_id,
+            scope_type=type_val,
+            is_default=knowledge_group_in.is_default or False,
             group_name=knowledge_group_in.group_name,
             order_index=order_index,
             display_config=(
                 knowledge_group_in.display_config or DEFAULT_DISPLAY_CONFIG
             ).model_dump(),
+            created_by=operator_id
         )
         self.db.add(knowledge_group)
         self.db.commit()
         self.db.refresh(knowledge_group)
         return knowledge_group
 
-    def get_list_by_user_id(self, user_id: int) -> List[KnowledgeGroup]:
+    def get_list(
+        self, *, scope_type: KnowledgeScopeType | str, scope_id: str
+    ) -> List[KnowledgeGroup]:
         """获取知识库分组列表"""
+        # 调整为多态判断
+        type_val = self._get_scope_type(scope_type)
         return (
             self._query()
-            .filter(KnowledgeGroup.user_id == user_id, KnowledgeGroup.team_id.is_(None))
+            .filter(
+                KnowledgeGroup.scope_type == type_val,
+                KnowledgeGroup.scope_id == scope_id,
+            )
             .order_by(KnowledgeGroup.order_index.asc(), KnowledgeGroup.created_at.asc())
             .all()
         )
@@ -184,26 +214,16 @@ class KnowledgeGroupService:
         self,
         *,
         user_id: int,
-        team_id: Optional[str] = None,
+        scope_type: KnowledgeScopeType | str = KnowledgeScopeType.PERSONAL.value,
+        scope_id: Optional[str] = None,
         keyword: Optional[str] = None,
     ) -> List[KnowledgeGroupResponse]:
         """获取带最终可读知识库和文档摘要的分组列表"""
+        # 兼容多态
+        type_val = self._get_scope_type(scope_type)
+        scope_id_str = str(scope_id)
         keyword = (keyword or "").strip().lower()
-        if team_id:
-            # 团队知识库分组
-            groups = (
-                self._query()
-                .filter(KnowledgeGroup.team_id == team_id)
-                .order_by(KnowledgeGroup.order_index.asc())
-                .all()
-            )
-            if not groups:
-                # 这里正常不会走到这里（创建团队的时候会默认带上一个初始分组）
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="团队知识库分组不存在"
-                )
-        else:
-            groups = self.get_list_by_user_id(user_id)
+        groups = self.get_list(scope_type=type_val, scope_id=scope_id_str)
         if not groups:
             return []
         group_ids = [g.id for g in groups]
@@ -218,27 +238,39 @@ class KnowledgeGroupService:
             )
             .all()
         )
-        if team_id:
-            # 兼容挂载为加入分组的团队知识库，放到默认分组下
-            default_group = next((g for g in groups if g.is_default), groups[0])
-            grouped_knowledge_ids = {r.knowledge_id for r in relations}
-            team_knowledges = (
-                self.db.query(Knowledge)
-                .filter(Knowledge.team_id == team_id, Knowledge.deleted_at.is_(None))
-                .all()
-            )
-            for kb in team_knowledges:
-                if kb.id not in grouped_knowledge_ids:
-                    rel = KnowledgeGroupRelation(
-                        group_id=default_group.id,
-                        order_index=next_order_index(
-                            self.db, KnowledgeGroupRelation, default_group.id
-                        ),
-                        knowledge_id=kb.id,
-                    )
-                    rel.knowledge = kb
-                    relations.append(rel)
+        # 兼容挂载为加入分组的团队知识库，放到默认分组下
+        default_group = next((g for g in groups if g.is_default), groups[0])
+        grouped_knowledge_ids = {r.knowledge_id for r in relations}
 
+        unclassified_kbs_query = self.db.query(Knowledge).filter(
+            Knowledge.deleted_at.is_(None)
+        )
+        if type_val == KnowledgeScopeType.TEAM.value:
+            unclassified_kbs = unclassified_kbs_query.filter(
+                Knowledge.team_id == scope_id_str
+            ).all()
+        elif type_val == KnowledgeScopeType.SPACE.value:
+            unclassified_kbs = unclassified_kbs_query.filter(
+                Knowledge.space_id == scope_id_str, Knowledge.team_id.is_(None)
+            ).all()
+        else:
+            # 兼容个人空间，以及未传入 scope_id 的情况
+            unclassified_kbs = unclassified_kbs_query.filter(
+                Knowledge.creator_id == user_id, Knowledge.team_id.is_(None)
+            ).all()
+        # 这里会兜底（某一类知识库未挂载到任务分组下，则在列表查询时加到默认分组中）
+        for kb in unclassified_kbs:
+            if kb.id not in grouped_knowledge_ids:
+                rel = KnowledgeGroupRelation(
+                    group_id=default_group.id,
+                    order_index=next_order_index(
+                        self.db, KnowledgeGroupRelation, 
+                        group_id=default_group.id,
+                    ),
+                    knowledge_id=kb.id,
+                )
+                rel.knowledge = kb
+                relations.append(rel)
         # 根据关键词缩小知识库的候选范围
 
         candidate_knowledge_ids: list[str] = list(
@@ -321,10 +353,10 @@ class KnowledgeGroupService:
         return [
             KnowledgeGroupResponse(
                 id=group.id,
-                user_id=group.user_id,
-                team_id=group.team_id,
-                group_name=group.group_name,
-                order_index=group.order_index,
+                scope_type=group.scope_type,
+                scope_id=group.scope_id,
+                group_name=group.group_name or '新建分组',
+                order_index=group.order_index or 0,
                 is_default=group.is_default,
                 display_config=(
                     group.display_config or DEFAULT_DISPLAY_CONFIG.model_dump()
@@ -363,15 +395,11 @@ class KnowledgeGroupService:
         if old_index == order_index:
             return True
         base_query = self._query()
-        # 兼容团队和个人的获取
-        if move_record.team_id:
-            base_query = base_query.filter(
-                KnowledgeGroup.team_id == move_record.team_id
-            )
-        else:
-            base_query = base_query.filter(
-                KnowledgeGroup.user_id == user_id,KnowledgeGroup.team_id.is_(None)
-            )
+        # 多态获取
+        base_query = self._query().filter(
+            KnowledgeGroup.scope_id == move_record.scope_id,
+            KnowledgeGroup.scope_type == move_record.scope_type,
+        )
 
         if old_index < order_index:
             base_query.filter(
@@ -402,7 +430,9 @@ class KnowledgeGroupService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="默认分组不能删除",
             )
-        default_group = self.get_default_group(user_id, group.team_id)
+        default_group = self.get_default_group(
+            scope_type=group.scope_type, scope_id=group.scope_id
+        )
         relations = (
             self.db.query(KnowledgeGroupRelation)
             .filter(

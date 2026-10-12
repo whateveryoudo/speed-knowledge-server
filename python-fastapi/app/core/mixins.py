@@ -1,12 +1,15 @@
-"""数据库混入类"""
-from sqlalchemy import Column, DateTime
-from sqlalchemy.orm import Query
+from typing import Optional
 from datetime import datetime
+from sqlalchemy import DateTime
+from sqlalchemy.orm import Query, Mapped, mapped_column
+
 
 class SoftDeleteMixin:
     """数据库混入类"""
 
-    deleted_at = Column[datetime](DateTime, nullable=True, comment="删除时间(NULL表示未删除)")
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, comment="删除时间(NULL表示未删除)"
+    )
 
     def soft_delete(self):
         """软删除"""

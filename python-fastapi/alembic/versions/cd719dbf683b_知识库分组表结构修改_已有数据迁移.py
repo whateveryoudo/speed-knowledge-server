@@ -5,6 +5,7 @@ Revises: 7cb491d679b6
 Create Date: 2026-09-30 17:33:41.039437
 
 """
+from sqlalchemy import table
 from typing import Sequence, Union
 
 from alembic import op
@@ -51,6 +52,91 @@ def upgrade() -> None:
         )
     )
 
+    # 个人知识库分组回填
+
+    conn.execute(
+        sa.text(
+            """
+        UPDATE knowledge_group SET scope_type = 'personal', scope_id = CAST(user_id AS CHAR),created_by = user_id WHERE team_id IS NULL OR team_id = ''
+        """
+        )
+    )
+    # 收紧字段约束
+
+    op.alter_column(
+        "knowledge_group",
+        "scope_type",
+        existing_type=sa.String(length=20),
+        nullable=False,
+    )
+
+    op.alter_column(
+        "knowledge_group",
+        "scope_id",
+        existing_type=sa.String(length=36),
+        nullable=False,
+    )
+
+    # 创建索引
+    op.create_index(
+        "ix_knowledge_group_scope",
+        "knowledge_group",
+        ["scope_type", "scope_id"],
+        unique=False,
+    )
+
+    op.create_index(
+        "ix_knowledge_group_created_by",
+        "knowledge_group",
+        ["created_by"],
+        unique=False,
+    )
+    # 删除旧列和索引
+    op.drop_index("ix_knowledge_group_team_id", table_name="knowledge_group")
+    op.drop_index("ix_knowledge_group_user_id", table_name="knowledge_group")
+    op.drop_column(
+        "knowledge_group",
+        "team_id",
+    )
+    op.drop_column("knowledge_group", "user_id")
+
 
 def downgrade() -> None:
-    pass
+    op.add_column(
+        "knowledge_group",
+        sa.Column("team_id", sa.Integer(), nullable=True, comment="团队ID"),
+    )
+
+    op.add_column(
+        "knowledge_group",
+        sa.Column("user_id", sa.Integer(), nullable=True, comment="用户ID"),
+    )
+
+    conn = op.get_bind()
+
+    conn.execute(
+        sa.text(
+            """
+            UPDATE knowledge_group SET team_id = scope_id, user_id = created_by WHERE scope_type = 'team'
+            """
+        )
+    )
+
+    conn.execute(
+        sa.text(
+            """
+            UPDATE knowledge_group SET team_id = NULL,user_id = CAST(scope_id AS SIGNED) WHERE scope_type = 'personal'
+            """
+        )
+    )
+    op.create_index(
+        "ix_knowledge_group_user_id", "knowledge_group", ["user_id"], unique=False
+    )
+    op.create_index(
+        "ix_knowledge_group_team_id", "knowledge_group", ["team_id"], unique=False
+    )
+    op.drop_index("ix_knowledge_group_scope", table_name="knowledge_group")
+    op.drop_index("ix_knowledge_group_created_by", table_name="knowledge_group")
+    op.drop_column("knowledge_group", "scope_type")
+    op.drop_column("knowledge_group", "scope_id")
+    op.drop_column("knowledge_group", "created_by")

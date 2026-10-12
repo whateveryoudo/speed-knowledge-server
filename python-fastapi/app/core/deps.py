@@ -209,7 +209,7 @@ def assert_org_space_member(
     if getattr(space.type, "value", space.type) != SpaceType.ORGANIZATION.value:
         return
     space_member_service = SpaceMemberService(db)
-    if not space_member_service.check_member(space_id=space.id, user_id=user_id):
+    if space_member_service.get_member_by_user_id(space_id=space.id, user_id=user_id) is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="你不是该空间成员，可联系空间管理员添加",

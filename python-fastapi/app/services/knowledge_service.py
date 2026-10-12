@@ -10,7 +10,6 @@ from app.common.utils import next_order_index
 from app.services.permission_group_service import PermissionGroupService
 from app.schemas.permission_group import PermissionGroupCreate
 from app.services.permission_service import PermissionService
-
 from app.common.enums import (
     ResourceRole,
     ResourceType,
@@ -210,34 +209,32 @@ class KnowledgeService(BaseService[Knowledge]):
                 )
                 group_id = knowledge_in.group_id
                 if not group_id:
-                    # 这里区分加入个人默认分组/团队默认分组
+                    # 这里查找到对应类别的默认分组
                     from app.models.knowledge_group import KnowledgeGroup
                     from app.services.knowledge_group_service import (
                         KnowledgeGroupService,
                     )
 
+                    group_service = KnowledgeGroupService(self.db)
                     if knowledge_in.team_id:
                         # 团队知识库
-                        team_default_group = (
-                            self.db.query(KnowledgeGroup)
-                            .filter(
-                                KnowledgeGroup.team_id == knowledge_in.team_id,
-                                KnowledgeGroup.is_default.is_(True),
-                            )
-                            .first()
+                        default_group = group_service.get_default_group(
+                            scope_id=knowledge_in.team_id,
+                            scope_type=KnowledgeScopeType.TEAM.value,
                         )
-                        if not team_default_group:
-                            raise HTTPException(
-                                status_code=status.HTTP_404_NOT_FOUND,
-                                detail="团队默认分组不存在",
-                            )
-                        group_id = team_default_group.id
+                    elif space.type == SpaceType.ORGANIZATION:
+                        # 组织公共空间
+                        default_group = group_service.get_default_group(
+                            scope_id=space.id,
+                            scope_type=KnowledgeScopeType.SPACE.value,
+                        )
                     else:
                         # 个人知识库
-                        default_group = KnowledgeGroupService(
-                            self.db
-                        ).get_default_group(knowledge_in.creator_id)
-                        group_id = default_group.id
+                        default_group = group_service.get_default_group(
+                            scope_id=str(knowledge_in.creator_id),
+                            scope_type=KnowledgeScopeType.PERSONAL.value,
+                        )
+                    group_id = default_group.id
                 if group_id:
                     self.knowledge_group_relation_service.create(
                         KnowledgeGroupRelationCreate(
@@ -289,6 +286,10 @@ class KnowledgeService(BaseService[Knowledge]):
                 raise e
         if last_exec:
             raise last_exec
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="创建知识库失败",
+        )    
 
     def create_knowledge_for_quick_document(self, data: KnowledgeCreate) -> Knowledge:
         """创建默认知识库(这里不再走统一创建默认团队的逻辑)"""
@@ -364,7 +365,7 @@ class KnowledgeService(BaseService[Knowledge]):
             Knowledge.creator_id == user_id,
         )
 
-    def _apply_sorter(self, query, sorts: List[SortRule]):
+    def _apply_sorter(self, query, sorts: List[SortRule] | None):
         """排序追加(这里是多维度排序)"""
         order_clauses = []
         if not sorts:

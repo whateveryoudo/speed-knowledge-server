@@ -1,8 +1,8 @@
 """文档模型"""
 
+from typing import Optional
 from app.db.base import Base
 from sqlalchemy import (
-    Column,
     UniqueConstraint,
     String,
     Integer,
@@ -10,7 +10,7 @@ from sqlalchemy import (
     func,
     DateTime,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.dialects.mysql import LONGTEXT, LONGBLOB
 from datetime import datetime
 import uuid
@@ -29,48 +29,52 @@ class Document(SoftDeleteMixin, Base):
         ),
     )
 
-    id = Column[str](
+    id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         index=True,
         comment="主键",
     )
-    user_id = Column[int](
+    user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("user.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
         comment="所属用户",
     )
-    knowledge_id = Column[str](
+    knowledge_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("knowledge_base.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
         comment="所属知识库",
     )
-    name = Column[str](String(128), nullable=False, comment="文档名称")
-    slug = Column[str](String(64), nullable=False, comment="文档短链")
-    type = Column[DocumentType](String(10), nullable=False, comment="文档类型")
-    view_count = Column[int](Integer, nullable=False, default=0, comment="浏览次数")
-    visibility = Column[str](
+    name: Mapped[str] = mapped_column(String(128), nullable=False, comment="文档名称")
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, comment="文档短链")
+    type: Mapped[DocumentType] = mapped_column(
+        String(10), nullable=False, comment="文档类型"
+    )
+    view_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="浏览次数"
+    )
+    visibility: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         default=DocumentVisibility.INHERIT.value,
         server_default=DocumentVisibility.INHERIT.value,
         comment="文档可见类别: inherit(继承知识库权限), space(空间内部成员可见),private(不继承知识库的空间/公开范围), public(互联网公开)",
     )
-    content_updated_at = Column[datetime](
+    content_updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True, comment="内容最近更新时间"
     )
-    created_at = Column[datetime](
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column[datetime](
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
@@ -96,36 +100,36 @@ class DocumentContent(Base):
 
     __tablename__ = "document_content"
 
-    id = Column[str](
+    id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         index=True,
         comment="主键",
     )
-    document_id = Column[str](
+    document_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("document_base.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
         comment="所属文档",
     )
-    node_json = Column[str](
+    node_json: Mapped[str] = mapped_column(
         LONGTEXT, nullable=False, comment="文档内容(为协同编辑的的二进制json数据)"
     )
-    content = Column(
+    content: Mapped[bytes] = mapped_column(
         LONGBLOB, nullable=False, comment="文档内容(为协同编辑的的二进制数据)"
     )
-    content_updated_at = Column[datetime](
+    content_updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True, comment="内容最近更新时间"
     )
-    created_at = Column[datetime](
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),
         comment="创建时间",
     )
-    updated_at = Column[datetime](
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         server_default=func.current_timestamp(),

@@ -9,7 +9,6 @@ import redis
 from app.services.user_service import UserService
 from app.core.security import verify_email_code, get_client_ip
 from app.core.redis_client import get_redis
-from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupCreate
 from app.schemas.user import UserResponse, UserFullListParams
 from app.core.security import RateLimitByIP
@@ -49,25 +48,26 @@ async def create_user(
     # 检查邮箱是否已注册
     existing_user = user_service.get_by_email(user_in.email)
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="该邮箱已注册"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该邮箱已注册")
 
     # 检查用户名是否已存在
     existing_user = user_service.get_by_username(user_in.username)
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="该用户名已被使用"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该用户名已被使用")
 
     created_user = user_service.create(user_in)
-    # 新用户创建成功时，会创建一个默认分组
+    # 新用户创建成功时，会创建一个默认分组\
+    from app.common.enums import KnowledgeScopeType
+    from app.services.knowledge_group_service import KnowledgeGroupService
+
     knowledge_group_service = KnowledgeGroupService(db)
     knowledge_group_service.create(
         KnowledgeGroupCreate(
-            user_id=created_user.id,
+            scope_id=created_user.id,
+            scope_type=KnowledgeScopeType.PERSONAL.value,
             group_name="我的知识库",
             order_index=0,
+            created_by=created_user.id,
             is_default=True,
         )
     )

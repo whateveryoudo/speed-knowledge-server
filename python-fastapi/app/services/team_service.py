@@ -37,7 +37,10 @@ class TeamService(BaseService):
     ) -> TeamDetailResponse:
         team = (
             self.get_active_query()
-            .filter(Team.space_id == space_id, (Team.slug == identifier) | (Team.id == identifier))
+            .filter(
+                Team.space_id == space_id,
+                (Team.slug == identifier) | (Team.id == identifier),
+            )
             .first()
         )
         if team is None:
@@ -95,10 +98,12 @@ class TeamService(BaseService):
             ),
             commit=False,
         )
+        from app.common.enums import KnowledgeScopeType
         default_team_group = KnowledgeGroup(
             group_name="默认分组",
-            team_id=team_row.id,
-            user_id=owner_id,
+            scope_id=team_row.id,
+            created_by=owner_id,
+            scope_type=KnowledgeScopeType.TEAM.value,
             is_default=True,
             display_config=DEFAULT_DISPLAY_CONFIG.model_dump(),
         )

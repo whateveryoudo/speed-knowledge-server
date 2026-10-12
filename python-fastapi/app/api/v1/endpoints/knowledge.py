@@ -1,5 +1,6 @@
 """知识库端点"""
 
+import scipy
 from typing import List
 
 from fastapi import APIRouter, status, Query, Depends, HTTPException
@@ -41,10 +42,7 @@ from app.schemas.knowledge_common_pin import (
     KnowledgeCommonPinResponse,
 )
 from app.models.document_node import DocumentNode
-from app.common.enums import (
-    KnowledgeAbility,
-    CollectTargetType,
-)
+from app.common.enums import KnowledgeAbility, CollectTargetType, KnowledgeScopeType
 from app.schemas.knowledge_group import (
     KnowledgeGroupUpdateBody,
     KnowledgeGroupResponse,
@@ -180,24 +178,28 @@ async def get_knowledge_index_page(
 # 这里是直接创建一个默认的分组，不需要传入任何参数
 @router.post("/group/create", response_model=str, status_code=status.HTTP_201_CREATED)
 async def create_knowledge_group(
-    team_id: Optional[str] = Query(None, description="团队id(团队知识库分组创建)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> int:
-    """创建知识库分组"""
+    """创建知识库分组(个人)"""
     knowledge_group_service = KnowledgeGroupService(db)
-    order_index = next_order_index(db, KnowledgeGroup, team_id=team_id) if team_id  else next_order_index(db, KnowledgeGroup, user_id=current_user.id)
+
     knowledge_group_data = KnowledgeGroupCreate(
-        user_id=current_user.id,
-        team_id=team_id,
+        created_by=current_user.id,
+        scope_type=KnowledgeScopeType.PERSONAL.value,
+        scope_id=str(current_user.id),
         group_name="新建分组",
-        order_index=order_index,
+        # 放第一个
+        order_index=0,
         is_default=False,
     )
-    created_knowledge_group = knowledge_group_service.create(knowledge_group_data)
+    created_knowledge_group = knowledge_group_service.create(
+        knowledge_group_data, current_user.id
+    )
     return created_knowledge_group
 
 
+# 以下3个 操作为通用的group更新操作，不在各自的区域区分（能根据 group_id定位到多模态）
 @router.put(
     "/group/update/{group_id}", response_model=None, status_code=status.HTTP_200_OK
 )
@@ -237,25 +239,30 @@ async def delete_knowledge_group(
     knowledge_group_service.delete(group_id, current_user.id)
 
 
-@router.get("/group/list", response_model=List[KnowledgeGroupResponse])
+@router.get("/group/list-simple", response_model=List[KnowledgeGroupResponse])
 async def get_knowledge_group_list(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> List[KnowledgeGroupResponse]:
-    """获取知识库分组列表"""
+    """获取知识库分组列表（这里只是个人知识库，轻量）"""
     knowledge_group_service = KnowledgeGroupService(db)
-    return knowledge_group_service.get_list_by_user_id(current_user.id)
+    return knowledge_group_service.get_list(
+        scope_type=KnowledgeScopeType.PERSONAL.value, scope_id=current_user.id
+    )
 
 
-@router.get("/group/list-detail", response_model=List[KnowledgeGroupResponse])
+@router.get("/group/list", response_model=List[KnowledgeGroupResponse])
 async def get_knowledge_group_list_detail(
     keyword: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[KnowledgeGroupResponse]:
-    """获取带知识库的分组列表"""
+    """获取带知识库的分组列表（这里只是个人知识库）"""
     knowledge_group_service = KnowledgeGroupService(db)
     return knowledge_group_service.get_list_with_knowledge(
-        user_id=current_user.id, keyword=keyword
+        user_id=current_user.id,
+        scope_type=KnowledgeScopeType.PERSONAL.value,
+        scope_id=str(current_user.id),
+        keyword=keyword,
     )
 
 

@@ -4,10 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from app.schemas.knowledge import KnowledgeResponse
-from app.common.enums import (
-    KnowledgeGroupType,
-    KnowledgeGroupStyle,
-)
+from app.common.enums import KnowledgeGroupType, KnowledgeGroupStyle, KnowledgeScopeType
 
 
 class KnowledgeGroupDisplayConfig(BaseModel):
@@ -15,15 +12,11 @@ class KnowledgeGroupDisplayConfig(BaseModel):
 
     type: KnowledgeGroupType = Field(..., description="分组类型")
     style: KnowledgeGroupStyle = Field(..., description="分组样式")
-    show_knowledge_icon: Optional[bool] = Field(
-        default=True, description="是否显示知识库图标"
-    )
+    show_knowledge_icon: Optional[bool] = Field(default=True, description="是否显示知识库图标")
     show_knowledge_description: Optional[bool] = Field(
         default=True, description="是否显示知识库描述"
     )
-    doc_order_type: Optional[int] = Field(
-        default=1, description="文档排序类型:1-更新时间,2-创建时间"
-    )
+    doc_order_type: Optional[int] = Field(default=1, description="文档排序类型:1-更新时间,2-创建时间")
 
 
 DEFAULT_DISPLAY_CONFIG = KnowledgeGroupDisplayConfig(
@@ -38,11 +31,14 @@ DEFAULT_DISPLAY_CONFIG = KnowledgeGroupDisplayConfig(
 class KnowledgeGroupBase(BaseModel):
     """知识库分组基础结构"""
 
-    user_id: int = Field(..., description="所属用户ID")
-    team_id:Optional[str] = Field(default=None, description="所属团队ID")
+    scope_type: KnowledgeScopeType = Field(
+        ..., description="范围类型: personal-个人, team-团队"
+    )
+    scope_id: str = Field(..., description="范围ID:个人用户ID/团队ID/组织ID")
     group_name: str = Field(..., description="分组名称", min_length=1, max_length=50)
     order_index: int = Field(..., description="排序索引")
     is_default: Optional[bool] = Field(default=False, description="是否默认分组")
+    created_by: Optional[int] = Field(default=None, description="创建者ID")
     display_config: Optional[KnowledgeGroupDisplayConfig] = Field(
         default=None, description="显示配置"
     )
@@ -65,19 +61,24 @@ class KnowledgeGroupUpdateBody(BaseModel):
         default=None, description="显示配置"
     )
 
+
 class DocumentSummaryItem(BaseModel):
     """文档总结项(仅取一些需要显示的字段)"""
+
     id: str = Field(..., description="文档ID")
     name: str = Field(..., description="文档名称")
     slug: str = Field(..., description="文档短链")
     updated_at: datetime = Field(..., description="更新时间")
     content_updated_at: Optional[datetime] = Field(default=None, description="内容更新时间")
 
+
 class KnowledgeInGroupItem(KnowledgeResponse):
     """知识库分组中的知识库项(包含relation部分字段，知识库字段，文档总结前三项)"""
+
     order_index: int = Field(..., description="排序索引")
     relation_id: str = Field(..., description="关系ID")
     doc_summary: List[DocumentSummaryItem] = Field(..., description="文档总结(TOP3)")
+
 
 class KnowledgeGroupResponse(KnowledgeGroupBase):
     """知识库分组响应"""

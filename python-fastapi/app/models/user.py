@@ -1,10 +1,11 @@
 """用户模型"""
 
-from sqlalchemy import Column, Integer, String, DateTime, func
+from typing import Optional
+from sqlalchemy import Integer, String, DateTime, func
 from app.db.base import Base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.core.mixins import SoftDeleteMixin
-
+from datetime import datetime
 
 class User(Base, SoftDeleteMixin):
     """用户表
@@ -15,15 +16,21 @@ class User(Base, SoftDeleteMixin):
 
     __tablename__ = "user"
 
-    id = Column[int](Integer, primary_key=True, index=True)
-    email = Column[str](String(255), unique=True, index=True, nullable=False)
-    username = Column[str](String(255), unique=True, index=True, nullable=False)
-    password = Column[str](String(255), nullable=False)
-    nickname = Column[str](String(255), nullable=True)  # 昵称，可选，不唯一
-    created_at = Column(
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
+    username: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    nickname: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # 昵称，可选，不唯一
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
