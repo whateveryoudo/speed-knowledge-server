@@ -34,6 +34,7 @@ class ResourceCollaborationItem(BaseModel):
     principal_role: PrincipalRole = Field(..., description="主体角色")
     user: Optional[CollaborationUserBrief] = Field(None, description="用户信息概要")
     display_name: str = Field(..., description="显示名称(某些角色会显示成一些角色名)")
+    icon: Optional[str] = Field(None, description="主体图标")
     locked: bool = Field(..., description="是否锁定(不允许切换角色)")
     resource_role: Optional[ResourceRole] = Field(None, description="角色")
     source: Optional[str] = Field(None, description="来源")

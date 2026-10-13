@@ -1,3 +1,4 @@
+from app import repositories
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -47,7 +48,12 @@ class ResourceCollaborationService:
         self.permission_service = PermissionService(db)
 
     def _build_locked_admin_row(
-        self, *, team_id: str, owner_grant: ResourceGrant | None, admin_grant: ResourceGrant | None
+        self,
+        *,
+        team_id: str,
+        owner_grant: ResourceGrant | None,
+        admin_grant: ResourceGrant | None,
+        icon: str | None = None,
     ) -> ResourceCollaborationItem:
         """构建锁定管理员行(这里对owner + admin 进行合并，库里还是两条grant)"""
         picked = admin_grant or owner_grant
@@ -55,10 +61,11 @@ class ResourceCollaborationService:
         return ResourceCollaborationItem(
             row_type="role_group",
             principal_type=PrincipalType.TEAM_ROLE,
-            principal_id=str(team_id),
+            principal_id=team_id,
             principal_role=PrincipalRole.ADMIN,
             user=None,
             display_name="团队管理员",
+            icon=icon,
             locked=True,
             resource_role=resource_role,
             source=picked.source if picked is not None else None,
@@ -74,6 +81,7 @@ class ResourceCollaborationService:
         role: PrincipalRole,
         grant: ResourceGrant | None,
         can_manage: bool,
+        icon: str | None = None,
     ) -> ResourceCollaborationItem:
         """构建可编辑角色行"""
         if grant is not None:
@@ -87,10 +95,11 @@ class ResourceCollaborationService:
         return ResourceCollaborationItem(
             row_type="role_group",
             principal_type=PrincipalType.TEAM_ROLE,
-            principal_id=str(team_id),
+            principal_id=team_id,
             principal_role=role,
             user=None,
             display_name=TEAM_ROLE_DISPLAY[role],
+            icon=icon,
             locked=False,
             resource_role=resource_role,
             source=source,
@@ -101,7 +110,11 @@ class ResourceCollaborationService:
         )
 
     def _build_team_role_items(
-        self, team_id: str, grants: List[ResourceGrant], can_manage: bool
+        self,
+        team_id: str,
+        grants: List[ResourceGrant],
+        can_manage: bool,
+        icon: str | None = None,
     ) -> List[ResourceCollaborationItem]:
         """构建团队授权项"""
         items: List[ResourceCollaborationItem] = []
@@ -109,7 +122,7 @@ class ResourceCollaborationService:
             PrincipalRole(g.principal_role): g
             for g in grants
             if g.principal_type == PrincipalType.TEAM_ROLE.value
-            and g.principal_id == str(team_id)
+            and g.principal_id == team_id
         }
 
         items = [
@@ -117,6 +130,7 @@ class ResourceCollaborationService:
                 team_id=team_id,
                 owner_grant=team_grants.get(PrincipalRole.OWNER),
                 admin_grant=team_grants.get(PrincipalRole.ADMIN),
+                icon=icon,
             )
         ]
 
@@ -127,6 +141,7 @@ class ResourceCollaborationService:
                     role=role,
                     grant=team_grants.get(role),
                     can_manage=can_manage,
+                    icon=icon,
                 )
             )
         return items
@@ -253,6 +268,7 @@ class ResourceCollaborationService:
         space_id: str,
         owner_grant: ResourceGrant | None,
         admin_grant: ResourceGrant | None,
+        icon: str | None = None,
     ) -> ResourceCollaborationItem:
         """构建锁定空间管理员行"""
         picked = admin_grant or owner_grant
@@ -260,9 +276,10 @@ class ResourceCollaborationService:
         return ResourceCollaborationItem(
             row_type="role_group",
             principal_type=PrincipalType.SPACE_ROLE,
-            principal_id=str(space_id),
+            principal_id=space_id,
             principal_role=PrincipalRole.ADMIN,
             user=None,
+            icon=icon,
             display_name="空间管理员",
             locked=True,
             resource_role=resource_role,
@@ -280,6 +297,7 @@ class ResourceCollaborationService:
         role: PrincipalRole,
         grant: ResourceGrant | None,
         can_manage: bool,
+        icon: str | None = None,
     ) -> ResourceCollaborationItem:
         """构建可编辑空间角色行"""
         if grant is not None:
@@ -293,7 +311,7 @@ class ResourceCollaborationService:
         return ResourceCollaborationItem(
             row_type="role_group",
             principal_type=PrincipalType.SPACE_ROLE,
-            principal_id=str(space_id),
+            principal_id=space_id,
             principal_role=role,
             user=None,
             display_name=SPACE_ROLE_DISPLAY[role],
@@ -302,12 +320,18 @@ class ResourceCollaborationService:
             source=source,
             status="effective",
             can_manage=can_manage,
+            icon=icon,
             grant_id=grant_id,
             access_request_id=None,
         )
 
     def _build_space_role_items(
-        self, *, space_id: str, grants: List[ResourceGrant], can_manage: bool
+        self,
+        *,
+        space_id: str,
+        grants: List[ResourceGrant],
+        can_manage: bool,
+        icon: str | None = None,
     ) -> List[ResourceCollaborationItem]:
         """构建空间授权项"""
         items: List[ResourceCollaborationItem] = []
@@ -315,7 +339,7 @@ class ResourceCollaborationService:
             PrincipalRole(g.principal_role): g
             for g in grants
             if g.principal_type == PrincipalType.SPACE_ROLE.value
-            and g.principal_id == str(space_id)
+            and g.principal_id == space_id
         }
         # 构建管理者项（Owner + Admin）
         items.append(
@@ -323,6 +347,7 @@ class ResourceCollaborationService:
                 space_id=space_id,
                 owner_grant=space_grants.get(PrincipalRole.OWNER),
                 admin_grant=space_grants.get(PrincipalRole.ADMIN),
+                icon=icon,
             )
         )
         for role in (PrincipalRole.MEMBER, PrincipalRole.EXTERNAL):
@@ -332,6 +357,7 @@ class ResourceCollaborationService:
                     role=role,
                     grant=space_grants.get(role),
                     can_manage=can_manage,
+                    icon=icon,
                 )
             )
         # 构建成员项(这里包括成员和外来人)
@@ -357,9 +383,13 @@ class ResourceCollaborationService:
 
         if knowledge.team_id:
             # 构建团队授权项
+            team_icon = knowledge.team.icon if knowledge.team is not None else None
             items.extend(
                 self._build_team_role_items(
-                    team_id=knowledge.team_id, grants=grants, can_manage=True
+                    team_id=knowledge.team_id,
+                    grants=grants,
+                    can_manage=True,
+                    icon=team_icon,
                 )
             )
         elif (
@@ -367,9 +397,13 @@ class ResourceCollaborationService:
             and knowledge.space.type == SpaceType.ORGANIZATION.value
         ):
             # 构建空间授权项
+            space_icon = knowledge.space.icon if knowledge.space is not None else None
             items.extend(
                 self._build_space_role_items(
-                    space_id=knowledge.space.id, grants=grants, can_manage=True
+                    space_id=knowledge.space.id,
+                    grants=grants,
+                    can_manage=True,
+                    icon=space_icon,
                 )
             )
         # 构建用户授权行

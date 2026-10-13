@@ -62,32 +62,22 @@ class DocumentService(BaseService[Document]):
         self.document_repository = DocumentRepository(db)
 
     def create_default_content(self, document_id: str):
-        """构建 document_content：调用 Node create-default（按 document_base.type 写 word/sheet）"""
-        try:
-            nodejs_service_url = settings.NODEJS_SERVICE_URL
-            url = f"{nodejs_service_url}/document-content/create-default"
-            payload = {
-                "documentId": document_id,
-            }
-            headers = {
-                "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
-                "Idempotency-Key": f"create-default:{document_id}",
-                "X-Request-Id": str(uuid.uuid4()),
-            }
-            with httpx.Client(timeout=10.0) as client:
-                response = client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                logger.info(
-                    f"Create default content by nodejs success:documentId={document_id}"
-                )
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"Create default content by nodejs failed:documentId={document_id},error={e}",
-                exc_info=True,
-            )
-        except Exception as e:
-            logger.error(
-                f"Create default content by nodejs failed:documentId={document_id},error={e}"
+        """构建 document_content：调用 Node create-default（按 document_base.type 写 word/sheet/board）,2026-10-13：这里不进行错误拦截，创建文档内容失败后应当走补偿机制，否则会产生空内容的文档"""
+        nodejs_service_url = settings.NODEJS_SERVICE_URL
+        url = f"{nodejs_service_url}/document-content/create-default"
+        payload = {
+            "documentId": document_id,
+        }
+        headers = {
+            "X-Internal-Token": settings.INTERNAL_SERVICE_TOKEN,
+            "Idempotency-Key": f"create-default:{document_id}",
+            "X-Request-Id": str(uuid.uuid4()),
+        }
+        with httpx.Client(timeout=10.0, trust_env=False) as client:
+            response = client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(
+                f"Create default content by nodejs success:documentId={document_id}"
             )
 
     def create(
@@ -143,11 +133,25 @@ class DocumentService(BaseService[Document]):
         self.db.commit()
         self.db.refresh(document_node)
         # 这里追加判断是否导入默认内容（如果是走导入则跳过）
-        if not skip_default_content:
-            # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
-            self.create_default_content(document.id)
-        # 这里返回节点信息（不返回文档信息）
-        return document_node
+        try:
+            if not skip_default_content:
+                # 构建文档内容(这里调用nodejs服务构建一个默认的空的流和json， 注意：一定要先commit,确保事务完成，否则node连接会等待此事务完成)
+                self.create_default_content(document.id)
+            # 这里返回节点信息（不返回文档信息）
+            return document_node
+        except Exception as e:
+            logger.error(f"创建默认文档内容失败,执行补偿清理: {e}")
+            try:
+                # 回退删除已经加好的文档数据
+                self.delete_by_id_or_slug(document.id, is_soft_delete=False)
+            except Exception as e:
+                logger.error(
+                    f"Rollback delete document failed:documentId={document.id},error={e}"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="文档初始化内容失败，请稍后重试",
+            )
 
     def create_quick_document(
         self, document_in: DocumentCreate
@@ -155,9 +159,7 @@ class DocumentService(BaseService[Document]):
         """创建快速文档"""
         target_document_node = self.create(document_in)
         if not target_document_node.document_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档创建失败"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档创建失败")
         return self.get_document_route_context(target_document_node.document_id)
 
     def get_by_id_or_slug(self, identifier: str) -> Document:
@@ -303,9 +305,7 @@ class DocumentService(BaseService[Document]):
         """导出文档"""
         document = self.get_by_id_or_slug(document_id)
         if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
         # 文档名作为导出的文件名
         fileName = f"{document.name}"
 
@@ -358,18 +358,14 @@ class DocumentService(BaseService[Document]):
         document = self.get_by_id_or_slug(document_id)
 
         if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
         # 更新文档节点标题
         from app.services.document_node_service import DocumentNodeService
 
         document_node_service = DocumentNodeService(self.db)
         document_node = document_node_service.get_node_by_document_id(document.id)
         if not document_node:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档节点不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档节点不存在")
         old_name = document.name
         # 同步node表的title
         document_node.title = new_title
@@ -406,9 +402,7 @@ class DocumentService(BaseService[Document]):
         document = self.get_by_id_or_slug(identifier)
         document_node_service = DocumentNodeService(self.db)
         if not document:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
         # 修改为软删除
         if is_soft_delete:
             document.soft_delete()
@@ -518,14 +512,10 @@ class DocumentService(BaseService[Document]):
             .first()
         )
         if not document_full_info:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
         knowledge = document_full_info.knowledge
         if not knowledge:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识库不存在")
         team = knowledge.team
 
         return DocumentRouteContext(
@@ -621,9 +611,7 @@ class DocumentService(BaseService[Document]):
         """查询当前文档最终具有读取能力的上下文用户"""
         document = self.document_repository.get_active_by_id_or_slug(document_id)
         if document is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文档不存在")
         # 收窄用户范围
         candidate_user_ids = self.resource_grant_service.list_document_context_user_ids(
             document=document

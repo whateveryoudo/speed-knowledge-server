@@ -203,8 +203,15 @@ export class CollaborationService implements OnModuleInit {
               ? yStateToSheetJson(state)
               : await yStateToPmJson(state);
             // 先那一遍旧的内容，用于对比
-            const oldContentJson =
-              await documentContentService.getDocumentContentJson(documentName);
+            let oldContentJson = null;
+            try {
+              oldContentJson =
+                await documentContentService.getDocumentContentJson(
+                  documentName,
+                );
+            } catch (err) {
+              this.logger.warn(`文档${documentName}旧内容不存在`)
+            }
             await documentContentService.updateContent(
               documentName,
               Buffer.from(state),
