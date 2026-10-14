@@ -44,6 +44,7 @@ from app.common.utils import is_duplicate_entry, is_slug_duplicate
 from app.services.knowledge_group_relation_service import KnowledgeGroupRelationService
 from app.schemas.knowledge_group_relation import KnowledgeGroupRelationCreate
 from app.services.knowledge_common_pin_service import KnowledgeCommonPinService
+from app.models.knowledge_common_pin import KnowledgeCommonPin
 from app.common.enums import KnowledgeAbility, DocumentAbility
 from app.services.document_service import DocumentService
 from typing import Union
@@ -289,7 +290,7 @@ class KnowledgeService(BaseService[Knowledge]):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="创建知识库失败",
-        )    
+        )
 
     def create_knowledge_for_quick_document(self, data: KnowledgeCreate) -> Knowledge:
         """创建默认知识库(这里不再走统一创建默认团队的逻辑)"""
@@ -363,6 +364,14 @@ class KnowledgeService(BaseService[Knowledge]):
         """自己创建的知识库查询条件"""
         return self.knowledge_repository.active_list_query().filter(
             Knowledge.creator_id == user_id,
+        )
+
+    def _build_team_query(self, *, user_id):
+        accessible_ids = self.resource_grant_service.list_user_accessible_knowledge_ids(
+            user_id=user_id
+        )
+        return self.knowledge_repository.active_list_query().filter(
+            Knowledge.team_id.isnot(None), Knowledge.id.in_(accessible_ids)
         )
 
     def _apply_sorter(self, query, sorts: List[SortRule] | None):
@@ -469,20 +478,16 @@ class KnowledgeService(BaseService[Knowledge]):
     def _to_response(
         self,
         *,
-        user_id: int,
         knowledge: Knowledge,
         ability_map: dict[str, dict],
+        is_pinned: bool=False
     ) -> KnowledgeResponse:
         """转换为响应结构"""
-        source = (
-            KnowledgeFromWay.OWN
-            if knowledge.creator_id == user_id
-            else KnowledgeFromWay.COLLABORATION
-        )
+
         return KnowledgeResponse.model_validate(knowledge).model_copy(
             update={
                 "ability": ability_map.get(knowledge.id, {}),
-                "source": source,
+                "is_pinned": is_pinned,
                 "scope_slug": self._resolve_scope_slug(knowledge),
             }
         )
@@ -504,6 +509,8 @@ class KnowledgeService(BaseService[Knowledge]):
             query = self._build_owned_query(user_id=user_id)
         elif query_in.scope == KnowledgeFromWay.COLLABORATION:
             query = self._build_collaboration_query(user_id=user_id)
+        elif query_in.scope == KnowledgeFromWay.TEAM:
+            query = self._build_team_query(user_id=user_id)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="scope参数错误"
@@ -527,12 +534,23 @@ class KnowledgeService(BaseService[Knowledge]):
                 user_id=user_id, knowledge_ids=knowledge_ids
             )
         )
-
+        # 查询当前用户常用知识库的ids
+        pinned_ids = set()
+        if knowledge_ids:
+            pinned_ids = {
+                r[0]
+                for r in self.db.query(KnowledgeCommonPin.knowledge_id)
+                .filter(
+                    KnowledgeCommonPin.user_id == user_id,
+                    KnowledgeCommonPin.knowledge_id.in_(knowledge_ids),
+                )
+                .all()
+            }
         items = [
             self._to_response(
                 knowledge=knowledge,
-                user_id=user_id,
                 ability_map=ability_map,
+                is_pinned=knowledge.id in pinned_ids
             )
             for knowledge in rows
         ]
@@ -563,12 +581,24 @@ class KnowledgeService(BaseService[Knowledge]):
                 user_id=user_id, knowledge_ids=knowledge_ids
             )
         )
+        # 查询当前用户常用知识库的ids
+        pinned_ids = set()
+        if knowledge_ids:
+            pinned_ids = {
+                r[0]
+                for r in self.db.query(KnowledgeCommonPin.knowledge_id)
+                .filter(
+                    KnowledgeCommonPin.user_id == user_id,
+                    KnowledgeCommonPin.knowledge_id.in_(knowledge_ids),
+                )
+                .all()
+            }
         # 组装成和get_list_by_user_id一样的响应结构
         items = [
             self._to_response(
                 knowledge=knowledge,
-                user_id=user_id,
                 ability_map=ability_map,
+                is_pinned=knowledge.id in pinned_ids,
             )
             for knowledge in rows
         ]

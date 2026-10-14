@@ -323,7 +323,7 @@ async def create_knowledge_common_pin(
     """创建一条常用知识库记录"""
     knowledge_common_pin_service = KnowledgeCommonPinService(db)
     return knowledge_common_pin_service.create(
-        knowledge_id=body.knowledge_id, user_id=current_user.id
+        knowledge_id=body.knowledge_id, creator_id=current_user.id
     )
 
 

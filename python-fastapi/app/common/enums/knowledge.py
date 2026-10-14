@@ -58,7 +58,7 @@ class KnowledgeFromWay(str, Enum):
 
     OWN = "own"  # 个人知识库
     COLLABORATION = "collaboration"  # 协同知识库
-
+    TEAM="team" # 来自团队的
 
 class KnowledgeVisibility(str, Enum):
     """知识库可见类别（移除已有的is_public）"""

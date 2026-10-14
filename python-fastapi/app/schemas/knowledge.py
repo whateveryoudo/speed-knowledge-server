@@ -80,9 +80,7 @@ class KnowledgeResponse(KnowledgeBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     team: Optional[TeamResponse] = Field(default=None, description="所属团队")
-    source: Optional[KnowledgeFromWay] = Field(
-        default=None, description="知识库来源：自己创建的、参与协同的"
-    )
+    is_pinned: bool = Field(default=False, description="是否设为了常用")
     scope_slug: Optional[str] = Field(
         default=None,
         description="路由作用域短链：username / public_area_slug / team.slug",

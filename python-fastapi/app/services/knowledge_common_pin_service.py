@@ -23,7 +23,7 @@ class KnowledgeCommonPinService:
     ) -> KnowledgeCommonPinResponse:
         """构建响应对象"""
         knowledge_response = KnowledgeResponse.model_validate(knowledge).model_copy(
-            update={"ability": ability_map.get(knowledge.id, {})}
+            update={"ability": ability_map.get(knowledge.id, {}), "is_pinned": True}
         )
         return KnowledgeCommonPinResponse(
             id=pin.id,

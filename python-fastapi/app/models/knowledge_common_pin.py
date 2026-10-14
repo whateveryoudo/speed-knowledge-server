@@ -22,19 +22,19 @@ class KnowledgeCommonPin(Base):
         index=True,
         comment="主键",
     )
-    knowledge_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("knowledge_base.id"), index=True, nullable=True, comment="知识库ID"
+    knowledge_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("knowledge_base.id"), index=True, nullable=False, comment="知识库ID"
     )
-    user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("user.id"), index=True, nullable=True, comment="用户ID"
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("user.id"), index=True, nullable=False, comment="用户ID"
     )
-    order_index: Mapped[Optional[int]] = mapped_column(
-        Integer, default=0, nullable=True, comment="排序索引"
+    order_index: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="排序索引"
     )
-    created_at: Mapped[Optional[datetime]] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), nullable=True, comment="创建时间"
     )
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), onupdate=func.now(), nullable=True, comment="更新时间"
     )
 
