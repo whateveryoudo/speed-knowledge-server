@@ -360,6 +360,16 @@ class KnowledgeService(BaseService[Knowledge]):
         self.db.commit()
         return True
 
+    def _build_public_area_query(self, *, user_id: int):
+        """查询公共区知识库"""
+        accessible_ids = self.resource_grant_service.list_user_accessible_knowledge_ids(
+            user_id=user_id
+        )
+        return self.knowledge_repository.active_list_query().filter(
+            Knowledge.team_id.is_(None),
+            Knowledge.id.in_(accessible_ids),
+        )
+
     def _build_owned_query(self, *, user_id: int):
         """自己创建的知识库查询条件"""
         return self.knowledge_repository.active_list_query().filter(
@@ -480,7 +490,7 @@ class KnowledgeService(BaseService[Knowledge]):
         *,
         knowledge: Knowledge,
         ability_map: dict[str, dict],
-        is_pinned: bool=False
+        is_pinned: bool = False,
     ) -> KnowledgeResponse:
         """转换为响应结构"""
 
@@ -511,6 +521,8 @@ class KnowledgeService(BaseService[Knowledge]):
             query = self._build_collaboration_query(user_id=user_id)
         elif query_in.scope == KnowledgeFromWay.TEAM:
             query = self._build_team_query(user_id=user_id)
+        elif query_in.scope == KnowledgeFromWay.PUBLIC_AREA:
+            query = self._build_public_area_query(user_id=user_id)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="scope参数错误"
@@ -550,7 +562,7 @@ class KnowledgeService(BaseService[Knowledge]):
             self._to_response(
                 knowledge=knowledge,
                 ability_map=ability_map,
-                is_pinned=knowledge.id in pinned_ids
+                is_pinned=knowledge.id in pinned_ids,
             )
             for knowledge in rows
         ]
