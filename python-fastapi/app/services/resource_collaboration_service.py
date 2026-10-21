@@ -8,9 +8,8 @@ from app.schemas.resource_collaboration import (
     ResourceCollaborationQuery,
 )
 from app.models.user import User
-from app.schemas.resource_collaboration import CollaborationUserBrief
+from app.schemas.user import UserBrief
 from app.repositories.resource_grant_repository import ResourceGrantRepository
-from app.services.resource_grant_service import ResourceGrantService
 from app.services.permission_service import PermissionService
 
 from app.repositories.knowledge_repository import KnowledgeRepository
@@ -147,11 +146,11 @@ class ResourceCollaborationService:
         return items
 
     @staticmethod
-    def _to_user_brief(user: User | None) -> CollaborationUserBrief | None:
+    def _to_user_brief(user: User | None) -> UserBrief | None:
         """转换为用户简要信息"""
         if user is None:
             return None
-        return CollaborationUserBrief(
+        return UserBrief(
             id=str(user.id),
             username=user.username,
             nickname=user.nickname,

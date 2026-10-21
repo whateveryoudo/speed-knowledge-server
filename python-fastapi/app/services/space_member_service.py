@@ -1,18 +1,50 @@
+from app.common.pagination import paginate_response
+from app.schemas.space_member import (
+    SpaceMemberItemResponse,
+    SpaceMemberExtra,
+    SpaceMemberListResponse,
+)
 from app.models.space_member import SpaceMember
-from app.schemas.space_member import SpaceMemberCreate, SpaceMemberUpdate
 from sqlalchemy.orm import Session
-from app.services.base_service import BaseService
 from app.common.enums import SpaceMemberRole
 from typing import Sequence, Optional
 from fastapi import HTTPException, status
+from app.repositories.space_department_repository import SpaceDepartmentRepository
+from app.repositories.space_member_repository import SpaceMemberRepository
 from app.common.utils import to_enum_value, to_enum_values
+from app.schemas.space_member import SpaceMemberQuery, SpaceMemberAdd
+from app.models.space_department import SpaceDepartment, SpaceDepartmentMember
+from app.schemas.user import UserBrief
 
 
-class SpaceMemberService(BaseService):
+class SpaceMemberService:
     """空间成员服务"""
 
     def __init__(self, db: Session):
-        super().__init__(db, SpaceMember)
+        self.db = db
+        self.repo = SpaceMemberRepository(db)
+        self.dept_repo = SpaceDepartmentRepository(db)
+
+    def init_space_owner(
+        self, *, space_id: str, user_id: int, default_dept_id: str | None = None
+    ) -> SpaceMember:
+        """初始化空间所有者（创建空间时调用）"""
+        if default_dept_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="缺少默认部门"
+            )
+        member = SpaceMember(
+            space_id=space_id,
+            user_id=user_id,
+            role=SpaceMemberRole.OWNER,
+        )
+        self.db.add(member)
+        self.db.flush()
+        if default_dept_id:
+            self._sync_member_departments(
+                space_member_id=member.id, dept_ids=[default_dept_id]
+            )
+        return member
 
     def get_space_member(self, space_member_id: str):
         return (
@@ -22,34 +54,206 @@ class SpaceMemberService(BaseService):
     def get_member_by_user_id(
         self, *, space_id: str, user_id: int
     ) -> Optional[SpaceMember]:
+        return self.repo.get_any_by_space_and_user(space_id=space_id, user_id=user_id)
+
+    def _get_deparment_active_member_count(
+        self, *, space_id: str, department_id: str | None
+    ) -> int:
+        """获取部门在职成员数（含子部门，排除已离职和外部人员）"""
+        base_query = self.db.query(SpaceMember.id).filter(
+            SpaceMember.space_id == space_id,
+            SpaceMember.deleted_at.is_(None),
+            SpaceMember.role != SpaceMemberRole.EXTERNAL,
+        )
+        if not department_id:
+            return base_query.distinct().count()
+        sub_ids = self.dept_repo.get_all_sub_dept_ids(
+            space_id=space_id, root_dept_id=department_id
+        )
         return (
-            self.db.query(SpaceMember)
-            .filter(SpaceMember.space_id == space_id, SpaceMember.user_id == user_id)
-            .first()
+            base_query.join(
+                SpaceDepartmentMember,
+                SpaceDepartmentMember.space_member_id == SpaceMember.id,
+            )
+            .filter(SpaceDepartmentMember.department_id.in_([department_id] + sub_ids))
+            .distinct()
+            .count()
         )
 
-    def add_member(self, space_member_create: SpaceMemberCreate, commit: bool = True):
-        space_member_row = SpaceMember(**space_member_create.model_dump())
-        self.db.add(space_member_row)
-        self.db.flush()
-        if commit:
-            self.db.commit()
-        self.db.refresh(space_member_row)
-        return space_member_row
+    def list_members(self, *, space_id: str, query_in: SpaceMemberQuery):
+        target_dept_ids = None
+        if query_in.department_id:
+            if getattr(query_in, "is_direct", False):
+                # 是否仅查直属部门
+                target_dept_ids = [query_in.department_id]
+            else:
+                # 所有子孙部门
+                sub_ids = self.dept_repo.get_all_sub_dept_ids(
+                    space_id=space_id, root_dept_id=query_in.department_id
+                )
+                target_dept_ids = [query_in.department_id] + sub_ids
 
-    def update_space_member(self, space_member_update: SpaceMemberUpdate):
-        self.db.add(space_member_update)
-        self.db.flush()
+        query = self.repo.build_members_query(
+            space_id=space_id,
+            tab=query_in.tab,
+            department_ids=target_dept_ids,
+            keyword=query_in.keyword,
+        )
+        total = query.count()
+        rows = query.offset(query_in.skip).limit(query_in.limit).all()
+
+        member_ids = [m.id for m in rows]
+        dept_map: dict[str, list[str]] = {mid: [] for mid in member_ids}
+
+        if member_ids:
+            dept_relations = (
+                self.db.query(
+                    SpaceDepartmentMember.space_member_id, SpaceDepartment.name
+                )
+                .join(
+                    SpaceDepartment,
+                    SpaceDepartment.id == SpaceDepartmentMember.department_id,
+                )
+                .filter(SpaceDepartmentMember.space_member_id.in_(member_ids))
+                .all()
+            )
+
+            for mid, dept_name in dept_relations:
+                dept_map[mid].append(dept_name)
+
+        items = [
+            SpaceMemberItemResponse(
+                id=r.id,
+                user=UserBrief(
+                    id=r.user.id,
+                    username=r.user.username,
+                    nickname=r.user.nickname,
+                    avatar=r.user.avatar,
+                ),
+                role=r.role,
+                created_at=r.created_at,
+                deleted_at=r.deleted_at,
+                department_names=dept_map[r.id],
+            )
+            for r in rows
+        ]
+        active_count = self._get_deparment_active_member_count(
+            space_id=space_id, department_id=query_in.department_id
+        )
+        has_more = (query_in.skip + len(items)) < total
+        # 列表追加该部门的在职人数
+        return SpaceMemberListResponse(
+            items=items,
+            total=total,
+            has_more=has_more,
+            page=query_in.page,
+            page_size=query_in.page_size,
+            extra=SpaceMemberExtra(active_member_count=active_count),
+        )
+
+    def _sync_member_departments(self, *, space_member_id: str, dept_ids: list[str]):
+        self.db.query(SpaceDepartmentMember).filter(
+            SpaceDepartmentMember.space_member_id == space_member_id
+        ).delete()
+        for dept_id in dept_ids:
+            self.db.add(
+                SpaceDepartmentMember(
+                    space_member_id=space_member_id, department_id=dept_id
+                )
+            )
+
+    def add_or_restore_member(self, *, space_id: str, data: SpaceMemberAdd):
+        existing = self.repo.get_any_by_space_and_user(
+            space_id=space_id, user_id=data.user_id
+        )
+        if existing:
+            # 软删除直接恢复
+            if existing.deleted_at is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="该成员已在空间中"
+                )
+            existing.deleted_at = None
+            existing.role = data.role
+            member = existing
+        else:
+            member = SpaceMember(
+                space_id=space_id,
+                user_id=data.user_id,
+                role=data.role,
+            )
+            self.db.add(member)
+            self.db.flush()
+        target_dept_ids = data.department_ids
+        # 如果没有指定部门id，且默认加入根部门
+        if not target_dept_ids:
+            root_dept = self.dept_repo.get_root_dept_by_space_id(space_id=space_id)
+            if root_dept:
+                target_dept_ids = [root_dept.id]
+        # 关联表同步
+        if target_dept_ids:
+            self._sync_member_departments(
+                space_member_id=member.id, dept_ids=target_dept_ids
+            )
         self.db.commit()
-        self.db.refresh(space_member_update)
-        return space_member_update
+        return member
 
-    def delete_space_member(self, space_member_id: str):
-        self.db.query(SpaceMember).filter(
-            SpaceMember.id == space_member_id
-        ).first().delete()
+    def operate_resigned(self, *, space_id: str, member_id: str):
+        """离职办理"""
+        member = self.repo.get_active_by_id(space_member_id=member_id)
+        if not member or member.space_id != space_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="未找到该成员")
+        if member.role == SpaceMemberRole.OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="空间创建者不能离职"
+            )
+        member.soft_delete()
+
         self.db.commit()
         return True
+
+    def batch_hard_delete_resigned(self, *, space_id: str, member_ids: list[str]):
+        """已离职列表的物理删除"""
+        if not member_ids:
+            return True
+        self.db.query(SpaceDepartmentMember).filter(
+            SpaceDepartmentMember.space_member_id.in_(member_ids)
+        ).delete(synchronize_session=False)
+        self.db.query(SpaceMember).filter(
+            SpaceMember.space_id == space_id, SpaceMember.id.in_(member_ids)
+        ).delete(synchronize_session=False)
+        self.db.commit()
+        return True
+
+    def adjust_departments(
+        self, *, space_id: str, member_id: str, department_ids: list[str]
+    ):
+        """人员部门调整"""
+        member = self.repo.get_active_by_id(member_id)
+        if not member or member.space_id != space_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="成员不存在")
+
+        # 如果没有指定部门id，则默认加入根部门
+        target_ids = department_ids
+        if not target_ids:
+            root_dept = self.dept_repo.get_root_dept_by_space_id(space_id=space_id)
+            if root_dept:
+                target_ids = [root_dept.id]
+
+        self._sync_member_departments(space_member_id=member_id, dept_ids=target_ids)
+        self.db.commit()
+        return True
+
+    def update_role(self, *, space_id: str, member_id: str, new_role: SpaceMemberRole):
+        member = self.repo.get_active_by_id(member_id)
+        if not member or member.space_id != space_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="成员不存在")
+        if member.role == SpaceMemberRole.OWNER and new_role != SpaceMemberRole.OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="空间所有者不能直接降级"
+            )
+        member.role = new_role
+        self.db.commit()
+        return member
 
     def ensure_member_role(
         self,

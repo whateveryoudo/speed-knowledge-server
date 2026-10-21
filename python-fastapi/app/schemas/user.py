@@ -72,6 +72,15 @@ class SendEmailCodeResponse(BaseModel):
     message: Optional[str] = Field(default="验证码已发送", description="消息")
     expire_seconds: Optional[int] = Field(default=600, description="过期时间（秒）")
 
+class UserBrief(BaseModel):
+    """用户简要信息(用于一些join查询返回显示的情况)"""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int = Field(..., description="ID")
+    
+    username: str = Field(..., description="用户名")
+    nickname: Optional[str] = Field(None, description="昵称")
+
 
 class UserBase(BaseModel):
     """用户基础类"""
@@ -81,6 +90,8 @@ class UserBase(BaseModel):
         ..., min_length=3, max_length=50, description="用户名，用于登录"
     )
     nickname: Optional[str] = Field(None, max_length=100, description="昵称，可选")
+
+
 
 
 class UserResponse(UserBase):

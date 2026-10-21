@@ -5,7 +5,7 @@ from .space import Space
 from .team import Team
 from .team_member import TeamMember
 from .space_member import SpaceMember
-from .space_dept import SpaceDept
+from .space_department import SpaceDepartment, SpaceDepartmentMember
 from .knowledge import Knowledge
 from .knowledge_group import KnowledgeGroup
 from .attachment import Attachment
@@ -28,13 +28,15 @@ from .knowledge_group_relation import KnowledgeGroupRelation
 from .resource_access_setting import ResourceAccessSetting
 from .resource_grant import ResourceGrant
 from .resource_access_request import ResourceAccessRequest
+
 __all__ = [
     "User",
     "Space",
     "Team",
     "TeamMember",
     "SpaceMember",
-    "SpaceDept",
+    "SpaceDepartment",
+    "SpaceDepartmentMember",
     "Knowledge",
     "KnowledgeGroup",
     "Attachment",

@@ -17,7 +17,7 @@ class KnowledgeGroupRelation(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     knowledge_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("knowledge_base.id"), nullable=False
+        String(36),ForeignKey("knowledge_base.id"),index=True, nullable=False
     )
     group_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("knowledge_group.id"), nullable=False

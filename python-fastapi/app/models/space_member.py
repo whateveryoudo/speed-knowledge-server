@@ -3,10 +3,12 @@ from sqlalchemy import String, DateTime, Enum, ForeignKey, func, Integer, Unique
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.common.enums import SpaceMemberRole
 from datetime import datetime
+from app.core.mixins import SoftDeleteMixin
 import uuid
 
 
-class SpaceMember(Base):
+class SpaceMember(SoftDeleteMixin,Base):
+    """空间成员表， deleted_at IS NULL 为在职，IS NOT NULL为离职"""
     __tablename__ = "space_member"
     __table_args__ = (
         UniqueConstraint("space_id", "user_id", name="uq_space_member_space_user"),
@@ -45,3 +47,5 @@ class SpaceMember(Base):
 
     space = relationship("Space", back_populates="space_members")
     user = relationship("User", back_populates="space_members")
+    department_relations = relationship("SpaceDepartmentMember",back_populates="space_member", cascade="all,delete-orphan")
+    

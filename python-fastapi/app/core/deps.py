@@ -1,5 +1,7 @@
 """依赖注入"""
 
+from app.common.enums import SpaceMemberRole
+from collections.abc import Sequence
 from fastapi import Depends, HTTPException, status, Query, Request, Header
 from typing import Generator, Union, Optional
 from app.db.session import SessionLocal
@@ -170,6 +172,37 @@ class VerifyKnowledgePermission:
         )
 
 
+class RequireSpaceRole:
+    """校验用户在当前空间的权限"""
+
+    def __init__(self, allow_roles: Sequence[SpaceMemberRole] | SpaceMemberRole | None):
+        self.allow_roles = allow_roles
+
+    def __call__(
+        self,
+        space: Space = Depends(get_space_by_host),
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> SpaceMember:
+        return SpaceMemberService(db).ensure_member_role(
+            space_id=space.id,
+            user_id=current_user.id,
+            allow_roles=self.allow_roles,
+        )
+
+
+# 预设一些权限
+# 只要是在职人员就行
+get_current_space_member = RequireSpaceRole(allow_roles=None)
+
+# 必须是拥有者/管理者（常用于 部门的管理deps）
+require_space_admin = RequireSpaceRole(
+    allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER]
+)
+# 必须是拥有者（用于转让空间注销）
+require_space_owner = RequireSpaceRole(allow_roles=[SpaceMemberRole.OWNER])
+
+
 # def Verify_knowledge_manage_permission(
 #     identifier: str,
 #     current_user: User = Depends(get_current_user),
@@ -209,7 +242,10 @@ def assert_org_space_member(
     if getattr(space.type, "value", space.type) != SpaceType.ORGANIZATION.value:
         return
     space_member_service = SpaceMemberService(db)
-    if space_member_service.get_member_by_user_id(space_id=space.id, user_id=user_id) is None:
+    if (
+        space_member_service.get_member_by_user_id(space_id=space.id, user_id=user_id)
+        is None
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="你不是该空间成员，可联系空间管理员添加",
@@ -235,9 +271,7 @@ def get_current_space(
     if space_domain:
         space = space_service.get_space_by_domain(space_domain)
         if not space:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
         return space
     # 当前用户的个人空间
     space = (

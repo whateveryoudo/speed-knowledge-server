@@ -33,12 +33,6 @@ class TeamMember(Base):
     role: Mapped[TeamMemberRole] = mapped_column(
         Enum(TeamMemberRole), nullable=False, comment="角色"
     )
-    dept_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
-        ForeignKey("space_dept.id", ondelete="CASCADE"),
-        nullable=True,
-        comment="部门ID",
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -52,6 +46,5 @@ class TeamMember(Base):
         comment="更新时间",
     )
 
-    space_dept = relationship("SpaceDept", back_populates="team_members")
     team = relationship("Team", back_populates="team_members")
     user = relationship("User", back_populates="team_members")

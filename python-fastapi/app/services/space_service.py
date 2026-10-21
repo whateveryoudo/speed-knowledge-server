@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.services.base_service import BaseService
 from app.models.space_member import SpaceMember
 from app.services.space_member_service import SpaceMemberService
-from app.schemas.space_member import SpaceMemberCreate
+from app.services.space_department_service import SpaceDepartmentService
+from app.schemas.space_member import SpaceMemberAdd
 from app.schemas.attachment import default_space_cover
 from app.common.enums import SpaceMemberRole, SpaceType
 import secrets
@@ -54,15 +55,18 @@ class SpaceService(BaseService):
         )
         self.db.add(space_row)
         self.db.flush()
+        # 创建默认部门
+        dept_service = SpaceDepartmentService(self.db)
+        # 名称直接和空间名称一样
+        root_dept = dept_service.create_root_department(
+            space_id=space_row.id, name=space_create.name
+        )
         # 追加默认成员
-        space_member_service = SpaceMemberService(self.db)
-        space_member_service.add_member(
-            SpaceMemberCreate(
-                space_id=space_row.id,
-                user_id=space_row.owner_id,
-                role=SpaceMemberRole.OWNER,
-            ),
-            commit=False,
+        member_service = SpaceMemberService(self.db)
+        member_service.init_space_owner(
+            space_id=space_row.id,
+            user_id=space_row.owner_id,
+            default_dept_id=root_dept.id,
         )
         # 追加空间公区区的默认分组
         from app.models.knowledge_group import KnowledgeGroup

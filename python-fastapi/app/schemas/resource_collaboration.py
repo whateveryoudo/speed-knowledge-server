@@ -2,15 +2,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.common.enums.resource import ResourceRole
 from app.common.enums import PrincipalType, PrincipalRole
 from typing import Optional, Literal
+from app.schemas.user import UserBrief
 
-
-class CollaborationUserBrief(BaseModel):
-    """协同用户简要信息"""
-
-    model_config = ConfigDict(from_attributes=True)
-    id: int = Field(..., description="ID")
-    username: str = Field(..., description="用户名")
-    nickname: Optional[str] = Field(None, description="昵称")
 
 
 class ResourceCollaborationQuery(BaseModel):
@@ -32,7 +25,7 @@ class ResourceCollaborationItem(BaseModel):
     principal_type: PrincipalType = Field(..., description="主体类型")
     principal_id: str = Field(..., description="主体ID")
     principal_role: PrincipalRole = Field(..., description="主体角色")
-    user: Optional[CollaborationUserBrief] = Field(None, description="用户信息概要")
+    user: Optional[UserBrief] = Field(None, description="用户信息概要")
     display_name: str = Field(..., description="显示名称(某些角色会显示成一些角色名)")
     icon: Optional[str] = Field(None, description="主体图标")
     locked: bool = Field(..., description="是否锁定(不允许切换角色)")

@@ -1,6 +1,5 @@
 """知识库端点"""
 
-import scipy
 from typing import List
 
 from fastapi import APIRouter, status, Query, Depends, HTTPException

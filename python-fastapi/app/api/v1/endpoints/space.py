@@ -4,7 +4,6 @@ from app.services.space_service import SpaceService
 from app.services.knowledge_group_service import KnowledgeGroupService
 from app.schemas.knowledge_group import KnowledgeGroupResponse, KnowledgeGroupCreate
 from app.schemas.space import SpaceCreate, SpaceUpdate, SpaceResponse
-from app.schemas.space_member import SpaceMemberCreate
 
 from app.core.deps import get_db, get_current_user, get_space_by_host, get_current_space
 from app.services.space_member_service import SpaceMemberService
@@ -15,10 +14,6 @@ from typing import Optional
 
 router = APIRouter()
 
-
-@router.post("/member", response_model=SpaceResponse)
-def add_member(member: SpaceMemberCreate, db: Session = Depends(get_db)):
-    return SpaceMemberService(db).add_member(member)
 
 
 @router.post("/", response_model=SpaceResponse)
