@@ -8,6 +8,7 @@ from app.core.security import verify_password, get_password_hash
 from app.schemas.user import UserCreate
 from app.services.base_service import BaseService
 from app.services.space_service import SpaceService
+from app.schemas.attachment import default_user_avatar
 
 
 class UserService(BaseService):
@@ -32,6 +33,7 @@ class UserService(BaseService):
             username=user_in.username,
             password=hashed_password,
             nickname=user_in.nickname,
+            avatar=default_user_avatar.id
         )
 
         self.db.add(user)

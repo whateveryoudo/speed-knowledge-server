@@ -80,6 +80,8 @@ class UserBrief(BaseModel):
     
     username: str = Field(..., description="用户名")
     nickname: Optional[str] = Field(None, description="昵称")
+    # 新增
+    avatar: Optional[str] = Field(None, description="用户头像")
 
 
 class UserBase(BaseModel):
@@ -91,7 +93,8 @@ class UserBase(BaseModel):
     )
     nickname: Optional[str] = Field(None, max_length=100, description="昵称，可选")
 
-
+    # 新增
+    avatar: Optional[str] = Field(None, description="用户头像")
 
 
 class UserResponse(UserBase):

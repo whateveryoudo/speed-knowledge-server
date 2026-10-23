@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from app.models.space_department import SpaceDepartment
 from typing import Optional
 from sqlalchemy.orm import aliased, Session
-from app.models.space_department_member import SpaceDepartmentMember
+from app.models.space_department import SpaceDepartmentMember
 from sqlalchemy import exists, select
 
 
@@ -20,6 +20,33 @@ class SpaceDepartmentRepository:
             )
             .first()
         )
+
+    def get_by_ids(
+        self, *, space_id: str, dept_ids: list[str]
+    ) -> list[SpaceDepartment]:
+        """通过ids获取部门列表"""
+        if not dept_ids:
+            return []
+        return (
+            self.db.query(SpaceDepartment)
+            .filter(
+                SpaceDepartment.id.in_(dept_ids),
+                SpaceDepartment.space_id == space_id,
+            )
+            .all()
+        )
+
+    def has_external_children(self, *, space_id: str, dept_ids: list[str]) -> bool:
+        """查询是否包含子部门未删除"""
+        if not dept_ids:
+            return False
+        return self.db.query(
+            exists().where(
+                SpaceDepartment.parent_id.in_(dept_ids),
+                SpaceDepartment.id.not_in_(dept_ids),
+                SpaceDepartment.space_id == space_id,
+            )
+        ).scalar()
 
     def get_root_dept_by_space_id(self, *, space_id: str) -> Optional[SpaceDepartment]:
         """通过空间ID获取根部门"""
@@ -71,9 +98,7 @@ class SpaceDepartmentRepository:
         """BFS广度优先搜索：某个部门名下所有子孙部门ID"""
         all_depts = (
             self.db.query(SpaceDepartment.id, SpaceDepartment.parent_id)
-            .filter(
-                SpaceDepartment.space_id == space_id
-            )
+            .filter(SpaceDepartment.space_id == space_id)
             .all()
         )
         tree_map: dict[str | None, list[str]] = {}
@@ -89,11 +114,14 @@ class SpaceDepartmentRepository:
                 queue.append(child_id)
         return result
 
-    def has_children(self, *,space_id:str, dept_id: str) -> bool:
+    def has_children(self, *, space_id: str, dept_id: str) -> bool:
         """判断某个部门是否有子部门"""
         return (
             self.db.query(SpaceDepartment.id)
-            .filter(SpaceDepartment.parent_id == dept_id,SpaceDepartment.space_id == space_id)
+            .filter(
+                SpaceDepartment.parent_id == dept_id,
+                SpaceDepartment.space_id == space_id,
+            )
             .first()
             is not None
         )
@@ -119,12 +147,30 @@ class SpaceDepartmentRepository:
             self.db.flush()
         return dept
 
+    def clear_departments_members(self, *, dept_ids: list[str]):
+        """批量清空部门下所有成员管理关系"""
+        if not dept_ids:
+            return
+        self.db.query(SpaceDepartmentMember).filter(
+            SpaceDepartmentMember.department_id.in_(dept_ids)
+        ).delete(synchronize_session=False)
+
     def clear_department_members(self, *, dept_id: str):
         """清空部门下所有成员管理关系"""
         self.db.query(SpaceDepartmentMember).filter(
             SpaceDepartmentMember.department_id == dept_id
         ).delete(synchronize_session=False)
 
+    def batch_delete(self, *, dept_ids: list[str]):
+        """批量删除部门"""
+        if not dept_ids:
+            return
+        self.db.query(SpaceDepartment).filter(
+            SpaceDepartment.id.in_(dept_ids)
+        ).delete(synchronize_session=False)
+
     def delete(self, dept: SpaceDepartment):
         """删除实体"""
         self.db.delete(dept)
+
+

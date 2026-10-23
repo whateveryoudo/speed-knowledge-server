@@ -3,13 +3,15 @@ from app.schemas.space_member import (
     SpaceMemberAdd,
     SpaceMemberAdjustDepartments,
     SpaceMemberRoleUpdate,
-    SpaceMemberBatchDelete
+    SpaceMemberBatchDelete,
 )
+
 from app.services.space_member_service import SpaceMemberService
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.models.space import Space
+from app.models.space_member import SpaceMember
 from sqlalchemy.orm import Session
-from app.core.deps import get_db, get_current_space
+from app.core.deps import get_db, get_current_space, require_space_admin
 
 router = APIRouter()
 
@@ -27,6 +29,7 @@ def list_space_members(
 def add_space_member(
     data: SpaceMemberAdd,
     space: Space = Depends(get_current_space),
+    admin_member: SpaceMember = Depends(require_space_admin),
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).add_or_restore_member(space_id=space.id, data=data)
@@ -36,10 +39,11 @@ def add_space_member(
 def operate_member_resigned(
     member_id: str,
     space: Space = Depends(get_current_space),
+    admin_member: SpaceMember = Depends(require_space_admin),
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).operate_resigned(
-        space_id=space.id, member_id=member_id
+        space_id=space.id, member_id=member_id, operator_user_id=admin_member.user_id
     )
 
 
@@ -47,6 +51,7 @@ def operate_member_resigned(
 def batch_delete_resigned_members(
     data: SpaceMemberBatchDelete,
     space: Space = Depends(get_current_space),
+    admin_member: SpaceMember = Depends(require_space_admin),
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).batch_hard_delete_resigned(
@@ -59,17 +64,19 @@ def operate_member_role(
     member_id: str,
     data: SpaceMemberRoleUpdate,
     space: Space = Depends(get_current_space),
+    admin_member: SpaceMember = Depends(require_space_admin),
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).update_role(
-        space_id=space.id, member_id=member_id, role=data.role
+        space_id=space.id, member_id=member_id, new_role=data.role
     )
 
 
 @router.put("/{member_id}/departments")
 def operate_member_departments(
-    member_id: int,
+    member_id: str,
     data: SpaceMemberAdjustDepartments,
+    admin_member: SpaceMember = Depends(require_space_admin),
     space: Space = Depends(get_current_space),
     db: Session = Depends(get_db),
 ):

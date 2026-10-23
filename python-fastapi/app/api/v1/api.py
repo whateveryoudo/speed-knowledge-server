@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     resource_access_request,
     resource_collaboration, 
     space_member,
+    space_department,
 )
 
 api_router = APIRouter()
@@ -32,6 +33,7 @@ api_router.include_router(knowledge.router, prefix="/knowledge")
 api_router.include_router(team.router, prefix="/team")
 api_router.include_router(space.router, prefix="/space")
 api_router.include_router(space_member.router, prefix="/space-member")
+api_router.include_router(space_department.router, prefix="/space-department")
 api_router.include_router(attachment.router, prefix="/attachment")
 api_router.include_router(document.router, prefix="/document")
 api_router.include_router(document.node_router, prefix="/document-node")

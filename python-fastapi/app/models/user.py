@@ -23,6 +23,9 @@ class User(Base, SoftDeleteMixin):
     username: Mapped[str] = mapped_column(
         String(255), unique=True, index=True, nullable=False
     )
+    avatar: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # 头像，可选，不唯一
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     nickname: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True

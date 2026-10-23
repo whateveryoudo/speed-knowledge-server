@@ -50,7 +50,7 @@ class SpaceService(BaseService):
             description=space_create.description or "",
             public_area_slug=public_area_slug,
             owner_id=owner_id,
-            icon=default_space_cover.model_dump(),
+            icon=default_space_cover.id,
             type=SpaceType.ORGANIZATION,
         )
         self.db.add(space_row)

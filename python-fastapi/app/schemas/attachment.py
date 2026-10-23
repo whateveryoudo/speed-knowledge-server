@@ -29,6 +29,14 @@ default_space_cover = AttachmentItem(
     fileSize=1108
 )
 
+
+default_user_avatar = AttachmentItem(
+    id='f0786e2e-a878-4771-960b-8c4b5c3aac46',
+    fileName='avatar_def.png',
+    fileType='image/png',
+    fileSize=5820
+)
+
 class AttachmentBase(BaseModel):
     """基础附件结构(公共字段)"""
 

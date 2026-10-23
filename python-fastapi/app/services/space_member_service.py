@@ -197,14 +197,16 @@ class SpaceMemberService:
         self.db.commit()
         return member
 
-    def operate_resigned(self, *, space_id: str, member_id: str):
+    def operate_resigned(
+        self, *, space_id: str, member_id: str, operator_user_id: int | None
+    ):
         """离职办理"""
         member = self.repo.get_active_by_id(space_member_id=member_id)
         if not member or member.space_id != space_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="未找到该成员")
-        if member.role == SpaceMemberRole.OWNER:
+        if operator_user_id is not None and member.user_id == operator_user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="空间创建者不能离职"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不能离职自己"
             )
         member.soft_delete()
 

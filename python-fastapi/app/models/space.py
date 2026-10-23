@@ -33,10 +33,10 @@ class Space(SoftDeleteMixin, Base):
     contact_email: Mapped[str] = mapped_column(
         String(255), nullable=False, comment="联系邮箱,用于接收通知"
     )
-    icon: Mapped[Optional[dict]] = mapped_column(
-        JSON,
+    icon: Mapped[Optional[str]] = mapped_column(
+        String(255),
         nullable=True,
-        comment="封面图信息",
+        comment="封面图信息(附件ID)",
     )
     description: Mapped[Optional[str]] = mapped_column(
         String(512), nullable=True, comment="空间描述"

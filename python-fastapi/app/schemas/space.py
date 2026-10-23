@@ -25,7 +25,7 @@ class SpaceUpdate(BaseModel):
         None, min_length=2, max_length=50, description="空间名称"
     )
     description: Optional[str] = Field(None, description="空间描述")
-    icon: Optional[Any] = Field(None, description="空间图标")
+    icon: Optional[str] = Field(None, description="空间图标")
 
     contact_email: Optional[str] = Field(None, description="空间联系邮箱")
 

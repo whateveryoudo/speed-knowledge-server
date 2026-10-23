@@ -133,8 +133,8 @@ class SpaceDepartmentService:
         self.db.commit()
         return dept
 
-    def delete_department(self, *, space_id: str, dept_id: str) -> None:
-        """部门删除"""
+    def delete_department(self, *, space_id: str, dept_id: str) -> bool:
+        """部门删除（单）"""
         dept = self.repo.get_by_id(
             space_id=space_id,
             dept_id=dept_id,
@@ -146,11 +146,37 @@ class SpaceDepartmentService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="根部门不能删除"
             )
-        if self.repo.has_children(space_id=space_id,dept_id=dept_id):
+        if self.repo.has_children(space_id=space_id, dept_id=dept_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="部门还有子部门，不能删除"
             )
         self.repo.clear_department_members(dept_id=dept_id)
         self.repo.delete(dept)
+        self.db.commit()
+        return True
+
+    def batch_delete_department(self, *, space_id: str, dept_ids: list[str]) -> bool:
+        """批量删除部门"""
+        if not dept_ids:
+            return True
+        depts = self.repo.get_by_ids(
+            space_id=space_id,
+            dept_ids=dept_ids,
+        )
+        if len(depts) != len(dept_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="部分部门不存在,请核对"
+            )
+
+        if any(d.parent_id is None for d in depts):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="根部门不能删除"
+            )
+        if self.repo.has_external_children(space_id=space_id, dept_ids=dept_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="部门还有子部门，请先删除后或一并勾选删除"
+            )
+        self.repo.clear_departments_members(dept_ids=dept_ids)
+        self.repo.batch_delete(dept_ids=dept_ids)
         self.db.commit()
         return True

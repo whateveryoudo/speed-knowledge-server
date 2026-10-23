@@ -152,6 +152,11 @@ def get_knowledge_or_403(
     return PermissionService(db).assert_knowledge_readable(
         current_user.id if current_user is not None else None, identifier
     )
+def get_space_by_host(request: Request, db: Session = Depends(get_db)) -> Space:
+    domain = get_space_subdomain(request.headers.get("host", ""))
+    if not domain:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
+    return SpaceService(db).get_space_by_domain(domain)
 
 
 class VerifyKnowledgePermission:
@@ -199,8 +204,6 @@ get_current_space_member = RequireSpaceRole(allow_roles=None)
 require_space_admin = RequireSpaceRole(
     allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER]
 )
-# 必须是拥有者（用于转让空间注销）
-require_space_owner = RequireSpaceRole(allow_roles=[SpaceMemberRole.OWNER])
 
 
 # def Verify_knowledge_manage_permission(
@@ -252,11 +255,6 @@ def assert_org_space_member(
         )
 
 
-def get_space_by_host(request: Request, db: Session = Depends(get_db)) -> Space:
-    domain = get_space_subdomain(request.headers.get("host", ""))
-    if not domain:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="空间不存在")
-    return SpaceService(db).get_space_by_domain(domain)
 
 
 def get_current_space(
