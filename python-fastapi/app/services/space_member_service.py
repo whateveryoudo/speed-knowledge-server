@@ -197,16 +197,16 @@ class SpaceMemberService:
         self.db.commit()
         return member
 
-    def operate_resigned(
-        self, *, space_id: str, member_id: str, operator_user_id: int | None
-    ):
+    def operate_resigned(self, *, space_id: str, member_id: str):
         """离职办理"""
-        member = self.repo.get_active_by_id(space_member_id=member_id)
+        member = self.repo.get_active_by_id(member_id=member_id)
         if not member or member.space_id != space_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="未找到该成员")
-        if operator_user_id is not None and member.user_id == operator_user_id:
+        # 空间拥有者
+        if member.role == SpaceMemberRole.OWNER:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="不能离职自己"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="空间所有者不能直接办理离职或退出，请先转让空间所有权",
             )
         member.soft_delete()
 
@@ -249,6 +249,11 @@ class SpaceMemberService:
         member = self.repo.get_active_by_id(member_id)
         if not member or member.space_id != space_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="成员不存在")
+        if new_role == SpaceMemberRole.OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能直接设置为空间所有者，请先联系所有者走转让流程",
+            )
         if member.role == SpaceMemberRole.OWNER and new_role != SpaceMemberRole.OWNER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="空间所有者不能直接降级"
@@ -263,6 +268,7 @@ class SpaceMemberService:
         space_id: str,
         user_id: int,
         allow_roles: Sequence[SpaceMemberRole] | SpaceMemberRole | None = None,
+        detail_message: str | None = None,
     ) -> SpaceMember:
         """校验团队成员以及角色权限"""
         member = self.get_member_by_user_id(space_id=space_id, user_id=user_id)
@@ -272,6 +278,7 @@ class SpaceMemberService:
             allowed_set = to_enum_values(allow_roles)
             if to_enum_value(member.role) not in allowed_set:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="你无权执行此操作"
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=detail_message or "你无权执行此操作",
                 )
         return member

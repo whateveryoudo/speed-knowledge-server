@@ -12,6 +12,9 @@ from app.models.space import Space
 from app.models.space_member import SpaceMember
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_space, require_space_admin
+from app.models.user import User
+from app.core.deps import get_current_user
+from app.common.enums import SpaceMemberRole
 
 router = APIRouter()
 
@@ -21,8 +24,23 @@ def list_space_members(
     query_in: SpaceMemberQuery = Depends(),
     db: Session = Depends(get_db),
     space: Space = Depends(get_current_space),
+    user: User = Depends(get_current_user),
 ):
-    return SpaceMemberService(db).list_members(space_id=space.id, query_in=query_in)
+    space_member_service = SpaceMemberService(db)
+    # 权限拦截
+    space_member_service.ensure_member_role(
+        space_id=space.id,
+        user_id=user.id,
+        allow_roles=None
+    )
+    if query_in.tab in ("resigned", "external"):
+        space_member_service.ensure_member_role(
+            space_id=space.id,
+            user_id=user.id,
+            allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER],
+            detail_message="你无权查看外部联系人或已离职人员名单",
+        )
+    return space_member_service.list_members(space_id=space.id, query_in=query_in)
 
 
 @router.post("/")
@@ -43,7 +61,7 @@ def operate_member_resigned(
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).operate_resigned(
-        space_id=space.id, member_id=member_id, operator_user_id=admin_member.user_id
+        space_id=space.id, member_id=member_id
     )
 
 
