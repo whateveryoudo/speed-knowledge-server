@@ -4,6 +4,7 @@ from app.schemas.space_member import (
     SpaceMemberAdjustDepartments,
     SpaceMemberRoleUpdate,
     SpaceMemberBatchDelete,
+    SpaceTransferOwner,
 )
 
 from app.services.space_member_service import SpaceMemberService
@@ -11,9 +12,14 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.models.space import Space
 from app.models.space_member import SpaceMember
 from sqlalchemy.orm import Session
-from app.core.deps import get_db, get_current_space, require_space_admin
+from app.core.deps import (
+    get_db,
+    get_current_user,
+    require_space_owner,
+    get_current_space,
+    require_space_admin,
+)
 from app.models.user import User
-from app.core.deps import get_current_user
 from app.common.enums import SpaceMemberRole
 
 router = APIRouter()
@@ -29,9 +35,7 @@ def list_space_members(
     space_member_service = SpaceMemberService(db)
     # 权限拦截
     space_member_service.ensure_member_role(
-        space_id=space.id,
-        user_id=user.id,
-        allow_roles=None
+        space_id=space.id, user_id=user.id, allow_roles=None
     )
     if query_in.tab in ("resigned", "external"):
         space_member_service.ensure_member_role(
@@ -51,6 +55,22 @@ def add_space_member(
     db: Session = Depends(get_db),
 ):
     return SpaceMemberService(db).add_or_restore_member(space_id=space.id, data=data)
+
+
+@router.post("/transfer-owner")
+def transfer_space_owner(
+    data: SpaceTransferOwner,
+    space: Space = Depends(get_current_space),
+    owner_member: SpaceMember = Depends(require_space_owner),
+    db: Session = Depends(get_db),
+):
+    return SpaceMemberService(db).transfer_owner(
+        space_id=space.id,
+        current_owner_user_id=owner_member.user_id,
+        target_user_id=data.target_user_id,
+        exit_space=data.exit_space,
+        target_role_if_stay=data.target_role_if_stay,
+    )
 
 
 @router.post("/{member_id}/resigned")

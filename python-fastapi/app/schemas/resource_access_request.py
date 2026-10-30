@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from app.common.enums import ResourceType, ResourceRole, AccessRequestStatus
+from app.common.enums import ResourceType, ResourceRole, ApprovalStatus
 from datetime import datetime
 from typing import Optional
 from app.schemas.query import Pagination
@@ -23,7 +23,7 @@ class ResourceAccessRequestResponse(BaseModel):
     resource_type: ResourceType = Field(..., description="资源类型")
     requested_role: ResourceRole = Field(..., description="资源角色")
 
-    status: AccessRequestStatus = Field(..., description="申请状态")
+    status: ApprovalStatus = Field(..., description="申请状态")
     apply_message: Optional[str] = Field(None, description="申请备注")
 
     reviewed_by: Optional[int] = Field(None, description="审批人ID")
@@ -46,4 +46,4 @@ class ResourceAccessRequestListItem(ResourceAccessRequestResponse):
 class ResourceAccessRequestQuery(Pagination):
     """资源访问申请列表请求参数"""
 
-    status: Optional[AccessRequestStatus] = Field(None, description="申请状态")
+    status: Optional[ApprovalStatus] = Field(None, description="申请状态")

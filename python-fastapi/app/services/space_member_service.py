@@ -5,8 +5,10 @@ from app.schemas.space_member import (
     SpaceMemberListResponse,
 )
 from app.models.space_member import SpaceMember
+from app.models.space import Space
 from sqlalchemy.orm import Session
 from app.common.enums import SpaceMemberRole
+from app.services.resource_grant_service import ResourceGrantService
 from typing import Sequence, Optional
 from fastapi import HTTPException, status
 from app.repositories.space_department_repository import SpaceDepartmentRepository
@@ -22,6 +24,7 @@ class SpaceMemberService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.resource_grant_service = ResourceGrantService(db)
         self.repo = SpaceMemberRepository(db)
         self.dept_repo = SpaceDepartmentRepository(db)
 
@@ -167,14 +170,20 @@ class SpaceMemberService:
             space_id=space_id, user_id=data.user_id
         )
         if existing:
-            # 软删除直接恢复
             if existing.deleted_at is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail="该成员已在空间中"
-                )
-            existing.deleted_at = None
-            existing.role = data.role
-            member = existing
+                # 如果是外部联系人->成员/admin
+                if existing.role == SpaceMemberRole.EXTERNAL and data.role != SpaceMemberRole.EXTERNAL:
+                    existing.role = data.role
+                    member = existing
+                else:   
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, detail="该成员已在空间中"
+                    )
+            else:
+                # 软删除直接恢复
+                existing.deleted_at = None
+                existing.role = data.role
+                member = existing
         else:
             member = SpaceMember(
                 space_id=space_id,
@@ -197,6 +206,62 @@ class SpaceMemberService:
         self.db.commit()
         return member
 
+
+
+    def transfer_owner(
+        self,
+        *,
+        space_id: str,
+        current_owner_user_id: int,
+        target_user_id: int,
+        exit_space: bool = False,
+        target_role_if_stay: SpaceMemberRole = SpaceMemberRole.ADMIN,
+    ) -> Optional[bool]:
+        """空间转让（仅所有者可发起）"""
+        if current_owner_user_id == target_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不能转让给自己"
+            )
+        space = self.db.query(Space).filter(Space.id == space_id).first()
+        if not space:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="未找到该空间")
+        if space.owner_id != current_owner_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="您不是该空间的拥有者,无权进行转让"
+            )
+
+        target_member = self.repo.get_active_by_space_and_user(
+            space_id=space_id, user_id=target_user_id
+        )
+
+        if not target_member:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="目标用户不是该空间在职成员，无法转让"
+            )
+        if target_member.role == SpaceMemberRole.EXTERNAL:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="无法转让给外部临时联系人"
+            )
+
+        current_owner_member = self.repo.get_active_by_space_and_user(
+            space_id=space_id, user_id=current_owner_user_id
+        )
+        target_member.role = SpaceMemberRole.OWNER
+        # 替换空间所有者
+        space.owner_id = target_user_id
+        # 处理转交人员的后续操作
+        if exit_space:
+            current_owner_member.soft_delete()
+            # 清除中间表的关联记录
+            self.db.query(SpaceDepartmentMember).filter(
+                SpaceDepartmentMember.space_member_id == current_owner_member.id
+            ).delete(synchronize_session=False)
+        else:
+            # 不退出空间，则修改成为指定的角色
+            current_owner_member.role = target_role_if_stay
+        self.db.commit()
+        return True
+
     def operate_resigned(self, *, space_id: str, member_id: str):
         """离职办理"""
         member = self.repo.get_active_by_id(member_id=member_id)
@@ -217,6 +282,19 @@ class SpaceMemberService:
         """已离职列表的物理删除"""
         if not member_ids:
             return True
+        members = (
+            self.db.query(SpaceMember)
+            .filter(SpaceMember.space_id == space_id, SpaceMember.id.in_(member_ids))
+            .all()
+        )
+        user_ids = [
+            member.user_id for member in members if member.role != SpaceMemberRole.OWNER
+        ]
+        # 成员彻底删除需要清除相关协同的授权记录
+        self.resource_grant_service.clear_user_grants_in_space(
+            space_id=space_id, user_ids=user_ids
+        )
+
         self.db.query(SpaceDepartmentMember).filter(
             SpaceDepartmentMember.space_member_id.in_(member_ids)
         ).delete(synchronize_session=False)

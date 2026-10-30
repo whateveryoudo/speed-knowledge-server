@@ -69,9 +69,7 @@ class ResourceGrantService:
             ResourceRole.EDIT,
             ResourceRole.READ,
         ):
-            raise HTTPException(
-                status_code=422, detail="单篇文档授权仅支持可阅读或可编辑角色"
-            )
+            raise HTTPException(status_code=422, detail="单篇文档授权仅支持可阅读或可编辑角色")
 
     def _build_user_principals(
         self, user_id: int
@@ -460,14 +458,29 @@ class ResourceGrantService:
             return self.get_highest_role(matched_grants)
 
         user_id_value = str(user_id)
-        # 直接授权
-        for grant in grants:
-            if (
-                grant.principal_type == PrincipalType.USER.value
-                and grant.principal_role == PrincipalRole.NONE.value
-                and grant.principal_id == user_id_value
-            ):
-                matched_grants.append(ResourceRole(grant.resource_role))
+        # 直接授权(这里会增加拦截：1.空间在职校验 2. 团队在职校验（TODO）)
+        is_space_active = True
+        if space_id is not None:
+            active_member = (
+                self.db.query(SpaceMember)
+                .filter(
+                    SpaceMember.space_id == str(space_id),
+                    SpaceMember.user_id == user_id,
+                    SpaceMember.is_deleted == False,
+                )
+                .first()
+            )
+            if active_member is None:
+                is_space_active = False
+        if is_space_active:
+            # 协同层（用户如果已经离职，则不查出协同授权记录）
+            for grant in grants:
+                if (
+                    grant.principal_type == PrincipalType.USER.value
+                    and grant.principal_role == PrincipalRole.NONE.value
+                    and grant.principal_id == user_id_value
+                ):
+                    matched_grants.append(ResourceRole(grant.resource_role))
         # 团队继承
         team_role_grants = [
             grant
@@ -756,6 +769,53 @@ class ResourceGrantService:
             )
         )
         return grants
+
+    def clear_user_grants_in_space(self, *, space_id: str, user_ids: list[int]) -> int:
+        """物理清除指定用户某空间下所有协同授权记录（知识库/文档）"""
+        if not user_ids:
+            return 0
+        from sqlalchemy import or_, and_
+
+        space_knowledge_ids = [
+            k.id for k in self.db.query(Knowledge.id).filter_by(space_id=space_id).all()
+        ]
+        space_document_ids = []
+        if space_knowledge_ids:
+            space_document_ids = [
+                d.id
+                for d in self.db.query(Document.id)
+                .filter(Document.knowledge_id.in_(space_knowledge_ids))
+                .all()
+            ]
+        if not space_knowledge_ids and not space_document_ids:
+            return 0
+
+        # 组装批量查询条件
+        conditions = []
+        if space_knowledge_ids:
+            conditions.append(
+                and_(
+                    ResourceGrant.resource_type == ResourceType.KNOWLEDGE,
+                    ResourceGrant.resource_id.in_(space_knowledge_ids),
+                )
+            )
+        if space_document_ids:
+            conditions.append(
+                and_(
+                    ResourceGrant.resource_type == ResourceType.DOCUMENT,
+                    ResourceGrant.resource_id.in_(space_document_ids),
+                )
+            )
+        user_ids_str = [str(u) for u in user_ids]    
+        return (
+            self.db.query(ResourceGrant)
+            .filter(
+                ResourceGrant.principal_type == PrincipalType.USER.value,
+                ResourceGrant.principal_id.in_(user_ids_str),
+                or_(*conditions),
+            )
+            .delete(synchronize_session=False)
+        )
 
     def delete_resource_grants(
         self, *, resource_type: ResourceType, resource_id: str

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.models.space import Space
 from app.models.space_member import SpaceMember
 from sqlalchemy.orm import Session
-from app.core.deps import get_db, get_current_space, require_space_admin
+from app.core.deps import get_db,  get_current_space, require_space_admin
 
 router = APIRouter()
 

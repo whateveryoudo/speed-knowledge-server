@@ -67,7 +67,7 @@ class SpaceMemberRepository(SoftDeleteRepository[SpaceMember]):
             kw = f"%{keyword.strip()}%"
             query = query.filter(
                 or_(
-                    User.username.like(kw), User.nickname.like(kw), User.mobile.like(kw)
+                    User.username.like(kw), User.nickname.like(kw), User.email.like(kw)
                 )
             )
 

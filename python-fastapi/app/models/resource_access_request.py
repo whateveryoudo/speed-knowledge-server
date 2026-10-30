@@ -12,7 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from app.common.enums import ResourceType, AccessRequestStatus, ResourceRole
+from app.common.enums import ResourceType, ApprovalStatus, ResourceRole
 from datetime import datetime
 import uuid
 
@@ -71,12 +71,12 @@ class ResourceAccessRequest(Base):
         comment="邀请ID",
         nullable=True,
     )
-    status: Mapped[AccessRequestStatus] = mapped_column(
+    status: Mapped[ApprovalStatus] = mapped_column(
         String(20),
         comment="状态",
         nullable=False,
-        server_default=AccessRequestStatus.PENDING.value,
-        default=AccessRequestStatus.PENDING.value,
+        server_default=ApprovalStatus.PENDING.value,
+        default=ApprovalStatus.PENDING.value,
     )
     reviewed_by: Mapped[Optional[int]] = mapped_column(
         Integer,

@@ -55,3 +55,9 @@ class SpaceMemberListResponse(PaginationResponse[SpaceMemberItemResponse]):
     extra: Optional[SpaceMemberExtra] = Field(
         default=None, description="一些额外附加属性（你可以自定义字段）"
     )
+
+
+class SpaceTransferOwner(BaseModel):
+    target_user_id: int = Field(..., description="转让目标用户ID")
+    exit_space:bool = Field(default=False, description="转让后是否退出空间")
+    target_role_if_stay: SpaceMemberRole = Field(default=SpaceMemberRole.ADMIN, description="转让后保留的角色")

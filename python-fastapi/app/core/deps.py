@@ -205,6 +205,10 @@ require_space_admin = RequireSpaceRole(
     allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER]
 )
 
+require_space_owner = RequireSpaceRole(
+    allow_roles=SpaceMemberRole.OWNER
+)
+
 
 # def Verify_knowledge_manage_permission(
 #     identifier: str,

@@ -164,9 +164,15 @@ class ResourceCollaborationService:
         return user.nickname or user.username
 
     def _build_user_items(
-        self, *, grants: List[ResourceGrant], creator_id: int | None, can_manage: bool
+        self,
+        *,
+        grants: List[ResourceGrant],
+        creator_id: int | None,
+        can_manage: bool,
+        space_id: str | None = None,
     ) -> List[ResourceCollaborationItem]:
         """构建用户授权项"""
+
         user_grants = [
             g
             for g in grants
@@ -174,6 +180,25 @@ class ResourceCollaborationService:
             and g.principal_role == PrincipalRole.NONE.value
         ]
         user_ids = [int(g.principal_id) for g in user_grants]
+        # 增加空间非在职人员过滤
+        if space_id is not None and user_ids:
+            from app.models.space_member import SpaceMember
+
+            active_uids = {
+                m.user_id
+                for m in self.db.query(SpaceMember)
+                .filter(
+                    SpaceMember.space_id == str(space_id),
+                    SpaceMember.user_id.in_(user_ids),
+                    SpaceMember.is_deleted == False,
+                )
+                .all()
+            }
+            # 过滤权限列表
+            user_grants = [g for g in user_grants if int(g.principal_id) in active_uids]
+
+            user_ids = [int(g.principal_id) for g in user_grants]
+
         # 这里还没有拆分repository，先直接sql查
         users = (
             self.db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
@@ -408,7 +433,10 @@ class ResourceCollaborationService:
         # 构建用户授权行
         items.extend(
             self._build_user_items(
-                grants=grants, creator_id=knowledge.creator_id, can_manage=True
+                grants=grants,
+                creator_id=knowledge.creator_id,
+                can_manage=True,
+                space_id=knowledge.space_id,
             )
         )
 

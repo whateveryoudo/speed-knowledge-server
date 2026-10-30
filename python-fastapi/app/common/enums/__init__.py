@@ -23,7 +23,7 @@ from .document import (
     DocumentExportFormat,
 )
 from .search import SearchContextType, SearchVisibilityType
-from .invitation import InvitationStatus
+from .invitation import InvitationStatus,OrgType,InvitationType, OrgInvitationUserStatus
 from .resource import ResourceType, ResourceRole, resource_role_name
 from .chat import ChatMessageRole, ChatMessageType, ChatSessionStatus
 from .notification import NotificationBizType, NotificationListType
@@ -32,7 +32,7 @@ from .resource_grant import (
     PrincipalRole,
     GrantSource,
 )
-from .resource_access_request import AccessRequestStatus
+from .approval import ApprovalStatus
 from .permission import PermissionScopeType
 from .collect import CollectTargetType
 from .collaborator import (
@@ -59,10 +59,13 @@ __all__ = [
     "KnowledgeScopeType",
     "ResourceRole",
     "resource_role_name",
-    "AccessRequestStatus",
+    "ApprovalStatus",
     "GrantSource",
     "ResourceType",
     "InvitationStatus",
+    "OrgInvitationUserStatus",
+    "OrgType",
+    "InvitationType",
     "DocumentCreatorScope",
     "DocumentHistoryType",
     "DocumentType",

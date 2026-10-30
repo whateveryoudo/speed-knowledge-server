@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session, joinedload
 from app.models.resource_access_request import ResourceAccessRequest
 from app.repositories.base_repository import BaseRepository
-from app.common.enums import AccessRequestStatus, ResourceType
+from app.common.enums import ApprovalStatus, ResourceType
 
 
 class ResourceAccessRequestRepository(BaseRepository[ResourceAccessRequest]):
@@ -28,7 +28,7 @@ class ResourceAccessRequestRepository(BaseRepository[ResourceAccessRequest]):
             query = query.with_for_update()
         return query.filter(
             ResourceAccessRequest.pending_key == pending_key,
-            ResourceAccessRequest.status == AccessRequestStatus.PENDING.value,
+            ResourceAccessRequest.status == ApprovalStatus.PENDING.value,
         ).first()
 
     def list_pending_by_resource(
@@ -43,7 +43,7 @@ class ResourceAccessRequestRepository(BaseRepository[ResourceAccessRequest]):
             .filter(
                 ResourceAccessRequest.resource_type == resource_type.value,
                 ResourceAccessRequest.resource_id == str(resource_id),
-                ResourceAccessRequest.status == AccessRequestStatus.PENDING.value,
+                ResourceAccessRequest.status == ApprovalStatus.PENDING.value,
             )
             .order_by(ResourceAccessRequest.created_at.desc())
             .all()
@@ -54,7 +54,7 @@ class ResourceAccessRequestRepository(BaseRepository[ResourceAccessRequest]):
         *,
         resource_type: ResourceType,
         resource_id: str,
-        status: AccessRequestStatus | None = None,
+        status: ApprovalStatus | None = None,
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[ResourceAccessRequest], int, bool]:
@@ -91,7 +91,7 @@ class ResourceAccessRequestRepository(BaseRepository[ResourceAccessRequest]):
         self,
         *,
         applicant_user_id: int,
-        status: AccessRequestStatus | None,
+        status: ApprovalStatus | None,
         page: int = 1,
         page_size: int = 10,
     ) -> tuple[list[ResourceAccessRequest], int, bool]:

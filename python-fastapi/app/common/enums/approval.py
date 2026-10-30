@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class AccessRequestStatus(str, Enum):
+class ApprovalStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"

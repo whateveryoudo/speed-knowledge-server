@@ -10,7 +10,7 @@ from app.common.enums import (
     GrantSource,
     PrincipalType,
     ResourceType,
-    AccessRequestStatus,
+    ApprovalStatus,
     ResourceRole,
     PrincipalRole,
 )
@@ -239,9 +239,9 @@ class ResourceAccessRequestService:
         """审批通过访问申请，调用方负责校验审批权限和提交事务"""
         # 开启锁防止并发审批
         access_request = self.get_by_id_or_404(request_id, for_update=True)
-        if access_request.status == AccessRequestStatus.APPROVED.value:
+        if access_request.status == ApprovalStatus.APPROVED.value:
             return access_request
-        if access_request.status != AccessRequestStatus.PENDING.value:
+        if access_request.status != ApprovalStatus.PENDING.value:
             raise HTTPException(status_code=409, detail="申请状态不正确，不能通过")
         resource_type = ResourceType(access_request.resource_type)
         requested_role = ResourceRole(access_request.requested_role)
@@ -275,7 +275,7 @@ class ResourceAccessRequestService:
             if grant is None:
                 raise RuntimeError("审批授权失败")
         # 更新审批单状态
-        access_request.status = AccessRequestStatus.APPROVED.value
+        access_request.status = ApprovalStatus.APPROVED.value
         access_request.reviewed_by = reviewer_id
         access_request.reviewed_at = datetime.now()
         # 释放pending唯一键
@@ -288,11 +288,11 @@ class ResourceAccessRequestService:
     ) -> ResourceAccessRequest:
         """拒绝申请(直接改状态就行，不用考虑授权)"""
         access_request = self.get_by_id_or_404(request_id, for_update=True)
-        if access_request.status == AccessRequestStatus.REJECTED.value:
+        if access_request.status == ApprovalStatus.REJECTED.value:
             return access_request
-        if access_request.status != AccessRequestStatus.PENDING.value:
+        if access_request.status != ApprovalStatus.PENDING.value:
             raise HTTPException(status_code=409, detail="申请状态不正确，不能拒绝")
-        access_request.status = AccessRequestStatus.REJECTED.value
+        access_request.status = ApprovalStatus.REJECTED.value
         access_request.reviewed_by = reviewer_id
         access_request.reviewed_at = datetime.now()
 
@@ -305,12 +305,12 @@ class ResourceAccessRequestService:
         access_request = self.get_by_id_or_404(request_id, for_update=True)
         if access_request.applicant_user_id != applicant_user_id:
             raise HTTPException(status_code=403, detail="无权限其他用户的申请")
-        if access_request.status == AccessRequestStatus.CANCELLED.value:
+        if access_request.status == ApprovalStatus.CANCELLED.value:
             return access_request
-        if access_request.status != AccessRequestStatus.PENDING.value:
+        if access_request.status != ApprovalStatus.PENDING.value:
             raise HTTPException(status_code=409, detail="当前申请状态不允许取消")
 
-        access_request.status = AccessRequestStatus.CANCELLED.value
+        access_request.status = ApprovalStatus.CANCELLED.value
         access_request.reviewed_by = None
         access_request.reviewed_at = None
         access_request.pending_key = None
@@ -329,7 +329,7 @@ class ResourceAccessRequestService:
         )
         if pending_request is None:
             return None
-        pending_request.status = AccessRequestStatus.CANCELLED.value
+        pending_request.status = ApprovalStatus.CANCELLED.value
         pending_request.reviewed_by = None
         pending_request.reviewed_at = None
         pending_request.pending_key = None
