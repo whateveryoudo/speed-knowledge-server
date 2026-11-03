@@ -21,6 +21,8 @@ from app.api.v1.endpoints import (
     resource_collaboration, 
     space_member,
     space_department,
+    org_join_request,
+    org_invitation
 )
 
 api_router = APIRouter()
@@ -45,6 +47,8 @@ api_router.include_router(internal.router, prefix="/internal")
 api_router.include_router(search.router, prefix="/search")
 api_router.include_router(resource_access_request.router, prefix="/access-request")
 api_router.include_router(resource_collaboration.router, prefix="/resource-collaboration")
+api_router.include_router(org_join_request.router, prefix="/org-join-request")
+api_router.include_router(org_invitation.router, prefix="/org-invitation")
 # AI 依赖在 [dependency-groups].ai；未 ENABLE_AI 时不要顶层 import，否则缺包会启动失败
 if settings.ENABLE_AI:
     from app.api.v1.endpoints.ai import doubao, robot

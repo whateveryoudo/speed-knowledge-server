@@ -165,7 +165,7 @@ class SpaceMemberService:
                 )
             )
 
-    def add_or_restore_member(self, *, space_id: str, data: SpaceMemberAdd):
+    def add_or_restore_member(self, *, space_id: str, data: SpaceMemberAdd, ignore_if_exists:bool = False):
         existing = self.repo.get_any_by_space_and_user(
             space_id=space_id, user_id=data.user_id
         )
@@ -175,6 +175,8 @@ class SpaceMemberService:
                 if existing.role == SpaceMemberRole.EXTERNAL and data.role != SpaceMemberRole.EXTERNAL:
                     existing.role = data.role
                     member = existing
+                elif ignore_if_exists:
+                    return existing    
                 else:   
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST, detail="该成员已在空间中"

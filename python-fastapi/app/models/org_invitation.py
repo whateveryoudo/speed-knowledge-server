@@ -2,7 +2,7 @@ from sqlalchemy import UniqueConstraint,func,text, DateTime, String, Integer, Bo
 from sqlalchemy.orm import relationship,Mapped,mapped_column
 from datetime import datetime
 
-from app.models.base import Base
+from app.db.base import Base
 import uuid
 
 class OrgInvitation(Base):
@@ -14,17 +14,17 @@ class OrgInvitation(Base):
             "org_type",
             "org_id",
             "inviter_id",
-            name="uq_org_invitation_user",
-            {
-                "comment": "组织邀请链接配置"
-            }
-        )
+            name="uq_org_invitation_user"
+        ),
+        {
+            "comment": "组织邀请链接配置"
+        }
     )
 
-    id:Mapped[str] = mapped_column(String(36), primary_key=True,default=lambda: str(uuid.uuid4()) comment="主键ID")
+    id:Mapped[str] = mapped_column(String(36), primary_key=True,default=lambda: str(uuid.uuid4()), comment="主键ID")
     org_type:Mapped[str] = mapped_column(String(20), nullable=False, comment="组织类型：space - 空间，team-团队")
     org_id:Mapped[str] = mapped_column(String(36), nullable=False, index=True, comment="所属组织ID")
-    inviter_id:Mapped[int] = mapped_column(Integer,, nullable=True, comment="邀请人ID（关联 user 表）")
+    inviter_id:Mapped[int] = mapped_column(Integer, nullable=True, comment="邀请人ID（关联 user 表）")
     token:Mapped[str] = mapped_column(String(50), unique=True, nullable=False, comment="邀请凭证")
     need_approval: Mapped[bool] = mapped_column(
         Boolean,
@@ -56,6 +56,5 @@ class OrgInvitation(Base):
         comment="更新时间",
     )
     # 关系
-    join_requests = relationship("OrgJoinRequest", foreign_keys="OrgJoinRequest.invitation_id",back_populates="invitation", cascade="all,delete-orphan")
     inviter = relationship("User", foreign_keys=[inviter_id])
   

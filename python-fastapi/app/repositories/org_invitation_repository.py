@@ -29,18 +29,18 @@ class OrgInvitationRepository:
         return query.first()
 
     def get_by_token(
-        self, *, invite_token: str, for_update: bool = False
+        self, token: str, for_update: bool = False
     ) -> Optional[OrgInvitation]:
         query = (
             self.db.query(OrgInvitation)
             .options(joinedload(OrgInvitation.inviter))
-            .filter(OrgInvitation.invite_token == invite_token)
+            .filter(OrgInvitation.token == token)
         )
         if for_update:
             query = query.with_for_update()
         return query.first()
 
-    def add(self, *, invitation: OrgInvitation) -> OrgInvitation:
+    def add(self, invitation: OrgInvitation) -> OrgInvitation:
         self.db.add(invitation)
         self.db.flush()
         return invitation
