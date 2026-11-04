@@ -56,5 +56,5 @@ class OrgInvitation(Base):
         comment="更新时间",
     )
     # 关系
-    inviter = relationship("User", foreign_keys=[inviter_id])
+    inviter = relationship("User", primaryjoin="OrgInvitation.inviter_id == User.id", foreign_keys=[inviter_id])
   

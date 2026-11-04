@@ -6,7 +6,6 @@ from app.repositories.space_member_repository import SpaceMemberRepository
 from app.repositories.org_invitation_repository import OrgInvitationRepository
 from app.models.org_invitation import OrgInvitation
 from app.models.space import Space
-from app.models.space_member import SpaceMember
 from app.models.team import Team
 from app.schemas.org_invitation import (
     OrgInvitationAcceptResponse,
@@ -16,9 +15,9 @@ from app.schemas.org_invitation import (
 from app.common.enums import OrgType, InvitationStatus
 from app.services.space_member_service import SpaceMemberService
 from app.services.org_join_request_service import OrgJoinRequestService
+from app.services.org_permission_service import OrgPermissionService
 from app.repositories.org_join_request_repository import OrgJoinRequestRepository
 from app.schemas.space_member import SpaceMemberAdd
-from app.common.utils import to_enum
 from fastapi import HTTPException, status
 import secrets
 import string
@@ -35,30 +34,12 @@ class OrgInvitationService:
         self.space_member_repo = SpaceMemberRepository(db)
         self.space_member_service = SpaceMemberService(db)
         self.join_request_service = OrgJoinRequestService(db)
+        self.permission_service = OrgPermissionService(db)
 
     @staticmethod
     def _generate_token() -> str:
         """生成邀请token"""
         return "".join(secrets.choice(alphabet) for _ in range(16))
-
-    def _ensure_org_admin(
-        self, *, org_type: OrgType | str, org_id: str, operator_id: int
-    ):
-        """校验用户是否有权限审批"""
-        # 枚举判断
-        org_type_enum = to_enum(OrgType, org_type)
-        # 2. 细粒度多态鉴权
-        if org_type_enum == OrgType.SPACE:
-            self.space_member_service.ensure_member_role(
-                space_id=org_id,
-                user_id=operator_id,
-                allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER],
-                detail_message="您不是该空间的管理员或所有者，无权审批加入申请",
-            )
-        elif org_type_enum == OrgType.TEAM:
-            # 后续接入团队时，直接在这里调 team_member_service 校验团队管理员
-            pass
-
 
     def get_my_invitation(
         self,
@@ -70,15 +51,13 @@ class OrgInvitationService:
     ) -> OrgInvitation:
         """点开弹出显示个人的邀请链接"""
         # 权限校验
-        self._ensure_org_admin(
-            org_id=org_id,
-            org_type=org_type,
-            operator_id=operator_id
+        self.permission_service.ensure_org_admin(
+            org_id=org_id, org_type=org_type, user_id=operator_id
         )
         invitation = self.repo.get_by_user(
             org_type=org_type, org_id=org_id, inviter_id=operator_id
         )
-       
+
         if not invitation:
             invitation = OrgInvitation(
                 org_id=org_id,
@@ -86,33 +65,31 @@ class OrgInvitationService:
                 inviter_id=operator_id,
                 token=self._generate_token(),
                 default_dept_id=data.default_dept_id,
-                need_approval=data.need_approval if data.need_approval is not None else False,
-                default_role=data.default_role or 'member'
+                need_approval=data.need_approval
+                if data.need_approval is not None
+                else False,
+                default_role=data.default_role or "member",
             )
             self.repo.add(invitation)
             self.db.commit()
         return invitation
 
     def save_and_get_invitation(
-        self,
-        *,
-        token: str,
-        data: OrgInvitationUpdateSettings,
-        operator_id: int
+        self, *, token: str, data: OrgInvitationUpdateSettings, operator_id: int
     ):
         invitation = self.repo.get_by_token(token)
         if invitation is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="邀请链接不存在")
         # 权限校验
-        self._ensure_org_admin(
-                org_id=invitation.org_id,
-                org_type=invitation.org_type,
-                operator_id=operator_id,
-            )
+        self.permission_service.ensure_org_admin(
+            org_id=invitation.org_id,
+            org_type=invitation.org_type,
+            user_id=operator_id,
+        )
         # 更新一些配置(这样写支持重置None)
         update_data = data.model_dump(exclude_unset=True)
-        for field,value in update_data.items():
-            setattr(invitation, field,value)
+        for field, value in update_data.items():
+            setattr(invitation, field, value)
         # if data.default_dept_id is not None:
         #     invitation.default_dept_id = data.default_dept_id
         # if data.need_approval is not None:
@@ -122,16 +99,11 @@ class OrgInvitationService:
         self.db.commit()
         return invitation
 
-    def reset_token(
-        self,
-        *,
-        token: str,
-        operator_id: int
-    ) -> OrgInvitation:
+    def reset_token(self, *, token: str, operator_id: int) -> OrgInvitation:
         invitation = self.repo.get_by_token(token)
         if invitation is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="邀请链接不存在")
-        self._ensure_org_admin(
+        self.permission_service.ensure_org_admin(
             org_id=invitation.org_id,
             org_type=invitation.org_type,
             operator_id=operator_id,
@@ -160,19 +132,23 @@ class OrgInvitationService:
         org_slug = None
         default_dept_name = None
         if invitation.org_type == OrgType.SPACE.value:
-            space = self.db.query(Space).filter(Space.id == invitation.org_id, Space.deleted_at.is_(None)).first()
+            space = (
+                self.db.query(Space)
+                .filter(Space.id == invitation.org_id, Space.deleted_at.is_(None))
+                .first()
+            )
             if not space:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail="目标空间不存在")
             org_icon = space.icon
             org_name = space.name
             org_slug = space.domain  # 这里返回空间域名
             if invitation.default_dept_id:
-                dept = self.space_dept_repo.get_by_id(invitation.default_dept_id)
+                dept = self.space_dept_repo.get_by_id(space_id=space.id,dept_id=invitation.default_dept_id)
                 default_dept_name = dept.name if dept else None
         elif invitation.org_type == OrgType.TEAM.value:
             team = (
                 self.db.query(Team)
-                .filter(Team.id == invitation.org_id,Team.deleted_at.is_(None))
+                .filter(Team.id == invitation.org_id, Team.deleted_at.is_(None))
                 .first()
             )
             org_icon = team.icon
@@ -212,9 +188,12 @@ class OrgInvitationService:
         """通过token拿取相关信息"""
         invitation = self._get_active_invitation_or_404(token)
         # 查出邀请组织的一些信息
-        (org_name, org_icon, org_slug, default_dept_name) = self._resolve_org_display_info(
-            invitation
-        )
+        (
+            org_name,
+            org_icon,
+            org_slug,
+            default_dept_name,
+        ) = self._resolve_org_display_info(invitation)
         # 计算登录人身份
         user_status = self._resolve_user_identity(
             invitation=invitation, user_id=current_user_id
@@ -267,7 +246,7 @@ class OrgInvitationService:
                     else SpaceMemberRole.MEMBER
                 )
                 dept_id = invitation.default_dept_id
-                if dept_id and not self.space_dept_repo.get_by_id(dept_id):
+                if dept_id and not self.space_dept_repo.get_by_id(space_id=invitation.org_id,dept_id=dept_id):
                     # 如果加入前部门被删除了， 会挂载到根部门下
                     dept_id = None
                 self.space_member_service.add_or_restore_member(
@@ -275,9 +254,7 @@ class OrgInvitationService:
                     data=SpaceMemberAdd(
                         user_id=user_id,
                         role=target_role,
-                        department_ids=[dept_id]
-                        if dept_id
-                        else [],
+                        department_ids=[dept_id] if dept_id else [],
                     ),
                 )
             elif invitation.org_type == OrgType.TEAM.value:

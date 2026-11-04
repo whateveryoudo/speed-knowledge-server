@@ -3,12 +3,11 @@
 
 from app.repositories.org_join_request_repository import OrgJoinRequestRepository
 from datetime import datetime
-from app.models.resource_access_request import ResourceAccessRequest
 
 from sqlalchemy.orm import Session
 from app.common.utils import is_duplicate_on
 from fastapi import HTTPException, status
-from app.common.enums import OrgType, ApprovalStatus, SpaceMemberRole
+from app.common.enums import OrgType, ApprovalStatus
 from typing import Optional
 from sqlalchemy.exc import IntegrityError
 from app.models.org_join_request import OrgJoinRequest
@@ -19,7 +18,7 @@ from app.models.org_join_request import OrgJoinRequest
 from app.repositories.org_join_request_repository import OrgJoinRequestRepository
 from app.repositories.space_department_repository import SpaceDepartmentRepository
 from app.services.space_member_service import SpaceMemberService
-from app.common.utils import to_enum
+from app.services.org_permission_service import OrgPermissionService
 
 class OrgJoinRequestService:
     """组织加入审批服务"""
@@ -32,6 +31,7 @@ class OrgJoinRequestService:
         self.repo = OrgJoinRequestRepository(db)
         self.space_dept_repo = SpaceDepartmentRepository(db)
         self.space_member_service = SpaceMemberService(db)
+        self.permission_service = OrgPermissionService(db)
 
     @staticmethod
     def _build_pending_key(
@@ -49,23 +49,7 @@ class OrgJoinRequestService:
             raise HTTPException(status_code=404, detail="审批记录不存在")
         return request
 
-    def _ensure_org_admin(
-        self, *, org_type: OrgType | str, org_id: str, reviewer_id: int
-    ):
-        """校验用户是否有权限审批"""
-        # 枚举判断
-        org_type_enum = to_enum(OrgType, org_type)
-        # 2. 细粒度多态鉴权
-        if org_type_enum == OrgType.SPACE:
-            self.space_member_service.ensure_member_role(
-                space_id=org_id,
-                user_id=reviewer_id,
-                allow_roles=[SpaceMemberRole.ADMIN, SpaceMemberRole.OWNER],
-                detail_message="您不是该空间的管理员或所有者，无权审批加入申请",
-            )
-        elif org_type_enum == OrgType.TEAM:
-            # 后续接入团队时，直接在这里调 team_member_service 校验团队管理员
-            pass
+    
 
     def ensure_pending_request(
         self,
@@ -121,10 +105,10 @@ class OrgJoinRequestService:
         # 开启锁防止并发审批
         access_request = self.get_by_id_or_404(request_id, for_update=True)
         # 权限校验
-        self._ensure_org_admin(
+        self.permission_service.ensure_org_admin(
             org_id=access_request.org_id,
             org_type=access_request.org_type,
-            reviewer_id=reviewer_id
+            user_id=reviewer_id
         )
         if access_request.status != ApprovalStatus.PENDING.value:
             raise HTTPException(status_code=409, detail="该申请已被处理，无法重复操作")
@@ -134,7 +118,7 @@ class OrgJoinRequestService:
             if access_request.org_type == OrgType.SPACE.value:
                 # 空间成员，
                 dept_id = access_request.department_id
-                if dept_id and not self.space_dept_repo.get_by_id(dept_id):
+                if dept_id and not self.space_dept_repo.get_by_id(space_id=access_request.org_id, dept_id=dept_id):
                     dept_id = None
                 self.space_member_service.add_or_restore_member(
                     space_id=access_request.org_id,

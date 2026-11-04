@@ -57,6 +57,6 @@ class OrgJoinRequest(Base):
         comment="更新时间",
     )
     # 关系  
-    applicant = relationship("User", foreign_keys=[applicant_user_id])
-    reviewer = relationship("User", foreign_keys=[reviewed_by])
+    applicant = relationship("User", primaryjoin="OrgJoinRequest.applicant_user_id == User.id", foreign_keys=[applicant_user_id])
+    reviewer = relationship("User", primaryjoin="OrgJoinRequest.reviewed_by == User.id", foreign_keys=[reviewed_by])
   

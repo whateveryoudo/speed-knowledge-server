@@ -28,6 +28,8 @@ from .knowledge_group_relation import KnowledgeGroupRelation
 from .resource_access_setting import ResourceAccessSetting
 from .resource_grant import ResourceGrant
 from .resource_access_request import ResourceAccessRequest
+from .org_invitation import OrgInvitation
+from .org_join_request import OrgJoinRequest
 
 __all__ = [
     "User",
@@ -60,4 +62,6 @@ __all__ = [
     "ResourceAccessSetting",
     "ResourceGrant",
     "ResourceAccessRequest",
+    "OrgInvitation",
+    "OrgJoinRequest"
 ]

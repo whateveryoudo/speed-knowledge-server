@@ -185,7 +185,7 @@ class KnowledgeService(BaseService[Knowledge]):
             space_id=knowledge_in.space_id,
             team_id=knowledge_in.team_id,
         )
-
+        print("进入创建了")
         last_exec: IntegrityError | None = None
         for _ in range(3):
             try:

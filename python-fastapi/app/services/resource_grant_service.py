@@ -466,7 +466,7 @@ class ResourceGrantService:
                 .filter(
                     SpaceMember.space_id == str(space_id),
                     SpaceMember.user_id == user_id,
-                    SpaceMember.is_deleted == False,
+                    SpaceMember.deleted_at.is_(None)
                 )
                 .first()
             )
