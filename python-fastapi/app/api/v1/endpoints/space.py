@@ -9,7 +9,7 @@ from app.core.deps import get_db, get_current_user, get_space_by_host, get_curre
 from app.services.space_member_service import SpaceMemberService
 from app.models.user import User
 from app.models.space import Space
-from app.common.enums import SpaceType, KnowledgeScopeType
+from app.common.enums import SpaceType, KnowledgeScopeType, SpaceMemberRole
 from typing import Optional
 
 router = APIRouter()
@@ -48,6 +48,7 @@ def space_access(
     db: Session = Depends(get_db),
 ):
     """校验当前用户是否可以访问该空间（前端layout使用）"""
+    current_role = None
     if space.type == SpaceType.ORGANIZATION.value:
         member = SpaceMemberService(db).get_member_by_user_id(
             space_id=space.id, user_id=current_user.id
@@ -57,6 +58,11 @@ def space_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="你不是该空间成员，可联系空间管理员添加",
             )
+        current_role = member.role   
+    elif space.owner_id == current_user.id:
+        # 个人空间
+        current_role = SpaceMemberRole.OWNER   
+    space.current_role = current_role
     return space
 
 

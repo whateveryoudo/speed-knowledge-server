@@ -190,7 +190,7 @@ class ResourceCollaborationService:
                 .filter(
                     SpaceMember.space_id == str(space_id),
                     SpaceMember.user_id.in_(user_ids),
-                    SpaceMember.is_deleted == False,
+                    SpaceMember.deleted_at.is_(None),
                 )
                 .all()
             }

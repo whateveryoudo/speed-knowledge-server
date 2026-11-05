@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from app.common.enums.space import SpaceType
+from app.common.enums.space import SpaceType, SpaceMemberRole
 from typing import Optional, Any
 from datetime import datetime
 
@@ -36,6 +36,6 @@ class SpaceResponse(SpaceBase):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
     icon: Optional[Any] = Field(None, description="空间图标")
-
+    current_role: Optional[SpaceMemberRole] = Field(None, description="用户在该空间的角色")
     class Config:
         from_attributes = True
