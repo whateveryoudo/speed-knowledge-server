@@ -44,6 +44,8 @@ class DocumentType(str, Enum):
 
     WORD = "word"  # 富文本文档
     SHEET = "sheet"  # 表格
+    BOARD = "board" # 白板
+    MIND = "mind" # 思维导图
 
 
 class DocumentNodeDragAction(str, Enum):

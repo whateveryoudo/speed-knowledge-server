@@ -81,6 +81,13 @@ export class CollaborationService implements OnModuleInit {
       sheet.destroy();
     }
   }
+  private yStateToBoardJson(state: Uint8Array) {
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(ydoc, state);
+    return {
+      elements: ydoc.getArray("elements").toJSON(),
+    };
+  }
   // 处理tiptap的mention节点，提取出所有attr内容（这里没有定死内容）
   private extractMentionIds(outNode: any, result: MentionItem[] = []) {
     // 注意这里从第一层开始取，
@@ -151,6 +158,7 @@ export class CollaborationService implements OnModuleInit {
     const documentEditHistoryService = this.documentEditHistoryService;
     const vectorSyncService = this.vectorSyncService;
     const yStateToPmJson = this.yStateToPmJson;
+    const yStateToBoardJson = this.yStateToBoardJson;
     const yStateToSheetJson = this.yStateToSheetJson;
     const syncVectorKnowledgeId = this.SYNC_VECTOR_KNOWLEDGE_ID;
     const debounceHandleMention = this.debounceHandleMention.bind(this);
@@ -198,10 +206,14 @@ export class CollaborationService implements OnModuleInit {
           async store({ documentName, state, context }) {
             // 根据文档类型选择正确的转换器
             const doc = await documentService.getDocument(documentName);
-            const isSheet = doc.type === DocumentType.SHEET;
-            const node = isSheet
-              ? yStateToSheetJson(state)
-              : await yStateToPmJson(state);
+            let node: any;
+            if (doc.type === DocumentType.SHEET) {
+              node = yStateToSheetJson(state);
+            } else if (doc.type === DocumentType.BOARD || doc.type === DocumentType.MIND) {
+              node = yStateToBoardJson(state);
+            } else {
+              node = await yStateToPmJson(state);
+            }
             // 先那一遍旧的内容，用于对比
             let oldContentJson = null;
             try {
@@ -227,7 +239,7 @@ export class CollaborationService implements OnModuleInit {
               document_id: documentName,
               edited_datetime: new Date(),
             });
-            if (!isSheet) {
+            if (doc.type == DocumentType.WORD) {
               // 文档特有功能：向量同步，@提及功能
               // 增加向量同步任务(注意：这里需要传入知识库id)
               if (syncVectorKnowledgeId === context.knowledgeId) {

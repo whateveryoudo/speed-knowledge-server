@@ -1,6 +1,8 @@
 export enum DocumentType {
     WORD = "word",
     SHEET = "sheet",
+    BOARD = "board",
+    MIND = "mind",
 }
 
 export enum DocumentVisibility {

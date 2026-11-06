@@ -46,7 +46,7 @@ export class DocumentContentController {
 
     return {
       content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
-      node_json: JSON.stringify({ default : defaultJson }), // 多包一层
+      node_json: JSON.stringify({ default: defaultJson }), // 多包一层
     };
   }
 
@@ -59,7 +59,7 @@ export class DocumentContentController {
     if (!documentContent) {
       throw new HttpException(
         "Document content not found",
-        HttpStatus.NOT_FOUND
+        HttpStatus.NOT_FOUND,
       );
     }
     const nodeData = JSON.parse(documentContent.node_json);
@@ -86,7 +86,7 @@ export class DocumentContentController {
     if (!root || root.length === 0) {
       throw new HttpException(
         "Document root not found",
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -94,7 +94,7 @@ export class DocumentContentController {
     if (!firstChild || firstChild.nodeName !== "title") {
       throw new HttpException(
         "Title node not found in document content",
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -113,7 +113,7 @@ export class DocumentContentController {
     await this.documentContentService.updateContent(
       documentId,
       updatedBinary,
-      updatedJson
+      updatedJson,
     );
     // 保持和py一致
     return {
@@ -131,10 +131,70 @@ export class DocumentContentController {
     const { content, nodeJson } = createDefaultDocumentContent({
       sheetName,
     });
-    console.log(content, nodeJson)
+    console.log(content, nodeJson);
     return {
       content: Buffer.from(content),
       node_json: nodeJson,
+    };
+  }
+
+  private getDefaultBoardContent(): {
+    content: Buffer;
+    node_json: string;
+  } {
+    // 新增白板初始化
+    const ydoc = new Y.Doc();
+    ydoc.getArray("elements");
+    const snapshot = { elements: [] };
+    return {
+      content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
+      node_json: JSON.stringify(snapshot),
+    };
+  }
+
+  private getDefaultMindContent(): {
+    content: Buffer;
+    node_json: string;
+  } {
+    // 新增脑图初始化
+    const ydoc = new Y.Doc();
+    const yElements = ydoc.getArray("elements");
+    const rootNode = {
+      id: `mind-${Date.now().toString(36)}`,
+      type: "mind",
+      points: [[400, 300]],
+      isRoot: true,
+      shape: "roundRectangle",
+      fill: "#f3f4f6",
+      strokeColor: "#e5e7eb",
+      strokeWidth: 1.5,
+      branchColor: "#8b5cf6",
+      branchShape: "curve",
+      layout: "right",
+      data: {
+        topic: {
+          children: [
+            {
+              text: "中心主题",
+              color: "#1f2937",
+              fontSize: 16,
+              fontWeight: "bold",
+            },
+          ],
+          align: "center",
+        },
+      },
+      children: [],
+    };
+    const yMap = new Y.Map();
+    for (const [k, v] of Object.entries(rootNode)) {
+      yMap.set(k, v);
+    }
+    yElements.push([yMap]);
+    const snapshot = { elements: [rootNode] };
+    return {
+      content: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
+      node_json: JSON.stringify(snapshot),
     };
   }
 
@@ -145,11 +205,35 @@ export class DocumentContentController {
     const { documentId } = body;
     const document = await this.documentService.getDocument(documentId);
     console.log(document);
-    const documentContent =
-      document.type === DocumentType.SHEET
-        ? this.getDefaultSheetContent(document.name)
-        : this.getDefaultWordContent(document.name);
-
+    let documentContent: {
+      content: Buffer | null;
+      node_json: string;
+    } = {
+      content: null,
+      node_json: "",
+    };
+    switch (document.type) {
+      case DocumentType.WORD:
+        documentContent = this.getDefaultWordContent(document.name);
+        break;
+      case DocumentType.SHEET:
+        documentContent = this.getDefaultSheetContent(document.name);
+        break;
+      case DocumentType.BOARD:
+        documentContent = this.getDefaultBoardContent();
+        break;
+      case DocumentType.MIND:
+        documentContent = this.getDefaultMindContent();
+        break;
+    }
+    if (!documentContent.content || !documentContent.node_json) {
+      return {
+        success: false,
+        errCode: 500,
+        data: null,
+        errMessage: "Create default content fail",
+      };
+    }
     await this.documentContentService.createContent(
       documentId,
       documentContent.content,
